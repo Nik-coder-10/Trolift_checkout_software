@@ -1,6 +1,7 @@
-import { handleRouteError } from "@/lib/api/errors";
-import { rateLimited } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/rate-limit/index";
+import { withErrorHandling } from "@/lib/api/handler";
+import { notFound } from "@/lib/api/response";
+import { checkRateLimit, denyIfLimited } from "@/lib/rate-limit/index";
+import { authorizeGuestRequest } from "@/lib/guest-access/guard";
 import { getInvoiceData } from "@/lib/invoices/service";
 import { renderInvoicePdf } from "@/lib/invoices/pdf";
 import { invoicePdfResponse } from "@/lib/invoices/response";
@@ -11,26 +12,28 @@ export const runtime = "nodejs";
 /**
  * GET /api/orders/[id]/invoice — the order's tax-invoice PDF.
  *
- * Authorization mirrors the order page exactly: the unguessable order
- * UUID in the PATH is the capability (guest-capable, no login). There
- * is deliberately no `?id=` accessor — query values are ignored, so no
- * alternate probe endpoint exists. Unknown/malformed ids fail closed
- * with 404 (no IDOR oracle); unpaid orders get 409, never a PDF.
+ * Authorization: the HttpOnly guest cookie for THIS order (or a
+ * one-time `?key=` bearer exchanged the same way). The order UUID
+ * alone authorizes nothing. Unknown/malformed ids and missing/invalid
+ * tokens all fail closed with 404 (no IDOR oracle); unpaid orders get
+ * 409, never a PDF. The `?id=` query value is ignored.
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   req: Request,
   { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const rl = checkRateLimit(req, "invoice");
-    if (!rl.allowed) return rateLimited(rl.resetMs);
-    const { id } = await params;
-    const invoice = await getInvoiceData(id);
-    const pdf = await renderInvoicePdf(invoice);
-    const inline =
-      new URL(req.url).searchParams.get("disposition") === "inline";
-    return invoicePdfResponse(invoice.invoiceNumber, pdf, inline);
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+) => {
+  const { id } = await params;
+  const denied = await denyIfLimited(
+    "invoice",
+    await checkRateLimit(req, "invoice", { dims: { resourceId: id } }),
+  );
+  if (denied) return denied;
+  const url = new URL(req.url);
+  const key = url.searchParams.get("key");
+  const ok = await authorizeGuestRequest(id, req, key);
+  if (!ok) return notFound("Invoice not found.");
+  const invoice = await getInvoiceData(id);
+  const pdf = await renderInvoicePdf(invoice);
+  const inline = url.searchParams.get("disposition") === "inline";
+  return invoicePdfResponse(invoice.invoiceNumber, pdf, inline);
+});

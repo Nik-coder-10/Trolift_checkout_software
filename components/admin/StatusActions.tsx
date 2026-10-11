@@ -16,6 +16,8 @@ const LABELS: Record<OrderStatus, string> = {
   paid: "Paid",
   confirmed: "Confirmed",
   processing: "Processing",
+  packed: "Packed",
+  ready_for_dispatch: "Ready for dispatch",
   shipped: "Shipped",
   dispatched: "Dispatched",
   delivered: "Delivered",
@@ -51,6 +53,8 @@ export function StatusActions({
     (current === "confirmed" || current === "processing") &&
     hasPacked &&
     !hasReady;
+  const canDispatch =
+    current === "ready_for_dispatch" && !hasReady;
 
   const runStep = async (step: "packed" | "ready_for_dispatch") => {
     setBusy(true);

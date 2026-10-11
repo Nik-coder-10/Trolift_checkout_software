@@ -7,7 +7,7 @@ import { CategoryFilter } from "@/components/products/CategoryFilter";
 import { FilterBar } from "@/components/products/FilterBar";
 import { Pagination } from "@/components/products/Pagination";
 import { ProductGrid } from "@/components/products/ProductGrid";
-import { getCataloguePage, getCategories } from "@/lib/catalog/queries";
+import { getCataloguePage } from "@/lib/catalog/queries";
 import {
   buildCatalogueHref,
   parseCatalogueParams,
@@ -21,7 +21,9 @@ export async function generateMetadata({
   searchParams: Promise<SearchParams>;
 }): Promise<Metadata> {
   const params = parseCatalogueParams(await searchParams);
-  // Category name only (cached, shared with the page — no product query).
+  // Category name only — use the cached getCategories() which is shared
+  // with the page component through React's cache layer.
+  const { getCategories } = await import("@/lib/catalog/queries");
   const categories = await getCategories();
   const active = params.categorySlug
     ? (categories.find((c) => c.slug === params.categorySlug)?.name ?? null)

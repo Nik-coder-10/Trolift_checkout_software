@@ -1,13 +1,10 @@
 import { ok } from "@/lib/api/response";
+import { withErrorHandling } from "@/lib/api/handler";
 
-/**
- * GET /api/health — liveness probe + convention example.
- * No auth, no secrets, no DB access. Safe for load balancers.
- */
-export async function GET() {
+export const GET = withErrorHandling(async (_req: Request) => {
   return ok({
     status: "ok",
     service: "trolift-platform",
     time: new Date().toISOString(),
   });
-}
+});

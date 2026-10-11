@@ -26,11 +26,13 @@ describe("buildTimeline (mirrors DB order_status)", () => {
   it("advances one stage at a time without skipping", () => {
     const at = (s: Parameters<typeof buildTimeline>[0]) =>
       buildTimeline(s).stages.map((x) => x.state);
-    expect(at("confirmed")).toEqual(["done", "done", "current", "todo", "todo", "todo"]);
-    expect(at("processing")).toEqual(["done", "done", "done", "current", "todo", "todo"]);
-    expect(at("shipped")).toEqual(["done", "done", "done", "current", "todo", "todo"]);
-    expect(at("dispatched")).toEqual(["done", "done", "done", "done", "current", "todo"]);
-    expect(at("delivered")).toEqual(["done", "done", "done", "done", "done", "done"]);
+    expect(at("confirmed")).toEqual(["done", "done", "current", "todo", "todo", "todo", "todo", "todo"]);
+    expect(at("processing")).toEqual(["done", "done", "done", "current", "todo", "todo", "todo", "todo"]);
+    expect(at("packed")).toEqual(["done", "done", "done", "done", "current", "todo", "todo", "todo"]);
+    expect(at("ready_for_dispatch")).toEqual(["done", "done", "done", "done", "done", "current", "todo", "todo"]);
+    expect(at("shipped")).toEqual(["done", "done", "done", "done", "done", "done", "current", "todo"]);
+    expect(at("dispatched")).toEqual(["done", "done", "done", "done", "done", "done", "current", "todo"]);
+    expect(at("delivered")).toEqual(["done", "done", "done", "done", "done", "done", "done", "done"]);
   });
 
   it("marks cancelled orders without completing the future", () => {
@@ -57,7 +59,9 @@ describe("order transitions (single forward spine, no jumps)", () => {
     ["payment_submitted", "confirmed"],
     ["paid", "confirmed"],
     ["confirmed", "processing"],
-    ["processing", "dispatched"],
+    ["processing", "packed"],
+    ["packed", "ready_for_dispatch"],
+    ["ready_for_dispatch", "dispatched"],
     ["shipped", "dispatched"],
     ["dispatched", "delivered"],
   ];
@@ -82,7 +86,7 @@ describe("order transitions (single forward spine, no jumps)", () => {
 
   it("covers every schema status with no dead ends except terminals", () => {
     const states = Object.keys(ORDER_TRANSITIONS) as OrderStatus[];
-    expect(states).toHaveLength(10);
+    expect(states).toHaveLength(12);
     for (const s of states) {
       if (s === "delivered" || s === "cancelled") {
         expect(isTerminalStatus(s)).toBe(true);
@@ -96,7 +100,7 @@ describe("order transitions (single forward spine, no jumps)", () => {
     for (const s of ["draft", "pending_payment", "payment_submitted"] as const) {
       expect(isCustomerCancellable(s)).toBe(true);
     }
-    for (const s of ["confirmed", "processing", "dispatched", "delivered", "cancelled"] as const) {
+    for (const s of ["confirmed", "processing", "packed", "ready_for_dispatch", "dispatched", "delivered", "cancelled"] as const) {
       expect(isCustomerCancellable(s)).toBe(false);
     }
   });

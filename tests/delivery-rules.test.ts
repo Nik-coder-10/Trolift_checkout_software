@@ -216,7 +216,9 @@ describe("rule engine (precedence + selection)", () => {
     ]);
     expect(q.selected?.deliveryChargePaise).toBe(45000);
     expect(q.appliedRules).toEqual([]);
-    expect(q.totalWeightKg).toBe(0);
+    // Unknown weight is reported as unknown (null) — 0 would be a
+    // fabricated measurement and could silently select a slab.
+    expect(q.totalWeightKg).toBeNull();
   });
 
   it("prefers priority, then the lowest partner total", async () => {

@@ -33,6 +33,13 @@ export function ClaimForm({ orderId }: { orderId: string }) {
     setSubmitting(true);
     setError(null);
     try {
+      // The HttpOnly guest cookie authorizes this automatically; if the
+      // customer arrived on a one-time `?key=` link that has not been
+      // exchanged yet, forward it as well (memory only, never stored).
+      const key =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("key")
+          : null;
       const res = await fetch("/api/payments/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -40,6 +47,7 @@ export function ClaimForm({ orderId }: { orderId: string }) {
           orderId,
           reference: reference.trim(),
           phone: phone.trim(),
+          ...(key ? { accessToken: key } : {}),
         }),
       });
       const json = (await res.json()) as ApiResponse<{ orderNumber: string }>;

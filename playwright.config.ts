@@ -11,6 +11,11 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
+  // e2e/staging is the live-backend suite owned by
+  // playwright.staging.config.ts (`npm run test:e2e:staging`). It needs
+  // credentials and a running Supabase stack, so it must never be swept
+  // into this hermetic, credential-free project.
+  testIgnore: ["staging/**"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

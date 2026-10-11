@@ -22,6 +22,13 @@
 | `0019_delivery_rules.sql` | Delivery rules: `products.weight_kg`, pincode `remote_surcharge`, `delivery_weight_slabs` (per-partner bands replacing base), `delivery_category_rules` (flat per-order handling), order `delivery_weight_kg` + `delivery_rule_summary` snapshots, `create_order()` replacement. |
 | `0020_bulk_operations.sql` | Bulk ops: append-only `admin_audit_log` + atomic `import_products()` (slug-matched) / `import_rates()` (pair-matched) RPCs — any failure rolls the whole file back. |
 | `0021_order_event_types.sql` | Canonical events: `order_events.event_type` (closed CHECK) + `actor_type` + `metadata` JSONB, backfilled from legacy actions (STATUS_CHANGED bucket for unknowns), new `created_at`/`event_type` indexes, `create_order()` replacement emitting in-transaction `ORDER_CREATED`. |
+| `0022_performance_indexes.sql` | Query-pattern indexes (orders/customer/status, rates, products, events, reservations, payments, customer trigrams). |
+| `0023_shipments.sql` | `shipments` 1:1 dispatch table + admin-only RLS + `updated_at` trigger. |
+| `0024_admin_command_center.sql` | Self-guarding `get_admin_command_center()` RPC (admin dashboard in one round-trip). |
+| `0025_staff_notes.sql` | `staff_notes` (admin-only RLS; anon has no grant at all). |
+| `0026_guest_order_tokens.sql` | `order_access_tokens` (SHA-256 hashes only, one-active index, RLS, no grants). Replaces the removed `0024_order_access_tokens.sql`, which shared its version prefix with `0024_admin_command_center.sql` and halted fresh databases (`schema_migrations_pkey (0024)`). |
+| `0027_command_center_total_fix.sql` | Forward fix: `sum(value::integer)` in `get_admin_command_center()` — the 0024 form (`sum(text)`) errored on every call on live PostgreSQL. |
+| `0028_revoke_anon_rpc.sql` | Forward fix: explicit `revoke execute ... from anon` on order/inventory/import/invoice/admin RPCs. Supabase default privileges leave `anon=X` on new functions, so the earlier `revoke ... from public` clauses did not stop anonymous RPC execution. |
 | `0006_rls.sql` | Grants + `is_admin()` helper + RLS policies (see below). |
 | `0007_hardening.sql` | Missing FK indexes, `TS-YYMMDD-SEQ` order numbers + format CHECK, `order_items` timestamps. |
 | `0008_search.sql` | `pg_trgm` + trigram index + `search_products()` RPC (ILIKE recall, similarity ranking, price/category windows, clamped pagination). |
@@ -105,3 +112,26 @@ supabase gen types typescript --linked > types/database-generated.ts
 Validated locally on PostgreSQL 16 (docker): full ordered apply +
 30+ behavioural checks (constraint rejections, snapshot immutability,
 RESTRICT/CASCADE, trigger firing, anon/authenticated RLS behaviour).
+
+## Staging verification (Prompt 43, live disposable Supabase)
+
+Run against a local disposable stack (`supabase start`, 127.0.0.1 —
+never production), then execute the checks below (55/55 green on
+2026-10-09; harness kept outside the repo, uses `STG43`-prefixed data
+only and cleans up after itself):
+
+```bash
+supabase db reset --version <latest>   # NOTE: CLI v2.26.0 on Windows
+                                       # silently skips the last migration
+                                       # file; --version forces the target
+node staging-verify.mjs                # RLS + RPC + transactional suite
+```
+
+Proven live: ordered history 0001–0028; RLS denies anon/non-admin on
+all sensitive tables (staff_notes: hard 403, no anon grant); admin
+RPCs deny non-admins and serve admins (post-0027); `create_order`
+snapshots + idempotency + exactly-one-winner concurrency with no
+negative stock; restore/consume exactly-once; invoice UNIQUE + freeze
+trigger; CHECK-level rollback with no partial rows; anon RPC execution
+revoked (post-0028). Known CLI quirk and the two fixed migration bugs
+are detailed in the staging report.

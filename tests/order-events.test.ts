@@ -334,9 +334,10 @@ describe("emission on state operations", () => {
   });
 });
 
-describe("fulfilment milestones (no state-machine change)", () => {
+describe("fulfilment milestones (now part of order status lifecycle)", () => {
   it("packs then readies in order, each at most once", async () => {
     const done = new Set<string>();
+    let currentStatus = "processing";
     const inserts = wireOrderFlow({ orderStatus: "processing" });
     const prev = handler;
     handler = (op) => {
@@ -348,6 +349,13 @@ describe("fulfilment milestones (no state-machine change)", () => {
           })),
           error: null,
         };
+      }
+      if (op.table === "orders" && op.updateValues) {
+        currentStatus = (op.updateValues as Record<string, string>).order_status ?? currentStatus;
+        return { rows: [{ id: ORDER_ID }], error: null };
+      }
+      if (op.table === "orders" && !op.updateValues) {
+        return { rows: [{ id: ORDER_ID, order_number: "TS-261005-0001", payment_status: "submitted", order_status: currentStatus }], error: null };
       }
       return prev(op);
     };

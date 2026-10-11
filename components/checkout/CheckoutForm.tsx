@@ -236,10 +236,27 @@ export function CheckoutForm() {
         orderNumber: string;
         totalPaise: number;
         duplicate: boolean;
+        guestToken: string | null;
       }>;
       if (!json.ok) {
         setPlaceError(json.error.message);
         return;
+      }
+      // The checkout response already set the HttpOnly guest cookie;
+      // belt-and-braces: exchange the one-time token into the cookie so
+      // the session survives even if the Set-Cookie was not stored.
+      // The raw token lives only in this closure — never localStorage.
+      const oneTimeToken = json.data.guestToken;
+      if (oneTimeToken) {
+        try {
+          await fetch(`/api/orders/${json.data.id}/session`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: oneTimeToken }),
+          });
+        } catch {
+          // Cookie from the order response normally suffices.
+        }
       }
       setPlaced({
         orderId: json.data.id,

@@ -27,6 +27,7 @@ import { POST } from "@/app/api/orders/route";
 const P1 = "b1c2d3e4-0004-4000-8000-000000000004";
 const PARTNER = "a1b2c3d4-0001-4000-8000-000000000001";
 const KEY = "c0ffee00-0001-4000-8000-000000000001";
+const CREATED_ORDER_ID = "123e4567-e89b-12d3-a456-426614174001";
 
 const rateRow = (charge: string) => ({
   delivery_partner_id: PARTNER,
@@ -87,13 +88,23 @@ function wireDb(price: string, charge: string) {
   };
   adminHandler = (op) => {
     if (op.rpc === "create_order") {
-      return { rows: "order-id-1" as unknown as unknown[], error: null };
+      return { rows: CREATED_ORDER_ID as unknown as unknown[], error: null };
+    }
+    if (op.table === "order_access_tokens") {
+      // Issuance stores the hash; the raw token goes out once in the body.
+      if (op.updateValues !== undefined) {
+        return { rows: [{ id: "tok-1" }], error: null };
+      }
+      return { rows: [], error: null };
+    }
+    if (op.table === "order_events") {
+      return { rows: [], error: null };
     }
     if (op.table === "orders") {
       return {
         rows: [
           {
-            id: "order-id-1",
+            id: CREATED_ORDER_ID,
             order_number: "TS-261004-0001",
             subtotal,
             delivery_charge: charge,
@@ -127,6 +138,10 @@ describe("POST /api/orders (server-authoritative totals)", () => {
       duplicate: false,
     });
     expect(json.data).not.toHaveProperty("customer_id");
+    // One-time guest token issued; only its hash is stored server-side.
+    expect(typeof json.data["guestToken"]).toBe("string");
+    expect(String(json.data["guestToken"])).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(res.headers.get("Set-Cookie") ?? "").toContain("HttpOnly");
   });
 
   it("ignores every client-submitted money/status field", async () => {
@@ -262,11 +277,17 @@ describe("POST /api/orders (server-authoritative totals)", () => {
           error: { message: "duplicate key", code: "23505" },
         };
       }
+      if (op.table === "order_access_tokens") {
+        if (op.updateValues !== undefined) {
+          return { rows: [{ id: "tok-1" }], error: null };
+        }
+        return { rows: [], error: null };
+      }
       if (op.table === "orders") {
         return {
           rows: [
             {
-              id: "order-id-1",
+              id: CREATED_ORDER_ID,
               order_number: "TS-261004-0001",
               subtotal: "12598.00",
               delivery_charge: "450.00",

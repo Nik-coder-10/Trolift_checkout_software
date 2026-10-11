@@ -139,7 +139,8 @@ export async function getProductSlugs(): Promise<string[]> {
   const { data, error } = await supabase
     .from("products")
     .select("slug")
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .limit(10000);
   if (error) {
     console.error("[catalog] slugs query failed:", error.message);
     return ALL_PRODUCTS.map((p) => p.slug);
@@ -220,7 +221,8 @@ export const getCategories = cache(
     const { data, error } = await supabase
       .from("products")
       .select("category")
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .limit(10000);
     if (error) {
       console.error("[catalog] categories query failed:", error.message);
       return PRODUCT_CATEGORIES;

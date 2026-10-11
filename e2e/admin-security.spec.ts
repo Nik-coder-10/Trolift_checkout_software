@@ -19,7 +19,20 @@ test.describe("admin and access control", () => {
         .getByRole("heading", { name: /sign in(required)?/i })
         .first(),
     ).toBeVisible();
+    await expect(page.getByText(/command center|needs attention/i)).toHaveCount(0);
     await expect(page.getByText(/dashboard/i)).toHaveCount(0);
+  });
+
+  test("command center queue filters reject anonymous deep links", async ({
+    page,
+  }) => {
+    await page.goto("/admin/orders?payment=submitted");
+    await expect(
+      page
+        .getByRole("heading", { name: /sign in(required)?/i })
+        .first(),
+    ).toBeVisible();
+    await expect(page.getByText(/TS-\d/i)).toHaveCount(0);
   });
 
   test("login page renders email/password form", async ({ page }) => {
@@ -54,10 +67,43 @@ test.describe("admin and access control", () => {
       "/api/admin/orders",
       "/api/admin/customers",
       "/api/admin/export/products",
+      "/api/admin/notes",
     ]) {
       const res = await request.get(url);
       expect(res.status(), url).toBe(401);
     }
+  });
+
+  test("staff notes API denies anonymous reads, writes and edits", async ({
+    request,
+  }) => {
+    const uuid = "123e4567-e89b-42d3-a456-426614174000";
+    // Authorization is checked before entity validation: an
+    // unsupported entity type leaks nothing to a guest either.
+    const results = [
+      await request.get(`/api/admin/notes?entityType=order&entityId=${uuid}`),
+      await request.get(
+        `/api/admin/notes?entityType=admin_audit_log&entityId=${uuid}`,
+      ),
+      await request.post("/api/admin/notes", {
+        data: { entityType: "order", entityId: uuid, body: "x" },
+      }),
+      await request.patch("/api/admin/notes", {
+        data: { noteId: uuid, body: "x" },
+      }),
+      await request.delete(`/api/admin/notes?id=${uuid}`),
+    ];
+    for (const res of results) {
+      expect(res.status()).toBe(401);
+    }
+  });
+
+  test("customer order tracking never shows internal staff notes", async ({
+    page,
+  }) => {
+    await page.goto("/orders/123e4567-e89b-12d3-a456-426614174000");
+    await expect(page.getByText(/internal notes/i)).toHaveCount(0);
+    await expect(page.getByText(/staff-only/i)).toHaveCount(0);
   });
 
   test("public APIs stay reachable without a session", async ({
@@ -65,5 +111,33 @@ test.describe("admin and access control", () => {
   }) => {
     const health = await request.get("/api/health");
     expect(health.status()).toBe(200);
+  });
+
+  test("cross-origin mutations are rejected at the API edge", async ({
+    request,
+  }) => {
+    // Cookie-authenticated writes must not be drivable from another
+    // origin, even with credentials attached by the browser.
+    const res = await request.post("/api/admin/products", {
+      headers: { Origin: "https://evil.example" },
+      data: { name: "csrf attempt" },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("robots.txt and sitemap.xml are served", async ({ request }) => {
+    const robots = await request.get("/robots.txt");
+    expect(robots.status()).toBe(200);
+    const robotsText = await robots.text();
+    expect(robotsText).toContain("Sitemap:");
+    expect(robotsText).toContain("/admin");
+
+    const sitemap = await request.get("/sitemap.xml");
+    expect(sitemap.status()).toBe(200);
+    const xml = await sitemap.text();
+    expect(xml).toContain("/products");
+    // Capability URLs and admin surfaces must never be listed.
+    expect(xml).not.toContain("/orders/");
+    expect(xml).not.toContain("/admin/");
   });
 });

@@ -13,6 +13,8 @@ export type OrderStatus =
   | "paid"
   | "confirmed"
   | "processing"
+  | "packed"
+  | "ready_for_dispatch"
   | "shipped"
   | "dispatched"
   | "delivered"

@@ -167,9 +167,16 @@ async function validateRateRows(
   client: AdminClient,
   rows: CsvRateRow[],
 ): Promise<{ valid: ValidatedRate[]; invalid: ImportRowError[] }> {
-  const { data: partners, error: partnerError } = await client
-    .from("delivery_partners")
-    .select("id,name");
+  const [{ data: partners, error: partnerError }, { data: stored }] = await Promise.all([
+    client
+      .from("delivery_partners")
+      .select("id,name")
+      .limit(1000),
+    client
+      .from("delivery_pincode_rates")
+      .select("pincode,delivery_partner_id,remote_surcharge")
+      .limit(100000),
+  ]);
   if (partnerError) {
     throw new AppError("INTERNAL_ERROR", "Could not load partners.", 500);
   }
@@ -180,9 +187,6 @@ async function validateRateRows(
   );
   // Remote surcharges live outside the CSV: carry stored values through
   // so re-imports never wipe them.
-  const { data: stored } = await client
-    .from("delivery_pincode_rates")
-    .select("pincode,delivery_partner_id,remote_surcharge");
   const storedRemote = new Map(
     ((stored ?? []) as unknown as Array<{
       pincode: string;
@@ -241,7 +245,7 @@ async function validateRateRows(
 
 /** Existing slugs for create/update classification (one narrow query). */
 async function existingSlugs(client: AdminClient): Promise<Set<string>> {
-  const { data, error } = await client.from("products").select("slug");
+  const { data, error } = await client.from("products").select("slug").limit(100000);
   if (error) {
     throw new AppError("INTERNAL_ERROR", "Could not match existing products.", 500);
   }
@@ -254,7 +258,8 @@ async function existingSlugs(client: AdminClient): Promise<Set<string>> {
 async function existingPairs(client: AdminClient): Promise<Set<string>> {
   const { data, error } = await client
     .from("delivery_pincode_rates")
-    .select("pincode,delivery_partner_id");
+    .select("pincode,delivery_partner_id")
+    .limit(100000);
   if (error) {
     throw new AppError("INTERNAL_ERROR", "Could not match existing rates.", 500);
   }

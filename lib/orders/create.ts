@@ -52,8 +52,13 @@ export async function persistOrder(input: {
       delivery_partner_id: quote.deliveryPartnerId,
       delivery_partner_name: quote.deliveryPartnerName,
       gstin_snapshot: input.customer.gstin,
+      // Unknown/non-positive weights persist as NULL: the database
+      // CHECK requires weight > 0 when present, so a 0/NaN slip must
+      // never reach the insert (live staging proved a 500 otherwise).
       delivery_weight_kg:
-        quote.deliveryWeightKg === null ? null : quote.deliveryWeightKg.toFixed(3),
+        quote.deliveryWeightKg === null || !(quote.deliveryWeightKg > 0)
+          ? null
+          : quote.deliveryWeightKg.toFixed(3),
       delivery_rule_summary: quote.deliveryRuleSummary,
       payment_status: "pending",
       order_status: "pending_payment",

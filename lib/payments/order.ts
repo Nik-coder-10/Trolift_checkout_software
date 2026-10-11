@@ -1,5 +1,11 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyGuestToken } from "@/lib/guest-access/guard";
+import {
+  maskGstin,
+  maskPhoneFull,
+  maskReference,
+} from "@/lib/guest-access/tokens";
 import {
   customerSafeTimeline,
   type CustomerTimelineEntry,
@@ -10,9 +16,21 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Payment-page view model (server-only). Order UUIDs are unguessable
- * capability links, so no login is required to view one's own order —
- * but only this safe projection is ever returned, never raw rows.
+ * Customer-safe order projection (server-only).
+ *
+ * Two entry points:
+ * - `getPayableOrderForAdmin(orderId)` — admin workflows only (existing
+ *   admin authorization applies upstream). Returns the same redacted
+ *   customer-safe shape; admins needing full PII use admin services.
+ * - `getPayableOrderForGuest(orderId, token)` — guest pages/API routes.
+ *   The order UUID alone authorizes NOTHING: a valid, unexpired,
+ *   unrevoked token bound to THIS order is required. Missing/invalid
+ *   input returns null without touching the database (no oracle, no
+ *   wasted service-role reads).
+ *
+ * PII discipline: phone is masked, GSTIN is masked (full value lives
+ * only in the authorized invoice PDF), payment references show last-4
+ * only, and email / billing street / internal notes are never selected.
  */
 
 export interface PayableOrderItem {
@@ -39,9 +57,11 @@ export interface PayableOrder {
   id: string;
   orderNumber: string;
   customerName: string;
-  customerPhone: string | null;
+  /** Masked — full phone never leaves the server except via recovery. */
+  customerPhoneMasked: string;
   billingName: string | null;
-  gstinSnapshot: string | null;
+  /** Masked — full GSTIN lives only in the authorized invoice PDF. */
+  gstinMasked: string | null;
   tax: OrderTaxBreakdown;
   /** Shipment tracking (courier integration phase; null until then). */
   tracking: ShipmentTracking | null;
@@ -53,7 +73,8 @@ export interface PayableOrder {
   deliveryPincode: string;
   deliveryPartnerName: string;
   items: PayableOrderItem[];
-  paymentReference: string | null;
+  /** Last-4 only — the full UTR never appears in order views. */
+  paymentReferenceMasked: string | null;
   createdAt: string;
   /**
    * Customer-safe event feed (labels + timestamps only — built through
@@ -69,19 +90,33 @@ const toPaise = (decimal: string): number =>
 export async function getPayableOrder(
   orderId: string,
 ): Promise<PayableOrder | null> {
+  return getPayableOrderForAdmin(orderId);
+}
+
+/** Admin-only loader: upstream admin auth still required. */
+export async function getPayableOrderForAdmin(
+  orderId: string,
+): Promise<PayableOrder | null> {
   if (!UUID_RE.test(orderId)) return null;
   const admin = createAdminClient();
 
-  const { data: order, error: orderError } = await admin
-    .from("orders")
-    .select(
-      "id,order_number,customer_id,subtotal,delivery_charge,total_amount," +
-        "delivery_pincode,delivery_partner_name,gstin_snapshot," +
-        "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
-        "billing_name,payment_status,order_status,created_at",
-    )
-    .eq("id", orderId)
-    .maybeSingle();
+  const [{ data: order, error: orderError }, { data: shipment }] = await Promise.all([
+    admin
+      .from("orders")
+      .select(
+        "id,order_number,customer_id,subtotal,delivery_charge,total_amount," +
+          "delivery_pincode,delivery_partner_name,gstin_snapshot," +
+          "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
+          "billing_name,payment_status,order_status,created_at",
+      )
+      .eq("id", orderId)
+      .maybeSingle(),
+    admin
+      .from("shipments")
+      .select("tracking_reference,expected_delivery_date,dispatched_at,delivered_at")
+      .eq("order_id", orderId)
+      .maybeSingle(),
+  ]);
   const o = order as unknown as {
     id: string;
     order_number: string;
@@ -149,12 +184,12 @@ export async function getPayableOrder(
     id: o.id,
     orderNumber: o.order_number,
     customerName: c?.name ?? "Customer",
-    customerPhone: c?.phone ?? null,
+    customerPhoneMasked: maskPhoneFull(c?.phone ?? null),
     orderStatus: o.order_status,
     paymentStatus: p?.status ?? o.payment_status,
     deliveryPincode: o.delivery_pincode,
     deliveryPartnerName: o.delivery_partner_name,
-    gstinSnapshot: o.gstin_snapshot,
+    gstinMasked: maskGstin(o.gstin_snapshot),
     billingName: o.billing_name,
     tax: {
       treatment: o.tax_treatment,
@@ -171,7 +206,7 @@ export async function getPayableOrder(
       quantity: r.quantity,
       lineTotalPaise: toPaise(r.line_total),
     })),
-    paymentReference: p?.transaction_reference ?? null,
+    paymentReferenceMasked: maskReference(p?.transaction_reference ?? null),
     createdAt: o.created_at,
     timeline: customerSafeTimeline(
       eventRows.map((e) => ({
@@ -179,8 +214,30 @@ export async function getPayableOrder(
         createdAt: e.created_at,
       })),
     ),
-    // No courier integration yet: no tracking columns exist, so this is
-    // always null and the UI renders the "available after dispatch" note.
-    tracking: null,
+    tracking: shipment
+      ? {
+          trackingNumber: shipment.tracking_reference ?? "",
+          trackingUrl: null,
+          estimatedDeliveryDate: shipment.expected_delivery_date
+            ? new Date(shipment.expected_delivery_date).toLocaleDateString("en-IN")
+            : null,
+        }
+      : null,
   };
+}
+
+/**
+ * Guest loader: UUID alone authorizes nothing. Verifies the bearer
+ * token (bound to this order, unexpired, unrevoked) BEFORE reading the
+ * order row, so unauthenticated probes cause no order-table reads and
+ * learn nothing (null === missing, uniformly).
+ */
+export async function getPayableOrderForGuest(
+  orderId: string,
+  rawToken: string | null | undefined,
+): Promise<PayableOrder | null> {
+  if (!UUID_RE.test(orderId)) return null;
+  const ok = await verifyGuestToken(orderId, rawToken);
+  if (!ok) return null;
+  return getPayableOrderForAdmin(orderId);
 }

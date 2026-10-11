@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
 
-/** Catalogue error state (e.g. database unreachable at render time). */
 export default function ProductsError({
   error,
   reset,
@@ -13,19 +12,28 @@ export default function ProductsError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[products] Catalogue error:", error);
+    console.error("[app] Products route error:", error);
   }, [error]);
+
+  const referenceId =
+    "digest" in error && typeof error.digest === "string"
+      ? error.digest
+      : "referenceId" in error && typeof (error as { referenceId: unknown }).referenceId === "string"
+        ? (error as { referenceId: string }).referenceId
+        : null;
 
   return (
     <Container>
       <div role="alert" className="flex flex-col items-start gap-3 py-10">
-        <h1 className="text-xl font-bold text-zinc-900">
-          Couldn&apos;t load the catalogue.
-        </h1>
+        <h1 className="text-xl font-bold text-zinc-900">Unable to load products.</h1>
         <p className="max-w-md text-sm text-zinc-500">
-          Please try again. If the problem persists, contact sales for
-          availability and quotes.
+          Something went wrong while loading the catalogue. Please try again.
         </p>
+        {referenceId && (
+          <p className="text-xs text-zinc-400">
+            Reference: <span className="font-mono">{referenceId}</span>
+          </p>
+        )}
         <Button onClick={reset} variant="secondary">
           Try again
         </Button>

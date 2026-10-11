@@ -167,6 +167,10 @@ export function eventTypeForTransition(
       return "ORDER_CONFIRMED";
     case "processing":
       return "PROCESSING_STARTED";
+    case "packed":
+      return "PACKED";
+    case "ready_for_dispatch":
+      return "READY_FOR_DISPATCH";
     case "dispatched":
       return "DISPATCHED";
     case "delivered":

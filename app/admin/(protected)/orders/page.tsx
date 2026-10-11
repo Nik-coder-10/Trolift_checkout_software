@@ -17,7 +17,8 @@ export const metadata: Metadata = {
 const PAYMENT_OPTIONS = ["pending", "submitted", "paid", "failed", "cancelled", "refunded"];
 const STATUS_OPTIONS = [
   "draft", "pending_payment", "payment_submitted", "paid", "confirmed",
-  "processing", "shipped", "dispatched", "delivered", "cancelled",
+  "processing", "packed", "ready_for_dispatch", "shipped", "dispatched",
+  "delivered", "cancelled",
 ];
 const SORT_OPTIONS = [
   ["newest", "Newest first"],

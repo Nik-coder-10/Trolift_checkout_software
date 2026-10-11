@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Alert } from "@/components/ui/Alert";
@@ -6,15 +7,20 @@ import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { PriceDisplay } from "@/components/ui/PriceDisplay";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/StatusBadge";
 import { OrderActions } from "@/components/orders/OrderActions";
-import { getPayableOrder } from "@/lib/payments/order";
-import { buildTimeline, maskPhone } from "@/lib/orders/display";
+import { GuestKeyExchange } from "@/components/orders/GuestKeyExchange";
+import { getPayableOrderForGuest } from "@/lib/payments/order";
+import { guestCookieName } from "@/lib/guest-access/tokens";
+import { buildTimeline } from "@/lib/orders/display";
 
 async function loadOrder(id: string) {
   try {
-    return await getPayableOrder(id);
+    const store = await cookies();
+    const token = store.get(guestCookieName(id))?.value ?? null;
+    return await getPayableOrderForGuest(id, token);
   } catch (error) {
     // Fail closed: unreadable orders look exactly like missing ones.
-    console.error("[order] Failed to load order:", error);
+    // The token value is never logged.
+    console.error("[order] Failed to load order.");
     return null;
   }
 }
@@ -34,9 +40,11 @@ export async function generateMetadata({
 }
 
 /**
- * Order confirmation + details (guest-capable via unguessable order
- * UUID, noindex). Everything renders server-side from DB snapshots,
- * so refresh and revisit are always correct.
+ * Order confirmation + details. Guest access requires the HttpOnly
+ * session cookie issued at checkout (or via recovery/rotation) — the
+ * order UUID alone authorizes nothing. A one-time `?key=` link is
+ * exchanged into that cookie by <GuestKeyExchange/> and stripped from
+ * the URL so tokens avoid history, referrers and screenshots.
  */
 export default async function OrderPage({
   params,
@@ -46,11 +54,36 @@ export default async function OrderPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const order = await loadOrder(id);
-  if (!order) notFound();
-
   const sp = await searchParams;
+  const keyParam = sp["key"];
+  const order = await loadOrder(id);
+  if (!order) {
+    // A one-time `?key=` link arrives without the cookie by definition:
+    // render the exchanger (which POSTs the key, sets the cookie and
+    // strips the URL) instead of 404ing. No order data renders here —
+    // an invalid key still ends at not-found after the exchange fails.
+    if (typeof keyParam === "string" && keyParam !== "") {
+      return (
+        <div className="mx-auto w-full max-w-xl px-4 py-6 sm:px-6">
+          <Breadcrumbs
+            items={[
+              { label: "Home", href: "/" },
+              { label: "Products", href: "/products" },
+              { label: "Verifying order link" },
+            ]}
+          />
+          <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-zinc-900">
+            Verifying your order link…
+          </h1>
+          <GuestKeyExchange orderId={id} autoNotFound />
+        </div>
+      );
+    }
+    notFound();
+  }
+
   const fresh = sp["fresh"] === "1";
+  const hasKey = typeof keyParam === "string" && keyParam !== "";
   const { stages, cancelled } = buildTimeline(order.orderStatus);
   const payable =
     (order.paymentStatus === "pending" || order.paymentStatus === "failed") &&
@@ -76,6 +109,7 @@ export default async function OrderPage({
           </Alert>
         </div>
       ) : null}
+      {hasKey ? <GuestKeyExchange orderId={order.id} /> : null}
 
       {cancelled ? (
         <div className="mt-4">
@@ -266,7 +300,7 @@ export default async function OrderPage({
               </div>
               <div>
                 <dt className="text-zinc-500">Phone</dt>
-                <dd className="font-semibold text-zinc-900">{maskPhone(order.customerPhone)}</dd>
+                <dd className="font-semibold text-zinc-900">{order.customerPhoneMasked}</dd>
               </div>
               <div>
                 <dt className="text-zinc-500">Pincode</dt>
@@ -276,11 +310,11 @@ export default async function OrderPage({
                 <dt className="text-zinc-500">Partner</dt>
                 <dd className="font-semibold text-zinc-900">{order.deliveryPartnerName}</dd>
               </div>
-              {order.gstinSnapshot ? (
+              {order.gstinMasked ? (
                 <>
                   <div>
                     <dt className="text-zinc-500">GSTIN (customer-provided)</dt>
-                    <dd className="font-semibold text-zinc-900">{order.gstinSnapshot}</dd>
+                    <dd className="font-semibold text-zinc-900">{order.gstinMasked}</dd>
                   </div>
                   {order.billingName ? (
                     <div>

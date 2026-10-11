@@ -38,7 +38,10 @@ import { POST as claimPost } from "@/app/api/payments/claim/route";
 import { POST as statusPost } from "@/app/api/admin/orders/status/route";
 import { GET as customerInvoiceGet } from "@/app/api/orders/[id]/invoice/route";
 import { GET as adminInvoiceGet } from "@/app/api/admin/orders/[id]/invoice/route";
-import { getPayableOrder } from "@/lib/payments/order";
+import { getPayableOrderForGuest } from "@/lib/payments/order";
+import {
+  guestCookieName,
+} from "@/lib/guest-access/tokens";
 import {
   getAdminOrderDetail,
   transitionOrderStatus,
@@ -65,6 +68,7 @@ interface Db {
   orders: Map<string, Record<string, unknown>>;
   items: Map<string, Record<string, unknown>[]>;
   payments: Map<string, Record<string, unknown>[]>;
+  tokens: Array<Record<string, unknown>>;
   reservations: Array<Record<string, unknown>>;
   invoices: Map<string, Record<string, unknown>>;
   events: Array<Record<string, unknown>>;
@@ -97,6 +101,7 @@ function resetDb() {
     orders: new Map(),
     items: new Map(),
     payments: new Map(),
+    tokens: [],
     reservations: [],
     invoices: new Map(),
     events: [],
@@ -357,6 +362,39 @@ function adminTables(op: Parameters<MockResponder>[0]): ReturnType<MockResponder
     return { rows, error: null };
   }
   if (table === "admin_audit_log") return { rows: [{ id: "a1" }], error: null };
+  if (table === "shipments") return { rows: [], error: null };
+  if (table === "order_access_tokens") {
+    if (op.updateValues !== undefined && filters.length === 0) {
+      // INSERT (issuance): stores the hash only.
+      const vals = op.updateValues as Record<string, unknown>;
+      db.tokens.push({
+        token_hash: vals["token_hash"],
+        order_id: vals["order_id"],
+        expires_at: vals["expires_at"],
+        revoked_at: null,
+      });
+      return { rows: [{ id: uuid(800 + db.tokens.length) }], error: null };
+    }
+    if (op.updateValues !== undefined) {
+      const vals = op.updateValues as Record<string, unknown>;
+      const matched = db.tokens.filter((t) =>
+        filters.every((f) =>
+          f.col === "order_id"
+            ? t["order_id"] === f.val
+            : f.col === "token_hash"
+              ? t["token_hash"] === f.val
+              : true,
+        ),
+      );
+      for (const m of matched) Object.assign(m, vals);
+      return { rows: matched, error: null };
+    }
+    const orderId = filters.find((f) => f.col === "order_id")?.val as string;
+    return {
+      rows: db.tokens.filter((t) => t["order_id"] === orderId),
+      error: null,
+    };
+  }
   throw new Error(`unexpected table ${table ?? op.rpc}`);
 }
 
@@ -604,39 +642,79 @@ describe("customer journey: catalogue to delivered invoice", () => {
       duplicate: false,
     });
     const orderId = json.data["id"] as string;
+    // Checkout issues the one-time guest token (raw, stored hashed).
+    const guestToken = json.data["guestToken"] as string;
+    expect(typeof guestToken).toBe("string");
+    expect(guestToken.length).toBeGreaterThan(20);
+    const authedInvoice = (id: string, token: string) =>
+      customerInvoiceGet(
+        new Request("http://localhost/x", {
+          headers: {
+            Cookie: `${guestCookieName(id)}=${encodeURIComponent(token)}`,
+          },
+        }),
+        { params: Promise.resolve({ id }) },
+      );
+    const authedClaim = (body: Record<string, unknown>, token: string) =>
+      post(claimPost, { ...body, accessToken: token });
 
-    // 3. Reopen any time: status stays pending.
-    const reopened = await getPayableOrder(orderId);
+    // 3. Reopen any time with the token; UUID alone grants nothing.
+    expect(await getPayableOrderForGuest(orderId, null)).toBeNull();
+    expect(
+      await getPayableOrderForGuest(orderId, "bogus-token-xxxxxxxxxxxxxxxxxxxxxxxx"),
+    ).toBeNull();
+    const reopened = await getPayableOrderForGuest(orderId, guestToken);
     expect(reopened?.orderStatus).toBe("pending_payment");
     expect(reopened?.paymentStatus).toBe("pending");
+    // Customer-safe projection carries no raw PII.
+    expect(JSON.stringify(reopened)).not.toContain(PHONE);
+    expect(reopened?.customerPhoneMasked).toContain("••••");
 
     // 4. Invoice too early is refused — never a paid-looking document.
-    const early = await customerInvoiceGet(
+    // Without the token it is 404 (no oracle); with it, 409.
+    const earlyAnon = await customerInvoiceGet(
       new Request("http://localhost/x"),
       { params: Promise.resolve({ id: orderId }) },
     );
+    expect(earlyAnon.status).toBe(404);
+    const early = await authedInvoice(orderId, guestToken);
     expect(early.status).toBe(409);
 
-    // 5. Wrong phone cannot claim (IDOR guard); right phone submits.
-    const wrong = await post(claimPost, {
-      orderId,
-      reference: UTR,
-      phone: PHONE2,
-    });
-    expect(wrong.status).toBe(403);
-    const claimed = await post(claimPost, {
+    // 5. Wrong phone cannot claim (generic 404); right phone + token submits.
+    const wrong = await authedClaim(
+      {
+        orderId,
+        reference: UTR,
+        phone: PHONE2,
+      },
+      guestToken,
+    );
+    expect(wrong.status).toBe(404);
+    const noToken = await post(claimPost, {
       orderId,
       reference: UTR,
       phone: PHONE,
     });
+    expect(noToken.status).toBe(404);
+    const claimed = await authedClaim(
+      {
+        orderId,
+        reference: UTR,
+        phone: PHONE,
+      },
+      guestToken,
+    );
     expect(claimed.status).toBe(200);
 
     // 6. Duplicate claim on settled state is rejected.
-    const dupClaim = await post(claimPost, {
-      orderId,
-      reference: UTR2,
-      phone: PHONE,
-    });
+    const dupClaim = await authedClaim(
+      {
+        orderId,
+        reference: UTR2,
+        phone: PHONE,
+      },
+      guestToken,
+    );
     expect(dupClaim.status).toBe(409);
 
     // 7. Admin verifies: paid + confirmed, stock consumed once.
@@ -673,22 +751,18 @@ describe("customer journey: catalogue to delivered invoice", () => {
     });
 
     // 9. Fulfilment walk to delivered through valid states only.
-    for (const to of ["processing", "dispatched", "delivered"] as const) {
+    for (const to of ["processing", "packed", "ready_for_dispatch", "dispatched", "delivered"] as const) {
       const r = await transitionOrderStatus(orderId, to);
       expect(r).toEqual({ orderStatus: to });
     }
 
     // 10. Invoice now issues; re-downloads are byte-identical.
-    const inv1 = await customerInvoiceGet(new Request("http://localhost/x"), {
-      params: Promise.resolve({ id: orderId }),
-    });
+    const inv1 = await authedInvoice(orderId, guestToken);
     expect(inv1.status).toBe(200);
     expect(inv1.headers.get("Content-Type")).toBe("application/pdf");
     const pdf1 = Buffer.from(await inv1.arrayBuffer());
     expect(pdf1.subarray(0, 4).toString()).toBe("%PDF");
-    const inv2 = await customerInvoiceGet(new Request("http://localhost/x"), {
-      params: Promise.resolve({ id: orderId }),
-    });
+    const inv2 = await authedInvoice(orderId, guestToken);
     expect(Buffer.from(await inv2.arrayBuffer()).equals(pdf1)).toBe(true);
 
     // 11. Admin invoice route serves the same document.
@@ -698,7 +772,7 @@ describe("customer journey: catalogue to delivered invoice", () => {
     expect(adminInv.status).toBe(200);
 
     // 12. Status remains correct on every reopen.
-    const again = await getPayableOrder(orderId);
+    const again = await getPayableOrderForGuest(orderId, guestToken);
     expect(again?.orderStatus).toBe("delivered");
     expect(again?.paymentStatus).toBe("paid");
 
@@ -711,6 +785,8 @@ describe("customer journey: catalogue to delivered invoice", () => {
       "PAYMENT_VERIFIED",
       "ORDER_CONFIRMED",
       "PROCESSING_STARTED",
+      "PACKED",
+      "READY_FOR_DISPATCH",
       "DISPATCHED",
       "DELIVERED",
       "INVOICE_ISSUED",
@@ -721,6 +797,8 @@ describe("customer journey: catalogue to delivered invoice", () => {
       "Payment received",
       "Order confirmed",
       "Being prepared",
+      "Packed",
+      "Ready for dispatch",
       "Dispatched",
       "Delivered",
       "Tax invoice ready",
@@ -827,25 +905,45 @@ describe("failure flows fail safe with the item named", () => {
   });
 
   it("rejects duplicate UTRs and malformed references", async () => {
-    await placeOrder("50");
+    const first = await placeOrder("50");
     const { json } = await placeOrder("51");
     const otherId = json.data["id"] as string;
+    const otherToken = json.data["guestToken"] as string;
     const firstId = [...db.orders.values()].find(
       (o) => o["id"] !== otherId,
     )?.["id"] as string;
+    const firstToken = first.json.data["guestToken"] as string;
     expect(
-      (await post(claimPost, { orderId: firstId, reference: UTR, phone: PHONE }))
-        .status,
+      (
+        await post(claimPost, {
+          orderId: firstId,
+          reference: UTR,
+          phone: PHONE,
+          accessToken: firstToken,
+        })
+      ).status,
     ).toBe(200);
     // Same UTR on another order → conflict.
     expect(
-      (await post(claimPost, { orderId: otherId, reference: UTR, phone: PHONE }))
-        .status,
+      (
+        await post(claimPost, {
+          orderId: otherId,
+          reference: UTR,
+          phone: PHONE,
+          accessToken: otherToken,
+        })
+      ).status,
     ).toBe(409);
     // Too-short reference → validation error.
     expect(
-      (await post(claimPost, { orderId: otherId, reference: "abc", phone: PHONE }))
-        .status,
+      (
+        await post(claimPost, {
+          orderId: otherId,
+          reference: "abc",
+          phone: PHONE,
+          accessToken: otherToken,
+        })
+      ).status,
     ).toBe(422);
   });
 

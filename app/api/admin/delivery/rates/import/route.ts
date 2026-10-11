@@ -1,7 +1,8 @@
 import { revalidatePath } from "next/cache";
-import { badRequest, ok, rateLimited } from "@/lib/api/response";
-import { AppError, handleRouteError } from "@/lib/api/errors";
-import { checkRateLimit } from "@/lib/rate-limit/index";
+import { badRequest, ok } from "@/lib/api/response";
+import { AppError } from "@/lib/api/errors";
+import { withErrorHandling } from "@/lib/api/handler";
+import { checkRateLimit, denyIfLimited } from "@/lib/rate-limit/index";
 import { requireAdmin } from "@/lib/auth/session";
 import { confirmImport } from "@/lib/admin/importer";
 
@@ -13,28 +14,24 @@ import { confirmImport } from "@/lib/admin/importer";
  * apply atomically with a full summary — nothing is silently
  * discarded.
  */
-export async function POST(req: Request) {
+export const POST = withErrorHandling(async (req: Request) => {
+  const denied = await denyIfLimited("import", await checkRateLimit(req, "import"));
+  if (denied) return denied;
+  const admin = await requireAdmin();
+  let body: unknown;
   try {
-    const rl = checkRateLimit(req, "import");
-    if (!rl.allowed) return rateLimited(rl.resetMs);
-    const admin = await requireAdmin();
-    let body: unknown;
-    try {
-      body = (await req.json()) as unknown;
-    } catch {
-      throw new AppError("BAD_REQUEST", "Request body must be JSON.", 400);
-    }
-    const csv =
-      typeof body === "object" && body !== null
-        ? String((body as Record<string, unknown>)["csv"] ?? "")
-        : "";
-    if (csv.trim() === "") {
-      return badRequest("CSV content is required.");
-    }
-    const summary = await confirmImport("rates", csv, admin.id);
-    revalidatePath("/admin/delivery");
-    return ok(summary);
-  } catch (error) {
-    return handleRouteError(error);
+    body = (await req.json()) as unknown;
+  } catch {
+    throw new AppError("BAD_REQUEST", "Request body must be JSON.", 400);
   }
-}
+  const csv =
+    typeof body === "object" && body !== null
+      ? String((body as Record<string, unknown>)["csv"] ?? "")
+      : "";
+  if (csv.trim() === "") {
+    return badRequest("CSV content is required.");
+  }
+  const summary = await confirmImport("rates", csv, admin.id);
+  revalidatePath("/admin/delivery");
+  return ok(summary);
+});

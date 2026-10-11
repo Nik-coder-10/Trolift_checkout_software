@@ -64,31 +64,35 @@ export async function submitPaymentClaim(input: {
   }
   // IDOR guard: the claimant must know the order's customer mobile,
   // which is never exposed publicly (listing shows a masked value).
-  const { data: customer } = await admin
-    .from("customers")
-    .select("phone")
-    .eq("id", orderRow.customer_id)
-    .maybeSingle();
+  const [{ data: customer }, { data: payment, error: paymentError }] = await Promise.all([
+    admin
+      .from("customers")
+      .select("phone")
+      .eq("id", orderRow.customer_id)
+      .maybeSingle(),
+    admin
+      .from("payments")
+      .select("id,status")
+      .eq("order_id", orderRow.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
   const customerRow = customer as unknown as { phone: string } | null;
   if (
     !customerRow ||
     normalizePhone(input.phone) !== normalizePhone(customerRow.phone)
   ) {
+    // Generic 404 (not 403): with token-gated routes the claimant is
+    // already order-authorized, but the message must not confirm or
+    // deny anything about the order to mismatched callers.
     throw new AppError(
-      "FORBIDDEN",
-      "The mobile number does not match this order.",
-      403,
+      "NOT_FOUND",
+      "Order not found.",
+      404,
     );
   }
   assertClaimAllowed(orderRow.payment_status, orderRow.order_status);
-
-  const { data: payment, error: paymentError } = await admin
-    .from("payments")
-    .select("id,status")
-    .eq("order_id", orderRow.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
   const paymentRow = payment as unknown as {
     id: string;
     status: PaymentStatus;

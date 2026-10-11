@@ -162,10 +162,13 @@ export async function quoteOrder(input: {
 }): Promise<OrderQuote> {
   const supabase = await createClient();
   const ids = [...new Set(input.items.map((i) => i.productId))];
-  const { data, error } = await supabase
-    .from("products")
-    .select("id,name,price,gst_rate,is_active")
-    .in("id", ids.length > 0 ? ids : ["00000000-0000-0000-0000-000000000000"]);
+  const [{ data, error }, availability] = await Promise.all([
+    supabase
+      .from("products")
+      .select("id,name,price,gst_rate,is_active")
+      .in("id", ids.length > 0 ? ids : ["00000000-0000-0000-0000-000000000000"]),
+    fetchAvailability(supabase, ids),
+  ]);
   if (error) {
     throw new AppError(
       "INTERNAL_ERROR",
@@ -173,9 +176,6 @@ export async function quoteOrder(input: {
       500,
     );
   }
-  // Live reserve-aware availability. Fail closed: without it the order
-  // cannot be validated, so the quote aborts instead of guessing.
-  const availability = await fetchAvailability(supabase, ids);
   if (!availability) {
     throw new AppError(
       "INTERNAL_ERROR",

@@ -1,6 +1,6 @@
-import { notFound, rateLimited } from "@/lib/api/response";
-import { handleRouteError } from "@/lib/api/errors";
-import { checkRateLimit } from "@/lib/rate-limit/index";
+import { notFound } from "@/lib/api/response";
+import { withErrorHandling } from "@/lib/api/handler";
+import { checkRateLimit, denyIfLimited } from "@/lib/rate-limit/index";
 import { requireAdmin } from "@/lib/auth/session";
 import {
   EXPORT_DATASETS,
@@ -17,31 +17,27 @@ import {
  * secrets are structurally unexportable. Generation streams in
  * server-side chunks; the bulk read is audit-logged.
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   req: Request,
   { params }: { params: Promise<{ type: string }> },
-) {
-  try {
-    const rl = checkRateLimit(req, "export");
-    if (!rl.allowed) return rateLimited(rl.resetMs);
-    const admin = await requireAdmin();
-    const { type } = await params;
-    if (!(EXPORT_DATASETS as string[]).includes(type)) {
-      return notFound("Unknown export type.");
-    }
-    const { filename, stream } = await buildExport(
-      type as ExportDataset,
-      admin.id,
-    );
-    return new Response(stream, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "no-store",
-      },
-    });
-  } catch (error) {
-    return handleRouteError(error);
+) => {
+  const denied = await denyIfLimited("export", await checkRateLimit(req, "export"));
+  if (denied) return denied;
+  const admin = await requireAdmin();
+  const { type } = await params;
+  if (!(EXPORT_DATASETS as string[]).includes(type)) {
+    return notFound("Unknown export type.");
   }
-}
+  const { filename, stream } = await buildExport(
+    type as ExportDataset,
+    admin.id,
+  );
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
+    },
+  });
+});

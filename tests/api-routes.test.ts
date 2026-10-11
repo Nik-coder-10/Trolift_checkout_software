@@ -24,8 +24,12 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 import { POST as deliveryPost } from "@/app/api/delivery/check/route";
 import { POST as claimPost } from "@/app/api/payments/claim/route";
+import { generateGuestToken, hashGuestToken } from "@/lib/guest-access/tokens";
 
 const OID = "c0ffee00-0001-4000-8000-000000000001";
+// Bearer for OID: the mock answers the token table with its hash.
+const CLAIM_TOKEN = generateGuestToken();
+const CLAIM_HASH = hashGuestToken(CLAIM_TOKEN);
 
 const call = (
   fn: (req: Request) => Promise<Response>,
@@ -78,10 +82,51 @@ describe("POST /api/delivery/check", () => {
       pincode: "400001",
       deliveryChargePaise: 45000,
     });
+    // CheckoutForm reads the canonical DeliveryQuote.selected object —
+    // a flattened-only response renders no quote (live staging caught).
+    const selected = (json.data as Record<string, unknown>)["selected"] as Record<string, unknown>;
+    expect(selected).toMatchObject({
+      partner: { name: "Delhivery" },
+      deliveryChargePaise: 45000,
+    });
   });
 
-  it("reports unknown pincodes as unserviceable, not errors", async () => {
+  it("reports null (never zero) shipment weight for weightless products", async () => {
+    // Live staging proved 0 kg violates orders_delivery_weight_kg_check
+    // (> 0 when present) and 500s order placement. Unknown weights must
+    // stay null end to end.
     serverHandler = (op) => {
+      if (op.table === "delivery_pincode_rates") {
+        return { rows: [rateRow("450.00")], error: null };
+      }
+      if (op.table === "delivery_weight_slabs") {
+        return { rows: [], error: null };
+      }
+      if (op.table === "delivery_category_rules") {
+        return { rows: [], error: null };
+      }
+      if (op.table === "products") {
+        return {
+          rows: [{ id: "b1c2d3e4-0004-4000-8000-000000000004", weight_kg: null, category: "Tools", price: "100.00" }],
+          error: null,
+        };
+      }
+      throw new Error("unreachable");
+    };
+    const res = await call(deliveryPost, {
+      pincode: "400001",
+      subtotalPaise: 10000,
+      items: [{ productId: "b1c2d3e4-0004-4000-8000-000000000004", quantity: 1 }],
+    });
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: Record<string, unknown>;
+    };
+    expect(json.ok).toBe(true);
+    expect(json.data["totalWeightKg"]).toBeNull();
+  });
+
+  it("reports unknown pincodes as unserviceable, not errors", async () => {    serverHandler = (op) => {
       if (op.table === "delivery_pincode_rates") {
         return { rows: [], error: null };
       }
@@ -127,6 +172,22 @@ function wireClaim(over: {
   updateError?: { message: string; code?: string } | null;
 } = {}) {
   adminHandler = (op) => {
+    if (op.table === "order_access_tokens" && op.updateValues === undefined) {
+      return {
+        rows: [
+          {
+            token_hash: CLAIM_HASH,
+            order_id: OID,
+            expires_at: new Date(Date.now() + 86400_000).toISOString(),
+            revoked_at: null,
+          },
+        ],
+        error: null,
+      };
+    }
+    if (op.table === "order_access_tokens") {
+      return { rows: [{ id: "t1" }], error: null };
+    }
     if (op.table === "orders" && !op.updateValues) {
       return { rows: [over.order ?? orderRow], error: null };
     }
@@ -144,14 +205,18 @@ function wireClaim(over: {
   };
 }
 
+const claimBody = (over: Record<string, unknown> = {}) => ({
+  orderId: OID,
+  reference: "123456789012",
+  phone: "09876543210",
+  accessToken: CLAIM_TOKEN,
+  ...over,
+});
+
 describe("POST /api/payments/claim (reference only, never amounts)", () => {
-  it("submits a valid claim with phone match", async () => {
+  it("submits a valid claim with phone match + guest token", async () => {
     wireClaim();
-    const res = await call(claimPost, {
-      orderId: OID,
-      reference: "123456789012",
-      phone: "09876543210",
-    });
+    const res = await call(claimPost, claimBody());
     const json = (await res.json()) as {
       ok: boolean;
       data: Record<string, unknown>;
@@ -164,19 +229,31 @@ describe("POST /api/payments/claim (reference only, never amounts)", () => {
     });
   });
 
-  it("rejects a mismatched phone (IDOR guard)", async () => {
+  it("rejects claims without a guest token (UUID alone authorizes nothing)", async () => {
     wireClaim();
-    const res = await call(claimPost, {
-      orderId: OID,
-      reference: "123456789012",
-      phone: "+911111111111",
-    });
+    const noToken = claimBody() as Record<string, unknown>;
+    delete noToken["accessToken"];
+    const res = await call(claimPost, noToken);
     const json = (await res.json()) as {
       ok: boolean;
       error: { code: string };
     };
     expect(json.ok).toBe(false);
-    expect(json.error.code).toBe("FORBIDDEN");
+    expect(json.error.code).toBe("NOT_FOUND");
+  });
+
+  it("rejects a mismatched phone without confirming the order (generic 404)", async () => {
+    wireClaim();
+    const res = await call(
+      claimPost,
+      claimBody({ phone: "+911111111111" }),
+    );
+    const json = (await res.json()) as {
+      ok: boolean;
+      error: { code: string };
+    };
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe("NOT_FOUND");
   });
 
   it("rejects claims in non-payable states", async () => {
@@ -184,28 +261,23 @@ describe("POST /api/payments/claim (reference only, never amounts)", () => {
       order: { ...orderRow, payment_status: "paid", order_status: "confirmed" },
       payment: { id: "pay-1", status: "paid" },
     });
-    const res = await call(claimPost, {
-      orderId: OID,
-      reference: "123456789012",
-      phone: "+919876543210",
-    });
+    const res = await call(claimPost, claimBody({ phone: "+919876543210" }));
     const json = (await res.json()) as {
       ok: boolean;
       error: { code: string };
     };
     expect(json.ok).toBe(false);
-    expect(["BAD_REQUEST", "FORBIDDEN"]).toContain(json.error.code);
+    expect(["BAD_REQUEST", "NOT_FOUND"]).toContain(json.error.code);
   });
 
   it("treats a duplicate UTR as a conflict, not a new record", async () => {
     wireClaim({
       updateError: { message: "duplicate key", code: "23505" },
     });
-    const res = await call(claimPost, {
-      orderId: OID,
-      reference: "123456789012",
-      phone: "+919876543210",
-    });
+    const res = await call(
+      claimPost,
+      claimBody({ phone: "+919876543210" }),
+    );
     const json = (await res.json()) as {
       ok: boolean;
       error: { code: string };

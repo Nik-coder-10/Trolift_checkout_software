@@ -33,9 +33,18 @@ vi.mock("@/lib/supabase/server", () => ({
 import { getInvoiceData } from "@/lib/invoices/service";
 import { GET as customerGet } from "@/app/api/orders/[id]/invoice/route";
 import { GET as adminGet } from "@/app/api/admin/orders/[id]/invoice/route";
+import {
+  generateGuestToken,
+  guestCookieName,
+  hashGuestToken,
+} from "@/lib/guest-access/tokens";
 
 const ORDER_ID = "123e4567-e89b-12d3-a456-426614174000";
 const OTHER_ID = "123e4567-e89b-12d3-a456-426614174099";
+
+// Guest bearer for ORDER_ID; OTHER_ID intentionally has no token.
+const INVOICE_TOKEN = generateGuestToken();
+const INVOICE_HASH = hashGuestToken(INVOICE_TOKEN);
 
 const ORDER_ROW = {
   id: ORDER_ID,
@@ -85,8 +94,13 @@ let rpcCalls = 0;
 // Canonical event rows written during invoice issuance.
 const issued: Array<Record<string, unknown>> = [];
 
-const customerReq = (id: string, query = "") =>
-  new Request(`http://localhost/api/orders/${id}/invoice${query}`);
+const customerReq = (id: string, query = "", token: string | null = INVOICE_TOKEN) =>
+  new Request(`http://localhost/api/orders/${id}/invoice${query}`, {
+    headers:
+      token !== null
+        ? { Cookie: `${guestCookieName(id)}=${encodeURIComponent(token)}` }
+        : {},
+  });
 
 const ctxFor = (id: string) => ({
   params: Promise.resolve({ id }),
@@ -114,6 +128,26 @@ beforeEach(() => {
       seq += 1;
       return {
         rows: [`INV/FY26-27/${String(seq).padStart(6, "0")}`],
+        error: null,
+      };
+    }
+    if (op.table === "order_access_tokens") {
+      if (op.updateValues !== undefined) {
+        return { rows: [{ id: "t1" }], error: null };
+      }
+      const orderId = op.filters.find((f) => f.col === "order_id")?.val;
+      return {
+        rows:
+          orderId === ORDER_ID
+            ? [
+                {
+                  token_hash: INVOICE_HASH,
+                  order_id: ORDER_ID,
+                  expires_at: new Date(Date.now() + 86400_000).toISOString(),
+                  revoked_at: null,
+                },
+              ]
+            : [],
         error: null,
       };
     }
@@ -180,7 +214,17 @@ afterEach(() => {
   delete process.env.TROLIFT_BUSINESS_GSTIN;
 });
 
-describe("customer invoice route (capability URL, fail closed)", () => {
+describe("customer invoice route (token-gated, fail closed)", () => {
+  it("requires the guest token — UUID alone is 404", async () => {
+    const res = await customerGet(customerReq(ORDER_ID, "", null), ctxFor(ORDER_ID));
+    expect(res.status).toBe(404);
+    const wrong = await customerGet(
+      customerReq(ORDER_ID, "", generateGuestToken()),
+      ctxFor(ORDER_ID),
+    );
+    expect(wrong.status).toBe(404);
+  });
+
   it("serves the PDF for a paid order", async () => {
     const res = await customerGet(customerReq(ORDER_ID), ctxFor(ORDER_ID));
     expect(res.status).toBe(200);

@@ -223,23 +223,34 @@ export async function quoteDelivery(
   // Indexed pincode lookup (pincode_rates_pincode_idx) — one narrow
   // query, never a table scan — plus the small rule tables.
   const supabase = await createClient();
-  const [{ data: rateData, error: rateError }, { data: slabData }, { data: ruleData }] =
-    await Promise.all([
-      supabase
-        .from("delivery_pincode_rates")
-        .select(
-          "delivery_partner_id, serviceable, delivery_charge, remote_surcharge," +
-            "eta_min_days, eta_max_days, min_order_amount, max_order_amount," +
-            "delivery_partners!inner(name, is_active, priority)",
-        )
-        .eq("pincode", pincode),
-      supabase
-        .from("delivery_weight_slabs")
-        .select("delivery_partner_id,min_weight_kg,max_weight_kg,charge"),
-      supabase
-        .from("delivery_category_rules")
-        .select("category,surcharge"),
-    ]);
+  const ids = lines.length > 0 ? [...new Set(lines.map((l) => l.productId))] : [];
+  const [
+    { data: rateData, error: rateError },
+    { data: slabData },
+    { data: ruleData },
+    { data: rawProductData, error: rawProductError },
+  ] = await Promise.all([
+    supabase
+      .from("delivery_pincode_rates")
+      .select(
+        "delivery_partner_id, serviceable, delivery_charge, remote_surcharge," +
+          "eta_min_days, eta_max_days, min_order_amount, max_order_amount," +
+          "delivery_partners!inner(name, is_active, priority)",
+      )
+      .eq("pincode", pincode),
+    supabase
+      .from("delivery_weight_slabs")
+      .select("delivery_partner_id,min_weight_kg,max_weight_kg,charge"),
+    supabase
+      .from("delivery_category_rules")
+      .select("category,surcharge"),
+    ids.length > 0
+      ? supabase
+          .from("products")
+          .select("id,weight_kg,category,price")
+          .in("id", ids)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
   if (rateError) {
     throw new AppError(
@@ -267,12 +278,7 @@ export async function quoteDelivery(
   let derivedSubtotal = 0;
   const lineCategories = new Set<string>();
   if (lines.length > 0) {
-    const ids = [...new Set(lines.map((l) => l.productId))];
-    const { data: productData, error: productError } = await supabase
-      .from("products")
-      .select("id,weight_kg,category,price")
-      .in("id", ids);
-    if (productError) {
+    if (rawProductError) {
       throw new AppError(
         "INTERNAL_ERROR",
         "Could not check delivery availability. Please try again.",
@@ -280,7 +286,7 @@ export async function quoteDelivery(
       );
     }
     const byId = new Map(
-      ((productData ?? []) as unknown as ProductWeightRow[]).map((p) => [p.id, p]),
+      ((rawProductData ?? []) as unknown as ProductWeightRow[]).map((p) => [p.id, p]),
     );
     for (const line of lines) {
       const product = byId.get(line.productId);
@@ -388,7 +394,7 @@ export async function quoteDelivery(
     const floor = minima.length > 0 ? Math.min(...minima) : null;
     return {
       ...empty,
-      totalWeightKg: lines.length > 0 ? totalGrams / 1000 : null,
+      totalWeightKg: weightKnown ? totalGrams / 1000 : null,
       subtotalPaise: effectiveSubtotal ?? null,
       reason:
         floor !== null && (effectiveSubtotal ?? 0) < floor
@@ -401,7 +407,7 @@ export async function quoteDelivery(
   if (!selected) {
     return {
       ...empty,
-      totalWeightKg: lines.length > 0 ? totalGrams / 1000 : null,
+      totalWeightKg: weightKnown ? totalGrams / 1000 : null,
       subtotalPaise: effectiveSubtotal ?? null,
       reason: "No valid delivery option for this pincode.",
     };
@@ -434,7 +440,7 @@ export async function quoteDelivery(
       partner: { id: o.partnerId, name: o.partnerName },
       deliveryChargePaise: o.deliveryChargePaise,
     })),
-    totalWeightKg: lines.length > 0 ? totalGrams / 1000 : null,
+    totalWeightKg: weightKnown ? totalGrams / 1000 : null,
     freightPaise: won.freightPaise,
     remotePaise: won.remotePaise,
     handlingPaise,

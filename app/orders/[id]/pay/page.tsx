@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Alert } from "@/components/ui/Alert";
@@ -7,18 +8,21 @@ import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { PriceDisplay } from "@/components/ui/PriceDisplay";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/StatusBadge";
 import { ClaimForm } from "@/components/payments/ClaimForm";
-import { getPayableOrder } from "@/lib/payments/order";
+import { getPayableOrderForGuest } from "@/lib/payments/order";
+import { guestCookieName } from "@/lib/guest-access/tokens";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { getPaymentWindowHours } from "@/lib/payments/upi";
 
 async function loadOrder(id: string) {
   try {
-    return await getPayableOrder(id);
+    const store = await cookies();
+    const token = store.get(guestCookieName(id))?.value ?? null;
+    return await getPayableOrderForGuest(id, token);
   } catch (error) {
     // Fail closed: an unreadable order (including a misconfigured or
     // unreachable database) looks exactly like a missing one publicly.
-    // Details stay in server logs for operators.
-    console.error("[pay] Failed to load order:", error);
+    // Details stay in server logs for operators; tokens are never logged.
+    console.error("[pay] Failed to load order.");
     return null;
   }
 }
@@ -38,10 +42,10 @@ export async function generateMetadata({
 }
 
 /**
- * Order payment page (guest-capable via unguessable order UUID):
- * authoritative amount, dynamic UPI QR, instructions, UTR claim.
- * Nothing here verifies payment — admin reconciliation flips
- * SUBMITTED → PAID in a later phase.
+ * Order payment page. Guest access requires the HttpOnly session
+ * cookie (order UUID alone authorizes nothing): authoritative amount,
+ * dynamic UPI QR, instructions, UTR claim. Nothing here verifies
+ * payment — admin reconciliation flips SUBMITTED → PAID later.
  */
 export default async function OrderPayPage({
   params,
@@ -166,10 +170,10 @@ export default async function OrderPayPage({
                 </dd>
               </div>
             </dl>
-            {order.paymentReference ? (
+            {order.paymentReferenceMasked ? (
               <p className="mt-2 text-xs text-zinc-500">
                 Submitted reference:{" "}
-                <span className="font-mono font-semibold">{order.paymentReference}</span>
+                <span className="font-mono font-semibold">{order.paymentReferenceMasked}</span>
               </p>
             ) : null}
           </section>
@@ -183,7 +187,7 @@ export default async function OrderPayPage({
                 order.orderStatus === "payment_submitted" ? (
                 <Alert tone="info" title="Payment under verification">
                   We received your reference
-                  {order.paymentReference ? ` (${order.paymentReference})` : ""} and
+                  {order.paymentReferenceMasked ? ` (${order.paymentReferenceMasked})` : ""} and
                   will confirm your order after verification.
                 </Alert>
               ) : (

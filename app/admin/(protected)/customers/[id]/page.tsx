@@ -7,6 +7,8 @@ import { EmptyState } from "@/components/ui/States";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/StatusBadge";
 import { CustomerForm } from "@/components/admin/CustomerForm";
 import { getAdminCustomer } from "@/lib/admin/customers";
+import { listStaffNotes } from "@/lib/admin/notes";
+import { NotesSection } from "@/components/admin/NotesSection";
 import { formatMoney } from "@/lib/orders/pricing";
 import { Badge } from "@/components/ui/Badge";
 import type { OrderStatus, PaymentStatus } from "@/types";
@@ -58,6 +60,12 @@ export default async function AdminCustomerPage({
     detail = await getAdminCustomer(id);
   } catch {
     detail = null;
+  }
+  let notes: Awaited<ReturnType<typeof listStaffNotes>> = [];
+  try {
+    notes = await listStaffNotes("customer", id);
+  } catch {
+    notes = [];
   }
 
   return (
@@ -184,6 +192,14 @@ export default async function AdminCustomerPage({
               </div>
             )}
           </section>
+
+          {detail ? (
+            <NotesSection
+              entityType="customer"
+              entityId={detail.customer.id}
+              initialNotes={notes}
+            />
+          ) : null}
         </div>
       )}
     </AdminShell>

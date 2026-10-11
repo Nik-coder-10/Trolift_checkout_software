@@ -39,6 +39,8 @@ export function serverEnv() {
     serviceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
     ownerUpiId: optional("OWNER_UPI_ID"),
     ownerUpiPayeeName: optional("OWNER_UPI_PAYEE_NAME"),
+    /** IANA timezone used for business-day boundaries (dashboards, reports). */
+    businessTimezone: optional("BUSINESS_TIMEZONE", "Asia/Kolkata"),
   } as const;
 }
 

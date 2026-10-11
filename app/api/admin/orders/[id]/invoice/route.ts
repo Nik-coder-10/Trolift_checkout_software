@@ -1,6 +1,5 @@
-import { handleRouteError } from "@/lib/api/errors";
-import { rateLimited } from "@/lib/api/response";
-import { checkRateLimit } from "@/lib/rate-limit/index";
+import { withErrorHandling } from "@/lib/api/handler";
+import { checkRateLimit, denyIfLimited } from "@/lib/rate-limit/index";
 import { requireAdmin } from "@/lib/auth/session";
 import { getInvoiceData } from "@/lib/invoices/service";
 import { renderInvoicePdf } from "@/lib/invoices/pdf";
@@ -16,21 +15,17 @@ export const runtime = "nodejs";
  * callers learn nothing). Same paid-only rule as the customer route:
  * admins also never receive an invoice labelled for an unpaid order.
  */
-export async function GET(
+export const GET = withErrorHandling(async (
   req: Request,
   { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const rl = checkRateLimit(req, "invoice");
-    if (!rl.allowed) return rateLimited(rl.resetMs);
-    await requireAdmin();
-    const { id } = await params;
-    const invoice = await getInvoiceData(id);
-    const pdf = await renderInvoicePdf(invoice);
-    const inline =
-      new URL(req.url).searchParams.get("disposition") === "inline";
-    return invoicePdfResponse(invoice.invoiceNumber, pdf, inline);
-  } catch (error) {
-    return handleRouteError(error);
-  }
-}
+) => {
+  const denied = await denyIfLimited("invoice", await checkRateLimit(req, "invoice"));
+  if (denied) return denied;
+  await requireAdmin();
+  const { id } = await params;
+  const invoice = await getInvoiceData(id);
+  const pdf = await renderInvoicePdf(invoice);
+  const inline =
+    new URL(req.url).searchParams.get("disposition") === "inline";
+  return invoicePdfResponse(invoice.invoiceNumber, pdf, inline);
+});

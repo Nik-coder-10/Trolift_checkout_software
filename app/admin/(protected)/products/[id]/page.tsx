@@ -7,6 +7,8 @@ import { PriceDisplay } from "@/components/ui/PriceDisplay";
 import { EmptyState } from "@/components/ui/States";
 import { ActiveToggle } from "@/components/admin/ActiveToggle";
 import { ProductForm } from "@/components/admin/ProductForm";
+import { listStaffNotes } from "@/lib/admin/notes";
+import { NotesSection } from "@/components/admin/NotesSection";
 import { getAdminProduct } from "@/lib/admin/products";
 import { resolveProductImage } from "@/lib/storage/images";
 
@@ -31,6 +33,12 @@ export default async function AdminProductPage({
     product = await getAdminProduct(id);
   } catch {
     product = null;
+  }
+  let notes: Awaited<ReturnType<typeof listStaffNotes>> = [];
+  try {
+    notes = await listStaffNotes("product", id);
+  } catch {
+    notes = [];
   }
 
   return (
@@ -132,6 +140,14 @@ export default async function AdminProductPage({
               redirectBase="/admin/products"
             />
           </div>
+
+          {product ? (
+            <NotesSection
+              entityType="product"
+              entityId={product.id}
+              initialNotes={notes}
+            />
+          ) : null}
         </div>
       )}
     </AdminShell>

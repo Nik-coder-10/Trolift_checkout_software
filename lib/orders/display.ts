@@ -19,6 +19,8 @@ const STAGES = [
   { key: "payment", label: "Payment" },
   { key: "confirmed", label: "Confirmed" },
   { key: "processing", label: "Processing" },
+  { key: "packed", label: "Packed" },
+  { key: "ready_for_dispatch", label: "Ready for dispatch" },
   { key: "dispatched", label: "Dispatched" },
   { key: "delivered", label: "Delivered" },
 ] as const;
@@ -34,12 +36,16 @@ function currentStageIndex(status: OrderStatus): number {
     case "confirmed":
       return 2;
     case "processing":
-    case "shipped":
       return 3;
-    case "dispatched":
+    case "packed":
       return 4;
-    case "delivered":
+    case "ready_for_dispatch":
+      return 5;
+    case "shipped":
+    case "dispatched":
       return 6;
+    case "delivered":
+      return 8;
     case "cancelled":
       return -1;
   }

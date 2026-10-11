@@ -59,7 +59,8 @@ export async function listDeliveryPartners(): Promise<AdminPartner[]> {
   }>;
   const { data: rates } = await client
     .from("delivery_pincode_rates")
-    .select("delivery_partner_id");
+    .select("delivery_partner_id")
+    .limit(100000);
   const counts = new Map<string, number>();
   for (const r of (rates ?? []) as unknown as Array<{ delivery_partner_id: string }>) {
     counts.set(r.delivery_partner_id, (counts.get(r.delivery_partner_id) ?? 0) + 1);
@@ -325,6 +326,12 @@ export async function upsertDeliveryRate(
   if (partnerError || !partner) {
     throw new AppError("VALIDATION_ERROR", "Selected partner does not exist.", 422);
   }
+  const existing = await client
+    .from("delivery_pincode_rates")
+    .select("id")
+    .eq("pincode", value.pincode)
+    .eq("delivery_partner_id", value.partnerId)
+    .maybeSingle();
   const row = {
     pincode: value.pincode,
     delivery_partner_id: value.partnerId,
@@ -336,12 +343,6 @@ export async function upsertDeliveryRate(
     eta_min_days: value.etaMinDays,
     eta_max_days: value.etaMaxDays,
   };
-  const existing = await client
-    .from("delivery_pincode_rates")
-    .select("id")
-    .eq("pincode", value.pincode)
-    .eq("delivery_partner_id", value.partnerId)
-    .maybeSingle();
   if (existing.error) {
     throw new AppError("INTERNAL_ERROR", "Could not save the rate.", 500);
   }
@@ -437,18 +438,21 @@ export async function listWeightSlabs(): Promise<AdminWeightSlab[]> {
 export async function createWeightSlab(input: SlabFormInput): Promise<{ id: string }> {
   await requireAdmin();
   const client = await createClient();
-  const { data: partner, error: partnerError } = await client
-    .from("delivery_partners")
-    .select("id")
-    .eq("id", input.partnerId)
-    .maybeSingle();
+  const [{ data: partner, error: partnerError }, { data: siblings, error: siblingError }] =
+    await Promise.all([
+      client
+        .from("delivery_partners")
+        .select("id")
+        .eq("id", input.partnerId)
+        .maybeSingle(),
+      client
+        .from("delivery_weight_slabs")
+        .select("min_weight_kg,max_weight_kg")
+        .eq("delivery_partner_id", input.partnerId),
+    ]);
   if (partnerError || !partner) {
     throw new AppError("VALIDATION_ERROR", "Selected partner does not exist.", 422);
   }
-  const { data: siblings, error: siblingError } = await client
-    .from("delivery_weight_slabs")
-    .select("min_weight_kg,max_weight_kg")
-    .eq("delivery_partner_id", input.partnerId);
   if (siblingError) {
     throw new AppError("INTERNAL_ERROR", "Could not check existing bands.", 500);
   }

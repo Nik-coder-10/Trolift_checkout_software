@@ -242,10 +242,13 @@ export async function getInvoiceData(orderId: string): Promise<InvoiceData> {
 
   // Freeze once. Concurrent builders derive identical content from the
   // same snapshots, so first-writer-wins is deterministic.
-  await admin
+  const { error: updateError } = await admin
     .from("invoices")
     .update({ data: built })
     .eq("order_id", o.id);
+  if (updateError) {
+    throw new AppError("INTERNAL_ERROR", "Could not load the invoice.", 500);
+  }
 
   if (claimedRow) {
     // First and only issuance event for this order (actor system — no

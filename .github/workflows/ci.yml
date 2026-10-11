@@ -1,0 +1,110 @@
+name: ci
+
+# Every push/PR runs the full verification suite as separate jobs so a
+# failure names itself (lint vs types vs tests vs build vs audit vs
+# e2e) instead of dying at the first step of a monolith.
+#
+# NO deploy job exists here on purpose: deployment stays a manual,
+# authorized act (see docs/operations/migrations.md — production
+# migration + deploy require explicit approval). Add a deploy job only
+# when an approved deployment strategy says so, and gate it behind an
+# environment approval, never on push.
+#
+# Failure visibility: no step pipes through grep/tail/tee, and every
+# `run` uses the default `bash -e -o pipefail` shell GitHub Actions
+# applies, so a filtered command cannot mask a non-zero exit.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Production build with placeholder public env: build-time validation
+      # must pass without real secrets (real ones are host-injected).
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SITE_URL: https://ci.invalid
+          NEXT_PUBLIC_SUPABASE_URL: https://ci.invalid.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Production dependency vulnerabilities fail the build. Dev-only
+      # advisories are reported without blocking (they never ship).
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Full audit (informational)
+        run: npm audit --audit-level=high || true
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Hermetic Playwright suite (mocked data plane, no Supabase
+      # credentials required — see playwright.config.ts webServer).
+      - run: npx playwright test
+        env:
+          CI: "true"

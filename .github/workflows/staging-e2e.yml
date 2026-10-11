@@ -1,0 +1,145 @@
+name: staging-e2e
+
+# Staging E2E gate — MANUAL ONLY (workflow_dispatch).
+#
+# Architecture (deliberate choice, see "Why a local stack" below):
+# this job boots a DISPOSABLE, ISOLATED Supabase stack on the runner
+# itself (docker + `supabase start` + `supabase db reset`, which
+# applies supabase/migrations and the deterministic seed), then runs
+# the Playwright staging suite against loopback services only
+# (app on 127.0.0.1:3100, Supabase on 127.0.0.1:54321).
+#
+# Why a local stack instead of a remote staging URL:
+# - playwright.staging.config.ts rejects non-loopback STAGING_BASE_URL
+#   and STAGING_SUPABASE_URL by design. That guard is what makes it
+#   impossible to point this suite at production by accident, so it
+#   stays. A remote staging URL would require weakening it.
+# - A self-hosted runner bound to a persistent staging stack was
+#   considered and rejected: it adds standing infrastructure, secret
+#   sprawl, and cross-run state to maintain, for no additional signal
+#   over a fresh stack per run.
+# - A fresh stack per run is hermetic: migrations + seed are applied
+#   from the very tree under test, and synthetic stge2e-* data can
+#   never leak anywhere (there is nowhere else to leak to).
+#
+# Safety properties (all enforced, see also the job steps):
+# - Manual dispatch only; nothing here runs on push/PR/schedule.
+# - No repository secrets are required or read. The stack uses
+#   Supabase's well-known LOCAL development keys, extracted from
+#   `supabase status -o env` into step-local shell variables that are
+#   NEVER printed (no echo of values, no `supabase status` human
+#   output in logs). Fork safety follows: a fork run can only ever
+#   boot its own disposable local stack — there are no secrets to
+#   steal and no shared environment to pollute. (The previous
+#   `if: github.repository_owner != ''` condition was always true and
+#   guarded nothing; it is removed rather than faked.)
+# - Fail closed: every setup step exits non-zero on failure
+#   (DB reset, seed smoke check, app health check), so a broken stack
+#   fails the gate instead of running tests against nothing.
+# - Never targets production: every URL in this file is 127.0.0.1,
+#   and the Playwright config independently refuses anything else.
+# - Never moves real money or notifies real customers: payment is a
+#   simulated UTR claim verified by a synthetic admin identity, and
+#   all test data uses stge2e-* markers with per-run cleanup.
+#
+# Managed (remote) staging runs remain BLOCKED: they need
+# owner-supplied secrets plus a reviewed target allowlist, which do
+# not exist. Do not reintroduce STAGING_* secrets into this file
+# without that review.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-e2e
+  cancel-in-progress: false
+
+jobs:
+  local-stack:
+    runs-on: ubuntu-latest
+    # Supabase image pulls on a cold runner + build + full suite.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start disposable local Supabase stack
+        # Fail closed: any failure here aborts the gate before a
+        # browser launches. `db reset` applies supabase/migrations in
+        # order and loads the deterministic seed (sql_paths in
+        # supabase/config.toml points at supabase/seed/seed.sql).
+        # `migration up` follows defensively: some CLI versions cap
+        # `db reset` at a stale version and silently skip the newest
+        # migration file (observed with CLI v2.26.0 stopping at 0028
+        # while 0029 existed). The parity check below turns that
+        # class of miss into a hard failure instead of a green run
+        # against an old schema.
+        run: |
+          supabase start
+          supabase db reset
+          supabase migration up
+
+      - name: Verify migration parity (tree vs database)
+        # Fail closed: the max migration version on disk must equal the
+        # max applied version. A mismatch means the gate would test the
+        # wrong schema — refuse to continue.
+        run: |
+          tree_max=$(ls supabase/migrations/*.sql | sed 's/.*\///; s/_.*//' | sort | tail -n 1)
+          db_container=$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)
+          test -n "$db_container"
+          db_max=$(docker exec "$db_container" psql -U postgres -d postgres -tAc "select max(version) from supabase_migrations.schema_migrations;")
+          echo "tree max migration: $tree_max / applied max: $db_max"
+          test "$tree_max" = "$db_max"
+
+      - name: Verify stack health and seed
+        # Fail closed with names and counts only — never keys, tokens,
+        # connection strings, or row contents.
+        run: |
+          curl -fsS http://127.0.0.1:54321/auth/v1/health
+          test "$(curl -fsS 'http://127.0.0.1:54321/rest/v1/products?select=id' \
+            -H "apikey: $(supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2)" \
+            | grep -o '"id"' | wc -l)" -ge 1
+
+      - name: Run staging suite (isolated loopback stack)
+        env:
+          STAGING_E2E_ENABLED: "1"
+          STAGING_BASE_URL: http://127.0.0.1:3100
+          STAGING_SUPABASE_URL: http://127.0.0.1:54321
+          CI: "true"
+        run: |
+          # Local disposable-stack keys only (Supabase's well-known
+          # development keys). Assigned without printing; the Playwright
+          # config maps them to STAGING_* for the app server and specs.
+          eval "$(supabase status -o env | grep -E '^(ANON_KEY|SERVICE_ROLE_KEY)=')"
+          export STAGING_SUPABASE_ANON_KEY="$ANON_KEY"
+          export STAGING_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          npx playwright test --config=playwright.staging.config.ts
+
+      - name: Stop disposable stack
+        if: always()
+        run: supabase stop --no-backup || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: staging-e2e-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

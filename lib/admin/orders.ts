@@ -28,7 +28,8 @@ import {
 
 const ORDER_STATUSES: ReadonlyArray<OrderStatus> = [
   "draft", "pending_payment", "payment_submitted", "paid", "confirmed",
-  "processing", "shipped", "dispatched", "delivered", "cancelled",
+  "processing", "packed", "ready_for_dispatch", "shipped", "dispatched",
+  "delivered", "cancelled",
 ];
 const PAYMENT_STATUSES: ReadonlyArray<PaymentStatus> = [
   "pending", "submitted", "paid", "failed", "cancelled", "refunded",
@@ -643,58 +644,18 @@ export async function transitionOrderStatus(
 }
 
 /**
- * Fulfilment milestones that don't move order_status (the state machine
- * is untouched): PACKED then READY_FOR_DISPATCH, in that order, while
- * the order is still being fulfilled. Strictly gated — packing requires
- * confirmed/processing with no prior PACKED event; readiness requires
- * a PACKED event, no prior READY event, and a non-terminal status.
+ * Fulfilment milestones are now part of the order status lifecycle.
+ * PACKED and READY_FOR_DISPATCH are order statuses, not event-only milestones.
+ * The transitionOrderStatus function handles them via the state machine.
+ * This function is kept for backward compatibility but delegates to
+ * transitionOrderStatus.
  */
 export async function markFulfillmentStep(
   orderId: string,
   step: "packed" | "ready_for_dispatch",
 ): Promise<{ eventType: OrderEventType }> {
-  const { admin, client, row } = await loadForMutation(orderId);
-  if (row.order_status !== "confirmed" && row.order_status !== "processing") {
-    throw new AppError(
-      "BAD_REQUEST",
-      "Fulfilment steps apply only to confirmed or processing orders.",
-      409,
-    );
-  }
-  const { data: prior, error: priorError } = await client
-    .from("order_events")
-    .select("event_type")
-    .eq("order_id", row.id)
-    .in("event_type", ["PACKED", "READY_FOR_DISPATCH"]);
-  if (priorError) {
-    throw new AppError("INTERNAL_ERROR", "Could not check fulfilment state.", 500);
-  }
-  const done = new Set(
-    ((prior ?? []) as unknown as Array<{ event_type: string }>).map(
-      (r) => r.event_type,
-    ),
-  );
-  const eventType: OrderEventType =
-    step === "packed" ? "PACKED" : "READY_FOR_DISPATCH";
-  if (step === "packed" && done.has("PACKED")) {
-    throw new AppError("BAD_REQUEST", "Order is already packed.", 409);
-  }
-  if (step === "ready_for_dispatch") {
-    if (!done.has("PACKED")) {
-      throw new AppError("BAD_REQUEST", "Pack the order first.", 409);
-    }
-    if (done.has("READY_FOR_DISPATCH")) {
-      throw new AppError("BAD_REQUEST", "Order is already ready for dispatch.", 409);
-    }
-  }
-  await logOrderEvent({
-    orderId: row.id,
-    eventType,
-    actorType: "admin",
-    actorUserId: admin.id,
-    fromStatus: row.order_status,
-    toStatus: row.order_status,
-    client,
-  });
-  return { eventType };
+  await transitionOrderStatus(orderId, step);
+  return {
+    eventType: step === "packed" ? "PACKED" : "READY_FOR_DISPATCH",
+  };
 }

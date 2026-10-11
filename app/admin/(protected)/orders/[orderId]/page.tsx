@@ -8,7 +8,10 @@ import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/StatusBadg
 import { PaymentActions } from "@/components/admin/PaymentActions";
 import { StatusActions } from "@/components/admin/StatusActions";
 import { getAdminOrderDetail } from "@/lib/admin/orders";
+import { listStaffNotes } from "@/lib/admin/notes";
 import { ADMIN_EVENT_DESCRIPTIONS } from "@/lib/orders/events";
+import { getShipmentByOrderId } from "@/lib/shipments/service";
+import { NotesSection } from "@/components/admin/NotesSection";
 
 export const metadata: Metadata = {
   title: "Order detail",
@@ -27,6 +30,18 @@ export default async function AdminOrderPage({
     order = await getAdminOrderDetail(orderId);
   } catch {
     order = null;
+  }
+  let shipment = null;
+  try {
+    shipment = await getShipmentByOrderId(orderId);
+  } catch {
+    shipment = null;
+  }
+  let notes: Awaited<ReturnType<typeof listStaffNotes>> = [];
+  try {
+    notes = await listStaffNotes("order", orderId);
+  } catch {
+    notes = [];
   }
 
   return (
@@ -249,8 +264,8 @@ export default async function AdminOrderPage({
             </dl>
           </section>
 
-          <section aria-label="Status management" className="rounded-lg border border-zinc-200 bg-white p-5">
-            <h2 className="text-base font-bold text-zinc-900">Order status</h2>
+          <section aria-label="Fulfillment" className="rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="text-base font-bold text-zinc-900">Fulfillment</h2>
             <div className="mt-2">
               <OrderStatusBadge status={order.orderStatus} />
             </div>
@@ -264,6 +279,89 @@ export default async function AdminOrderPage({
                 )}
               />
             </div>
+            {shipment ? (
+              <div className="mt-4 border-t border-zinc-100 pt-4">
+                <h3 className="text-sm font-bold text-zinc-900">Shipment</h3>
+                <dl className="mt-2 flex flex-col gap-1 text-sm">
+                  <div className="flex justify-between">
+                    <dt className="text-zinc-500">Tracking reference</dt>
+                    <dd className="font-mono text-xs font-semibold text-zinc-900">
+                      {shipment.trackingReference ?? "—"}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-zinc-500">Expected delivery</dt>
+                    <dd className="text-zinc-700">
+                      {shipment.expectedDeliveryDate
+                        ? new Date(shipment.expectedDeliveryDate).toLocaleDateString("en-IN")
+                        : "—"}
+                    </dd>
+                  </div>
+                  {shipment.dispatchNotes ? (
+                    <div className="mt-1">
+                      <dt className="text-zinc-500">Dispatch notes</dt>
+                      <dd className="text-sm text-zinc-700">{shipment.dispatchNotes}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+                <div className="mt-3">
+                  <Link
+                    href={`/admin/shipments/${shipment.id}`}
+                    className="text-sm font-semibold text-brand-700 hover:underline"
+                  >
+                    Manage shipment →
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+            {order.orderStatus !== "cancelled" &&
+            order.orderStatus !== "delivered" ? (
+              <div className="mt-4 border-t border-zinc-100 pt-4">
+                <h3 className="text-sm font-bold text-zinc-900">Lifecycle timeline</h3>
+                <ol className="mt-2 flex flex-col gap-1 text-sm">
+                  {[
+                    { status: "confirmed", label: "Confirmed" },
+                    { status: "processing", label: "Processing" },
+                    { status: "packed", label: "Packed" },
+                    { status: "ready_for_dispatch", label: "Ready for dispatch" },
+                    { status: "dispatched", label: "Dispatched" },
+                    { status: "delivered", label: "Delivered" },
+                  ].map((stage) => {
+                    const event = order.events.find(
+                      (e) => e.toStatus === stage.status || e.eventType === stage.status.toUpperCase().replace(/_/g, "_"),
+                    );
+                    const isCurrent = order.orderStatus === stage.status;
+                    const isPast = event !== undefined;
+                    return (
+                      <li key={stage.status} className="flex items-center gap-2">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            isCurrent
+                              ? "bg-brand-700"
+                              : isPast
+                                ? "bg-green-500"
+                                : "bg-zinc-300"
+                          }`}
+                        />
+                        <span className={isCurrent ? "font-bold text-zinc-900" : isPast ? "text-zinc-700" : "text-zinc-400"}>
+                          {stage.label}
+                        </span>
+                        {event ? (
+                          <span className="text-xs text-zinc-500">
+                            {new Date(event.createdAt).toLocaleString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            ) : null}
           </section>
 
           <section aria-label="Audit trail" className="rounded-lg border border-zinc-200 bg-white p-5">
@@ -333,6 +431,14 @@ export default async function AdminOrderPage({
               </ol>
             )}
           </section>
+
+          {order ? (
+            <NotesSection
+              entityType="order"
+              entityId={order.id}
+              initialNotes={notes}
+            />
+          ) : null}
 
           <p className="text-sm text-zinc-500">
             <Link href="/admin/orders" className="font-semibold text-brand-700 hover:underline">

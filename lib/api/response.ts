@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import type { ApiFailure, ApiSuccess } from "@/types/api";
 
-/** Success envelope: `NextResponse.json({ ok: true, data })`. */
 export function ok<T>(data: T, init?: { status?: number }): NextResponse<ApiSuccess<T>> {
   return NextResponse.json({ ok: true, data }, { status: init?.status ?? 200 });
 }
 
-/** Failure envelope: `NextResponse.json({ ok: false, error })`. */
 export function fail(
   code: string,
   message: string,
-  init?: { status?: number; details?: unknown },
+  init?: { status?: number; details?: unknown; headers?: HeadersInit },
 ): NextResponse<ApiFailure> {
   return NextResponse.json(
     {
@@ -21,7 +19,7 @@ export function fail(
         ...(init?.details !== undefined ? { details: init.details } : {}),
       },
     },
-    { status: init?.status ?? 400 },
+    { status: init?.status ?? 400, headers: init?.headers },
   );
 }
 
@@ -40,10 +38,15 @@ export const notFound = (message = "Resource not found.") =>
 export const unprocessable = (message: string, details?: unknown) =>
   fail("VALIDATION_ERROR", message, { status: 422, details });
 
-export const internalError = (message = "Something went wrong. Please try again.") =>
-  fail("INTERNAL_ERROR", message, { status: 500 });
+export const internalError = (
+  message = "Something went wrong. Please try again.",
+  referenceId?: string,
+) =>
+  fail("INTERNAL_ERROR", message, {
+    status: 500,
+    details: referenceId ? { referenceId } : undefined,
+  });
 
-/** 429 with Retry-After. Message is generic — no quota details leak. */
 export function rateLimited(retryAfterMs: number): NextResponse<ApiFailure> {
   return NextResponse.json(
     {

@@ -1,13 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import type { PayableOrder } from "@/lib/payments/order";
 
 /**
  * Print + download actions for an order. The download is generated
  * locally from the already-displayed snapshot data — no server call,
- * no new totals.
+ * no new totals. "Get a fresh link" rotates the guest token (old links
+ * die) for customers who may have shared their URL.
  */
 export function OrderActions({ order }: { order: PayableOrder }) {
+  const [rotating, setRotating] = useState(false);
+  const [rotated, setRotated] = useState(false);
+  const [rotateError, setRotateError] = useState<string | null>(null);
+
   const download = () => {
     const lines = [
       `Trolift Solutions — Order ${order.orderNumber}`,
@@ -32,6 +38,25 @@ export function OrderActions({ order }: { order: PayableOrder }) {
     URL.revokeObjectURL(url);
   };
 
+  const rotate = async () => {
+    setRotating(true);
+    setRotateError(null);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/rotate`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        setRotateError("Could not rotate the link. Please try again.");
+        return;
+      }
+      setRotated(true);
+    } catch {
+      setRotateError("Could not reach the server. Please try again.");
+    } finally {
+      setRotating(false);
+    }
+  };
+
   return (
     <div className="flex flex-wrap gap-2 print:hidden">
       <button
@@ -48,6 +73,28 @@ export function OrderActions({ order }: { order: PayableOrder }) {
       >
         Download summary
       </button>
+      <button
+        type="button"
+        onClick={rotate}
+        disabled={rotating || rotated}
+        className="inline-flex h-10 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-bold text-zinc-800 hover:bg-zinc-50 disabled:opacity-60"
+      >
+        {rotated
+          ? "Link refreshed ✓"
+          : rotating
+            ? "Refreshing…"
+            : "Get a fresh link"}
+      </button>
+      {rotateError ? (
+        <p role="alert" className="w-full text-xs text-red-700">
+          {rotateError}
+        </p>
+      ) : null}
+      {rotated ? (
+        <p role="status" className="w-full text-xs text-green-800">
+          Your access link was refreshed. Old shared links no longer work.
+        </p>
+      ) : null}
     </div>
   );
 }

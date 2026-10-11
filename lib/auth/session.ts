@@ -58,13 +58,31 @@ export async function isAdmin(): Promise<boolean> {
 
 export async function requireAdmin() {
   const user = await requireUser();
-  if (!(await isAdmin())) {
+  // Reuse the user from requireUser() instead of calling getSessionUser() again
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (error) {
+      const { AppError } = await import("@/lib/api/errors");
+      throw new AppError("FORBIDDEN", "You do not have access to this resource.", 403);
+    }
+    const row = data as { is_admin: boolean } | null;
+    if (row?.is_admin !== true) {
+      const { AppError } = await import("@/lib/api/errors");
+      throw new AppError(
+        "FORBIDDEN",
+        "You do not have access to this resource.",
+        403,
+      );
+    }
+  } catch (e) {
+    if (e instanceof Error && e.name === "AppError") throw e;
     const { AppError } = await import("@/lib/api/errors");
-    throw new AppError(
-      "FORBIDDEN",
-      "You do not have access to this resource.",
-      403,
-    );
+    throw new AppError("FORBIDDEN", "You do not have access to this resource.", 403);
   }
   return user;
 }
