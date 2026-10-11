@@ -140,7 +140,7 @@ describe("invoice PDF (structured data → A4 document)", () => {
     const pdf = await renderInvoicePdf(
       buildInvoiceData(
         base({
-          customer: { name: long, phone: "+919810001111", email: null, gstin: null },
+          customer: { name: long, phone: "+919810001111", email: null, gstin: "27ABCDE1234F1Z5" },
           items,
           totals: {
             treatment: "gst",

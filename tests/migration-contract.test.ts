@@ -35,6 +35,41 @@ function dbStatusValues(): string[] {
   return last;
 }
 
+function readMigrations(): Array<{ file: string; sql: string }> {
+  const dir = join(__dirname, "..", "supabase", "migrations");
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((file) => ({ file, sql: readFileSync(join(dir, file), "utf8") }));
+}
+
+describe("invoice + tax integrity (Prompt 49)", () => {
+  it("enforces the CGST+SGST vs IGST exclusivity + non-GST zero-tax CHECK", () => {
+    const all = readMigrations()
+      .map((m) => m.sql)
+      .join("\n");
+    expect(all).toContain("orders_tax_split_check");
+    // Legacy all-zero rows must satisfy the constraint (it validates).
+    expect(all).toMatch(/cgst_amount \+ sgst_amount = 0 or igst_amount = 0/);
+    expect(all).toMatch(/tax_treatment <> 'non_gst'/);
+  });
+
+  it("locks invoice numbering to the service role", () => {
+    const all = readMigrations()
+      .map((m) => m.sql)
+      .join("\n");
+    expect(all).toMatch(
+      /revoke execute on function public\.generate_invoice_number\(text\) from authenticated/,
+    );
+    expect(all).toMatch(
+      /revoke all on sequence public\.invoice_number_seq from authenticated/,
+    );
+    expect(all).toMatch(
+      /grant usage, select on sequence public\.invoice_number_seq to service_role/,
+    );
+  });
+});
+
 describe("DB status CHECK covers the app state machine", () => {
   it("every ORDER_TRANSITIONS key is storable", () => {
     const dbValues = dbStatusValues();

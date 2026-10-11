@@ -70,8 +70,24 @@ interface ItemSnapshot {
   line_tax_amount: string;
 }
 
-const toPaise = (decimal: string): number =>
-  Math.round(Number(decimal) * 100);
+/**
+ * Exact NUMERIC(12,2) → integer paise (no floats: "1133.82" → 113382).
+ * Anything off-shape fails closed — a tax document must never be built
+ * from a mis-parsed amount.
+ */
+const toPaise = (decimal: string): number => {
+  const m = /^(-?\d+)(?:\.(\d{1,2}))?$/.exec(decimal.trim());
+  if (!m) {
+    throw new AppError("INTERNAL_ERROR", "Could not load the invoice.", 500);
+  }
+  const rupees = Number(m[1]);
+  const frac = (m[2] ?? "").padEnd(2, "0");
+  const paise = rupees * 100 + (rupees < 0 || Object.is(rupees, -0) ? -Number(frac) : Number(frac));
+  if (!Number.isSafeInteger(paise) || paise < 0) {
+    throw new AppError("INTERNAL_ERROR", "Could not load the invoice.", 500);
+  }
+  return paise;
+};
 
 function isUniqueViolation(error: unknown): boolean {
   return (

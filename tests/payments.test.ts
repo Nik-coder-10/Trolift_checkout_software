@@ -15,6 +15,7 @@ import {
   buildUpiIntent,
   getOwnerUpi,
   getPaymentWindowHours,
+  isValidUpiVpa,
 } from "@/lib/payments/upi";
 import type { OrderStatus, PaymentStatus } from "@/types";
 
@@ -40,6 +41,23 @@ describe("UPI configuration", () => {
       payeeVpa: "trolift@upi",
       payeeName: "Trolift Solutions",
     });
+  });
+
+  it("trims the UPI id and rejects malformed VPAs", () => {
+    process.env[UPI_ID] = "  trolift@upi  ";
+    expect(getOwnerUpi().payeeVpa).toBe("trolift@upi");
+    process.env[UPI_ID] = "not-a-vpa";
+    expect(() => getOwnerUpi()).toThrow(/VPA/);
+    process.env[UPI_ID] = "x@y";
+    expect(() => getOwnerUpi()).toThrow(/VPA/);
+  });
+
+  it("validates VPA shapes", () => {
+    expect(isValidUpiVpa("trolift@upi")).toBe(true);
+    expect(isValidUpiVpa("name@bank")).toBe(true);
+    expect(isValidUpiVpa("no-at-sign")).toBe(false);
+    expect(isValidUpiVpa("@bank")).toBe(false);
+    expect(isValidUpiVpa("a@b")).toBe(false);
   });
 
   it("configures the payment window with a safe default", () => {
@@ -70,6 +88,14 @@ describe("UPI intent (what the QR encodes)", () => {
     expect(new URLSearchParams(uri.replace("upi://pay?", "")).get("am")).toBe(
       "25449.00",
     );
+  });
+
+  it("refuses intents with bad VPAs or non-positive amounts", () => {
+    expect(() =>
+      buildUpiIntent({ payeeVpa: "bad", payeeName: "X" }, 100, "note"),
+    ).toThrow(/VPA/);
+    expect(() => buildUpiIntent(info, 0, "note")).toThrow(/amount/);
+    expect(() => buildUpiIntent(info, -5, "note")).toThrow(/amount/);
   });
 });
 

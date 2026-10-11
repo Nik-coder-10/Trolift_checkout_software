@@ -220,6 +220,19 @@ Re-verified on the current tree this session: lint 0, typecheck 0,
 609/609 unit tests, production build 0, hermetic E2E 56/56, staging
 E2E 38/2/0. Nothing was deployed or migrated.
 
+Prompt 49 follow-up (2026-10-11, uncommitted local work): tax state
+list corrected (37 Andhra Pradesh, 38 Ladakh), seller-GSTIN format
+warning + invoice-prefix critical + UPI-shape critical added to
+`verifyProductionConfig()`, `/api/ready` now surfaces
+`checks.config.warnings`, invoice builder enforces paid-only and
+GST⇔GSTIN coherence, GSTIN/billing-state match enforced at order
+time, exact decimal→paise parsing on the invoice path, and migration
+`0030` locks invoice numbering to the service role plus a DB-level
+tax-split CHECK. Full unit suite is now **621/621** (38 files); lint
+0/18, typecheck 0, placeholder-env production build 0. Details and
+the unchanged BLOCKED/NOT RUN items are in
+`release-gate-checklist.md` §G. Nothing was deployed or migrated.
+
 ## 10. Path to `PRODUCTION VERIFIED`
 
 1. Provision production Supabase + host; set the env vars in §7;
@@ -247,4 +260,5 @@ E2E 38/2/0. Nothing was deployed or migrated.
 `docs/operations/production-smoke-test.md`,
 `docs/operations/release-gate-checklist.md`,
 `scripts/backup-restore/fixtures.sql`,
-`scripts/backup-restore/verify.sql`, this report.
+`scripts/backup-restore/verify.sql`,
+`supabase/migrations/0030_invoice_tax_integrity.sql`, this report.

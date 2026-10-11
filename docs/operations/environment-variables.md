@@ -14,16 +14,16 @@ Legend for the environment matrix: **R** = required, **O** = optional,
 | `NEXT_PUBLIC_SITE_URL` | Public | O | O | R | R | Canonical origin for absolute URLs (metadata, robots). Default `http://localhost:3000`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Secret** | R | R | R | R | Server-only bypass of RLS. `server-only` import guards bundling. |
 | `SUPABASE_DB_URL` | **Secret** | O | — | O | O | Direct Postgres URL for `supabase db push` / migration CLI only. Never read by app code. |
-| `OWNER_UPI_ID` | **Secret-ish** | R | R | R | **R** | Payee VPA for payment instructions + QR. Server-only. **Readiness-critical in production** (see below). |
+| `OWNER_UPI_ID` | **Secret-ish** | R | R | R | **R** | Payee VPA (`user@bank` shape) for payment instructions + QR. Server-only. Presence **and** VPA shape are **readiness-critical in production** — a malformed VPA prints an unpayable QR, so config and `getOwnerUpi()` both fail closed (see below). |
 | `OWNER_UPI_PAYEE_NAME` | Public-ish | O | O | O | O | Payee display name in the UPI intent. |
 | `PAYMENT_WINDOW_HOURS` | — | O | O | O | O | Displayed "payable within N hours" window. Default 48. Informational only (no auto-cancel). |
-| `TROLIFT_STATE_CODE` | — | O | O | R | R* | 2-digit GST home-state code. Unset/invalid ⇒ every GST order is IGST (documented, tested fallback — surfaced as a readiness **warning**, never silently defaulted). |
+| `TROLIFT_STATE_CODE` | — | O | O | R | R* | 2-digit GST home-state code (CBIC list incl. 37 Andhra Pradesh, 38 Ladakh; 97/99 never select a CGST split — IGST by construction). Unset/invalid ⇒ every GST order is IGST (documented, tested fallback — surfaced as a readiness **warning**, never silently defaulted). |
 | `TROLIFT_BUSINESS_NAME` | — | R | R | R | **R** | Seller name printed on every tax invoice. **Readiness-critical in production.** |
 | `TROLIFT_BUSINESS_ADDRESS` | — | R | R | R | **R** | Seller address on invoices. **Readiness-critical in production.** |
 | `TROLIFT_BUSINESS_PHONE` | — | O | O | O | O | Optional invoice field; omitted from PDF when empty. |
 | `TROLIFT_BUSINESS_EMAIL` | — | O | O | O | O | Optional invoice field; omitted when empty. |
-| `TROLIFT_BUSINESS_GSTIN` | — | O | O | R | R | Seller GSTIN (format-checked, display-only — never verified with the government). |
-| `TROLIFT_INVOICE_PREFIX` | — | O | O | O | O | 2–10 uppercase letters prefixing invoice numbers. Default `INV`. Invalid value throws (fail-safe, no silent fallback on a financial document). |
+| `TROLIFT_BUSINESS_GSTIN` | — | O | O | R† | R† | Seller GSTIN (format-checked, display-only — never verified with the government). Empty or malformed ⇒ readiness **warning** (never 503); the value is never echoed. |
+| `TROLIFT_INVOICE_PREFIX` | — | O | O | O | O | 2–10 uppercase letters prefixing invoice numbers. Default `INV`. An invalid value is **readiness-critical in production** (issuance would 500 every paid-order download, so `/api/ready` 503s instead — fail-safe, no silent fallback on a financial document). |
 | `BUSINESS_TIMEZONE` | — | O | O | R | R | IANA zone for business-day boundaries (dashboards/reports). Default `Asia/Kolkata`; an *invalid* name is a readiness warning (would silently shift day boundaries to UTC — not acceptable un-signalled). |
 | `RATE_LIMIT_BACKEND` | — | O | O | `memory`† | **R** | `auto` \| `memory` \| `upstash`. Production without Upstash **and** without explicit `memory` ⇒ financial mutations fail closed (429). |
 | `UPSTASH_REDIS_REST_URL` | **Secret** | — | — | O | **R** | Shared sliding-window store so all instances enforce one budget. |
@@ -35,6 +35,12 @@ Legend for the environment matrix: **R** = required, **O** = optional,
 \* Production can run with `TROLIFT_STATE_CODE` unset (IGST for all GST
 orders) but readiness will warn until Trolift confirms its home state —
 the tax split must never be guessed.
+
+† "Required" for the GSTIN means required for *correct GST paperwork*,
+not for readiness: the probe warns (listing `gstin` under
+`checks.config.warnings`) whether it is empty or malformed, and stays
+green. Do not "fix" the warning by inventing a GSTIN — confirm the
+real one with the owner, or record that invoices intentionally omit it.
 
 † Staging E2E runs single-instance against a disposable stack, so
 in-process memory is the honest choice there; production mutations fail
@@ -63,12 +69,13 @@ without the enable flag; synthetic storage objects are namespaced
 `/api/ready` runs `verifyProductionConfig()` on every uncached probe:
 
 - **Production + any critical check failing ⇒ HTTP 503.** Critical:
-  Supabase credentials, `OWNER_UPI_ID`, invoice seller block, shared
-  rate-limit backend. Serving money traffic without these produces
-  broken payment instructions or un-downloadable invoices — worse
-  than down.
-- **Warnings are reported, never fatal**: GSTIN absent, home state
-  unset/invalid, invalid timezone.
+  Supabase credentials, `OWNER_UPI_ID` (presence + `user@bank` shape),
+  invoice seller block, invoice prefix shape, shared rate-limit
+  backend. Serving money traffic without these produces broken
+  payment instructions or un-downloadable invoices — worse than down.
+- **Warnings are reported, never fatal**: GSTIN empty/malformed, home
+  state unset/invalid, invalid timezone. `/api/ready` lists them under
+  `checks.config.warnings` (ids only) on every probe.
 - **Outside production nothing here can fail readiness** — dev and
   the hermetic test suite never fight production-only knobs.
 - Checks emit **variable names and symptoms only**; values never

@@ -191,6 +191,12 @@ describe("invoice generation (snapshot-only)", () => {
     expect(() =>
       buildInvoiceData(
         gstInput({
+          customer: {
+            name: "Jane",
+            phone: "+919820002222",
+            email: null,
+            gstin: null,
+          },
           items: [
             {
               name: "Trolley",
@@ -214,6 +220,35 @@ describe("invoice generation (snapshot-only)", () => {
         }),
       ),
     ).toThrow(/non-GST invoice carries tax/);
+    expect(() =>
+      buildInvoiceData(
+        gstInput({
+          totals: {
+            ...gstInput().totals,
+            treatment: "non_gst",
+          },
+        }),
+      ),
+    ).toThrow(/must not carry a customer GSTIN/);
+    expect(() =>
+      buildInvoiceData(
+        gstInput({
+          customer: {
+            name: "Jane",
+            phone: "+919820002222",
+            email: null,
+            gstin: null,
+          },
+          totals: {
+            ...gstInput().totals,
+            treatment: "gst",
+          },
+        }),
+      ),
+    ).toThrow(/needs the customer GSTIN/);
+    expect(() =>
+      buildInvoiceData(gstInput({ paymentStatus: "pending" })),
+    ).toThrow(/only for paid orders/);
   });
 
   it("tolerates missing optional fields and very long names", () => {

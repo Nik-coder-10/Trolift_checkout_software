@@ -117,7 +117,7 @@ None can be invented or approved by an agent.
 | D4 | Invoice seller block (`TROLIFT_BUSINESS_NAME/ADDRESS/PHONE/EMAIL`) | **BLOCKED** | Confirm the real legal identity to print. |
 | D5 | RPO/RTO ratification and PITR decision | **BLOCKED** | Accept the free-plan ≤24 h RPO, or buy PITR (≤5 min). |
 | D6 | Production secrets configured in host secret manager | **BLOCKED** | No host exists yet. |
-| D7 | Release-critical files are untracked — commit them before any gate can run from a fresh checkout | **BLOCKED** | `supabase/config.toml`, migrations `0022–0029`, `playwright.staging.config.ts`, `e2e/staging/`, `.github/workflows/` (both files), and the rate-limit/doc changes in this tree are untracked or uncommitted (`supabase/seed/seed.sql` is tracked). The staging workflow, `db reset` seeding, and the new tests all depend on these files being present. Committing is an operator decision (agent does not commit unreviewed work). |
+| D7 | Release-critical files are untracked — commit them before any gate can run from a fresh checkout | **RESOLVED (verify)** | Consolidation commit `1940628` now tracks `supabase/config.toml`, migrations `0001–0029`, `playwright.staging.config.ts`, `e2e/staging/`, and both workflows (`git ls-files` confirms; `git status` clean; old `e2e.yml` stays deleted). Operator to re-verify from a fresh checkout before relying on it. New migration `0030` (Prompt 49) is *uncommitted local work* until reviewed and committed — same rule applies. |
 
 ## E. Production-only gates (NOT RUN — environment does not exist)
 
@@ -149,6 +149,68 @@ None can be invented or approved by an agent.
    stopped at 0028 while 0029 existed). The workflow runs
    `supabase migration up` plus a tree-vs-DB parity check that fails
    the gate on any miss, so this class can no longer pass silently.
+
+## G. Prompt 49 addendum — tax, invoice, readiness hardening (2026-10-11)
+
+Gaps confirmed against the code/SQL this session (all locally
+reproducible, no credentials needed):
+
+1. **GST state list wrong** — `lib/tax/india.ts` had `37 = Ladakh`,
+   was missing `38`, and used pre-merger UT names. Fixed: 37 Andhra
+   Pradesh, 38 Ladakh added, 25/26/28 labelled legacy-or-merged,
+   97/99 documented as never selecting a CGST split.
+   Tests: `tests/gst.test.ts` (+state-list, +GSTIN/state cross-check).
+2. **Seller GSTIN shape unchecked** — `verifyProductionConfig()`
+   treated any non-empty GSTIN as fine, so a typo would print on every
+   tax document unwarned. Fixed: format-validated warning (never
+   echoes the value). Tests: `tests/config-production.test.ts`.
+3. **Invoice prefix unchecked** — an invalid `TROLIFT_INVOICE_PREFIX`
+   throws at issuance (every paid download 500s) but readiness stayed
+   green. Fixed: critical `invoice-prefix` check (503 in production).
+4. **UPI shape unchecked** — whitespace or a non-VPA value rendered a
+   broken QR. Fixed: trim + `user@bank` shape; `getOwnerUpi()` and
+   `buildUpiIntent()` fail closed. Readiness `upi` check covers shape.
+5. **Readiness dropped warnings** — the checklist promised "`/api/ready`
+   warns" on the home state, but the route returned only critical
+   `failing` ids. Fixed: `checks.config.warnings` (ids only) on every
+   probe; `configWarnings()` helper, unit-tested.
+6. **Invoice builder trusted its caller** — `buildInvoiceData()` would
+   render an unpaid order or a treatment/GSTIN mismatch if called
+   directly. Fixed: paid-only gate + GST⇔GSTIN coherence checks
+   (service gate unchanged). Existing route tests updated where their
+   fixtures were incoherent (a GST-taxed invoice with no customer
+   GSTIN cannot exist via the order engine).
+7. **GSTIN/billing-state mismatch accepted** — a typo'd state with a
+   valid GSTIN silently picked the wrong split. Fixed:
+   `gstinMatchesBillingState()` enforced in checkout validation and
+   `normalizeBillingForm()` (422 server-side). Unit-tested.
+8. **Float money parsing on the invoice path** — `toPaise()` used
+   `Number × 100`. Fixed: exact decimal→paise parsing, fail-closed.
+9. **Invoice numbering reachable by any login** — 0017 granted the
+   sequence to `authenticated` and the generator kept its default
+   authenticated EXECUTE (the 0028 `revoke from public` pattern does
+   not remove it). Fixed by migration `0030` (sequence + generator
+   locked to `service_role`).
+10. **Tax-split invariant app-only** — CGST+SGST vs IGST exclusivity and
+    non-GST zero-tax lived only in `buildInvoiceData()`. Fixed by
+    migration `0030` (`orders_tax_split_check`; legacy all-zero rows
+    satisfy it). Contract tests added to
+    `tests/migration-contract.test.ts`.
+
+Re-verified on the current tree this session: `npm run lint` exit 0
+(0 errors / 18 warnings, unchanged), `npm run typecheck` exit 0,
+`npm test` exit 0 — **38 files, 621/621 passed** (was 609; +12 new),
+production build with placeholder public env exit 0. Nothing
+deployed, no migration applied to any database, no secret touched.
+
+Still BLOCKED (owner/staging only, unchanged): D1 home state code,
+D2 seller GSTIN value, D3 owner UPI value, D4 seller block values, D5
+RPO/RTO + PITR, D6 production secrets/host, C2–C3 Upstash-backed E2E,
+E1–E6 production-only gates. In particular: the 0030 SQL is
+*reviewed code only* — it must go through migrations.md steps 1–7
+(backup-verify → staging migrate → staging smoke → approval → prod
+migrate → post-verify) and a managed-staging restore drill before any
+production claim.
 
 ## What an agent may NOT do
 

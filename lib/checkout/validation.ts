@@ -7,7 +7,7 @@ import {
   normalizePhone,
   normalizePincode,
 } from "@/lib/validations/common";
-import { INDIAN_STATES, isStateCode } from "@/lib/tax/india";
+import { INDIAN_STATES, gstinMatchesBillingState, isStateCode } from "@/lib/tax/india";
 
 /**
  * Checkout form validation (client UX + shared with future order API).
@@ -107,6 +107,17 @@ export function validateCheckoutForm(
     }
     if (form.gstin.trim() === "") {
       errors.gstin = "Business orders need a GSTIN for the invoice.";
+    } else if (
+      isStateCode(form.billing.stateCode) &&
+      isValidGstin(form.gstin) &&
+      !gstinMatchesBillingState(form.gstin, form.billing.stateCode)
+    ) {
+      // The GSTIN embeds its registration state (first 2 digits) — a
+      // mismatch with the billing state is almost always a typo, and
+      // ITC follows the billing state. Multi-state customers must use
+      // the GSTIN registered in the billing state.
+      errors["billing.stateCode"] =
+        "Billing state does not match the GSTIN state — check both.";
     }
   }
   const cartEmpty = itemCount <= 0;
@@ -159,6 +170,7 @@ export function normalizeBillingForm(
     };
   }
   if (validateBillingProfile(form) !== null) return null;
+  if (!gstinMatchesBillingState(gstin, form.stateCode)) return null;
   return {
     gstin,
     stateCode: form.stateCode,

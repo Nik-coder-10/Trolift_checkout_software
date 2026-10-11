@@ -6,6 +6,10 @@ vi.mock("server-only", () => ({}));
 import {
   computeOrderTax,
   getBusinessStateCode,
+  gstinMatchesBillingState,
+  gstinStateCode,
+  INDIAN_STATES,
+  isStateCode,
   lineTaxPaise,
   parseGstRate,
 } from "@/lib/tax/india";
@@ -151,6 +155,21 @@ describe("computeOrderTax (integer paise, per-line rounding)", () => {
     vi.stubEnv("TROLIFT_STATE_CODE", "");
     expect(getBusinessStateCode()).toBeNull();
   });
+
+  it("covers the current CBIC state list (38 Ladakh, 37 Andhra Pradesh)", () => {
+    expect(isStateCode("37")).toBe(true);
+    expect(isStateCode("38")).toBe(true);
+    expect(isStateCode("99")).toBe(false);
+    expect(INDIAN_STATES.find((s) => s.code === "37")?.name).toContain("Andhra Pradesh");
+    expect(INDIAN_STATES.find((s) => s.code === "38")?.name).toContain("Ladakh");
+  });
+
+  it("cross-checks GSTIN state against billing state", () => {
+    expect(gstinStateCode(GSTIN)).toBe("27");
+    expect(gstinMatchesBillingState(GSTIN, "27")).toBe(true);
+    expect(gstinMatchesBillingState(GSTIN, "29")).toBe(false);
+    expect(gstinMatchesBillingState("short", "27")).toBe(false);
+  });
 });
 
 describe("checkout billing validation", () => {
@@ -207,6 +226,17 @@ describe("checkout billing validation", () => {
       billing: { ...EMPTY_BILLING_FORM },
     };
     expect(validateCheckoutForm(individual, 1).valid).toBe(true);
+  });
+
+  it("rejects a billing state that does not match the GSTIN state", () => {
+    const mismatched = {
+      ...business,
+      billing: { ...business.billing, stateCode: "29" },
+    };
+    const result = validateCheckoutForm(mismatched, 1);
+    expect(result.valid).toBe(false);
+    expect(result.errors["billing.stateCode"]).toContain("GSTIN");
+    expect(normalizeBillingForm(mismatched.billing, GSTIN)).toBeNull();
   });
 
   it("normalises billing profiles with server-derived state names", () => {

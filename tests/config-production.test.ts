@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  configWarnings,
   criticalConfigFailures,
   isValidTimezone,
   verifyProductionConfig,
@@ -133,6 +134,48 @@ describe("verifyProductionConfig", () => {
     // vitest runs NODE_ENV=test: the check is not emitted at all, so a
     // bare dev environment can never trip it.
     expect(verifyProductionConfig().find((c) => c.id === "rate-limit")).toBeUndefined();
+  });
+
+  it("fails critical on a malformed UPI id (broken QR is as bad as missing)", () => {
+    setEnv({ OWNER_UPI_ID: "not-a-vpa" });
+    const upi = checkById("upi");
+    expect(upi.severity).toBe("critical");
+    expect(upi.ok).toBe(false);
+    expect(upi.detail).toContain("VPA");
+
+    setEnv({ OWNER_UPI_ID: "  trolift@upi  " });
+    expect(checkById("upi").ok).toBe(true);
+  });
+
+  it("warns on a malformed seller GSTIN (never echoes the value)", () => {
+    setEnv({ TROLIFT_BUSINESS_GSTIN: "BOGUS-GSTIN" });
+    const gstin = checkById("gstin");
+    expect(gstin.severity).toBe("warning");
+    expect(gstin.ok).toBe(false);
+    expect(JSON.stringify(gstin)).not.toContain("BOGUS-GSTIN");
+
+    setEnv({ TROLIFT_BUSINESS_GSTIN: "27ABCDE1234F1Z5" });
+    expect(checkById("gstin").ok).toBe(true);
+  });
+
+  it("fails critical on a bad invoice prefix (issuance would 500)", () => {
+    setEnv({});
+    // Unset defaults to INV — valid.
+    expect(checkById("invoice-prefix").ok).toBe(true);
+
+    setEnv({ TROLIFT_INVOICE_PREFIX: "nope!" });
+    const prefix = checkById("invoice-prefix");
+    expect(prefix.severity).toBe("critical");
+    expect(prefix.ok).toBe(false);
+  });
+
+  it("exposes warning ids separately from critical failures", () => {
+    setEnv({});
+    const warnings = configWarnings(verifyProductionConfig()).map((c) => c.id);
+    expect(warnings).toContain("gstin");
+    expect(warnings).toContain("state-code");
+    expect(warnings).not.toContain("upi");
+    expect(warnings).not.toContain("invoice-identity");
   });
 });
 

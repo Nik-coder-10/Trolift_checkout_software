@@ -65,10 +65,10 @@ export const INDIAN_STATES: ReadonlyArray<IndianState> = [
   { code: "22", name: "Chhattisgarh" },
   { code: "23", name: "Madhya Pradesh" },
   { code: "24", name: "Gujarat" },
-  { code: "25", name: "Daman and Diu" },
-  { code: "26", name: "Dadra and Nagar Haveli" },
+  { code: "25", name: "Daman and Diu (legacy — merged into 26; old GSTINs only)" },
+  { code: "26", name: "Dadra and Nagar Haveli and Daman and Diu" },
   { code: "27", name: "Maharashtra" },
-  { code: "28", name: "Andhra Pradesh" },
+  { code: "28", name: "Andhra Pradesh (pre-division legacy)" },
   { code: "29", name: "Karnataka" },
   { code: "30", name: "Goa" },
   { code: "31", name: "Lakshadweep" },
@@ -77,11 +77,44 @@ export const INDIAN_STATES: ReadonlyArray<IndianState> = [
   { code: "34", name: "Puducherry" },
   { code: "35", name: "Andaman and Nicobar Islands" },
   { code: "36", name: "Telangana" },
-  { code: "37", name: "Ladakh" },
+  { code: "37", name: "Andhra Pradesh" },
+  { code: "38", name: "Ladakh" },
 ];
+
+// Note: codes 97 (Other Territory) and 99 (Centre Jurisdiction) are NOT
+// billing states — they never select a CGST+SGST vs IGST split here.
+// An order carrying such a code falls back to IGST by construction
+// (sameState requires an exact match with the business state).
 
 export function isStateCode(code: string): boolean {
   return INDIAN_STATES.some((s) => s.code === code);
+}
+
+/**
+ * First two digits of a GSTIN — the registrant's state code per the
+ * CBIC GST state-code list. Returns null when the GSTIN is not
+ * 15 characters (callers format-check first).
+ */
+export function gstinStateCode(gstin: string): string | null {
+  const v = gstin.trim().toUpperCase();
+  if (v.length !== 15) return null;
+  return v.slice(0, 2);
+}
+
+/**
+ * GSTIN-vs-billing cross-check: a billing profile's state code should
+ * equal the GSTIN's embedded state code (the GSTIN is issued per state —
+ * a mismatch is almost always a typo, and ITC follows the billing
+ * state). Legacy codes (25/28) are accepted as-is: the check is pure
+ * equality, not a validity judgement on either side.
+ */
+export function gstinMatchesBillingState(
+  gstin: string,
+  billingStateCode: string,
+): boolean {
+  const embedded = gstinStateCode(gstin);
+  if (embedded === null) return false;
+  return embedded === billingStateCode;
 }
 
 /**

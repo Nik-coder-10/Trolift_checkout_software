@@ -10,19 +10,22 @@ UPI that means the owner confirms the credit in their bank/UPI app
 against the exact test UTR, and payment verification is then run in
 the admin dashboard.
 
-Baseline: the staging E2E suite (40 passed / 2 skipped on Desktop
-Chrome + Pixel 7) already proves these journeys end-to-end on
-staging. This checklist re-proves the *production* environment's
-configuration, data, and integrations — it is not optional because
-staging passed.
+Baseline: the staging E2E suite (38 passed / 2 skipped on Desktop
+Chrome + Pixel 7 — see release-gate-checklist.md C1) already proves
+these journeys end-to-end on staging. This checklist re-proves the
+*production* environment's configuration, data, and integrations —
+it is not optional because staging passed.
 
 ## 1. Platform health
 
 - [ ] `GET /api/health` → 200 `{ status: "ok" }`.
 - [ ] `GET /api/ready` → 200, `checks.database.status = "ok"` AND
       `checks.config.status = "ok"`. A 503 here names missing
-      critical config (UPI, invoice identity, rate-limit store) —
-      fix before anything below.
+      critical config (UPI presence/shape, invoice identity, invoice
+      prefix shape, rate-limit store) — fix before anything below.
+      Record any `checks.config.warnings` (seller GSTIN shape, home
+      GST state, timezone) and confirm each with the owner — they
+      never fail the probe but print directly on tax documents.
 - [ ] `robots.txt` serves disallow rules for admin/cart/checkout;
       `sitemap.xml` lists product pages.
 - [ ] No unexpected `level=error` log lines during the smoke window
@@ -74,9 +77,13 @@ staging passed.
 ## 6. Invoice (tax document)
 
 - [ ] Customer invoice download returns a real PDF (starts with
-      `%PDF`), seller block = production business identity, GST
-      split correct for the test order's state (CGST+SGST vs IGST
-      per `TROLIFT_STATE_CODE`).
+      `%PDF`), seller block = production business identity, seller
+      GSTIN printed exactly as confirmed (or intentionally absent),
+      GST split correct for the test order's state (CGST+SGST vs
+      IGST per `TROLIFT_STATE_CODE`), and billing state matching the
+      test GSTIN's embedded state code (the app rejects mismatches
+      at order time — a mismatch here means the order predates that
+      guard).
 - [ ] Admin invoice print matches the customer invoice.
 - [ ] An invoice for an order with a GSTIN shows line-level GST.
 

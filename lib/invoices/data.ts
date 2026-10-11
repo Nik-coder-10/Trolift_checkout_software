@@ -161,6 +161,21 @@ export function formatInvoiceNumber(
 }
 
 export function buildInvoiceData(input: BuildInvoiceInput): InvoiceData {
+  // Defense in depth: the service layer gates on canIssueInvoice(), but
+  // the frozen-document builder must never produce a "tax invoice" for
+  // an unpaid order even if called directly.
+  if (input.paymentStatus !== "paid") {
+    fail("a tax invoice is issued only for paid orders.");
+  }
+  // Treatment/GSTIN coherence: GST documents require a customer GSTIN
+  // (the order engine sets treatment from GSTIN presence), and non-GST
+  // documents must not carry one — a mismatch means corrupt snapshots.
+  if (input.totals.treatment === "gst" && (input.customer.gstin ?? "") === "") {
+    fail("a GST invoice needs the customer GSTIN snapshot.");
+  }
+  if (input.totals.treatment === "non_gst" && (input.customer.gstin ?? "") !== "") {
+    fail("a non-GST invoice must not carry a customer GSTIN.");
+  }
   if (!/^[A-Z]{2,10}\/FY[0-9]{2}-[0-9]{2}\/[0-9]{4,}$/.test(input.invoiceNumber)) {
     fail("invoice number has an unexpected shape.");
   }

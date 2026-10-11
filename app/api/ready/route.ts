@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, denyIfLimited } from "@/lib/rate-limit/index";
 import { logError } from "@/lib/observability/logger";
 import {
+  configWarnings,
   criticalConfigFailures,
   verifyProductionConfig,
 } from "@/lib/config/production";
@@ -22,11 +23,13 @@ import {
  * - Safe response: `{ checks: { database, config } }` only — no
  *   credentials, schema, hostnames, error internals, or env values.
  *
- * In production, CRITICAL configuration failures (missing UPI id,
- * missing invoice identity, missing shared rate-limit store) also
- * fail readiness: serving money traffic without them produces broken
- * payments or un-downloadable invoices, which is worse than a 503.
- * Outside production config is reported but never fatal.
+ * In production, CRITICAL configuration failures (missing/malformed
+ * UPI id, missing invoice identity, bad invoice prefix, missing shared
+ * rate-limit store) also fail readiness: serving money traffic without
+ * them produces broken payments or un-downloadable invoices, which is
+ * worse than a 503. WARNING-level items (seller GSTIN shape, home GST
+ * state, timezone) are listed under `checks.config.warnings` but never
+ * fail the probe. Outside production config is reported but never fatal.
  */
 export const runtime = "nodejs";
 
@@ -82,6 +85,10 @@ export const GET = withErrorHandling(async (req: Request) => {
   const dbOk = await probeDatabase();
   const configChecks = verifyProductionConfig();
   const configFailures = criticalConfigFailures(configChecks);
+  // Warnings (GSTIN absent, home state unset/invalid, bad timezone)
+  // are surfaced on every probe so operators see them without
+  // tripping readiness — previously they were computed but dropped.
+  const warnings = configWarnings(configChecks);
   const configOk = configFailures.length === 0;
   const production = process.env.NODE_ENV === "production";
   const ready = dbOk && (!production || configOk);
@@ -92,6 +99,9 @@ export const GET = withErrorHandling(async (req: Request) => {
     ...(configOk
       ? {}
       : { failing: configFailures.map((c) => c.id) }),
+    ...(warnings.length > 0
+      ? { warnings: warnings.map((c) => c.id) }
+      : {}),
   };
   const body = {
     status: ready ? "ready" : "not-ready",
@@ -110,6 +120,7 @@ export const GET = withErrorHandling(async (req: Request) => {
       logError("Readiness failing: critical production configuration missing.", {
         operation: "readiness",
         failing: configFailures.map((c) => c.id),
+        warnings: warnings.map((c) => c.id),
       });
     }
     return fail("SERVICE_UNAVAILABLE", "Service is not ready.", {

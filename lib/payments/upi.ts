@@ -13,11 +13,21 @@ export interface UpiPaymentInfo {
   payeeName: string;
 }
 
+/** UPI VPA shape: user@bank (2+ chars each side, no spaces). */
+export function isValidUpiVpa(value: string): boolean {
+  return /^[A-Za-z0-9._-]{2,}@[A-Za-z0-9._-]{2,}$/.test(value.trim());
+}
+
 export function getOwnerUpi(): UpiPaymentInfo {
-  const payeeVpa = process.env.OWNER_UPI_ID ?? "";
-  const payeeName = process.env.OWNER_UPI_PAYEE_NAME ?? "Trolift Solutions";
+  const payeeVpa = (process.env.OWNER_UPI_ID ?? "").trim();
+  const payeeName = (process.env.OWNER_UPI_PAYEE_NAME ?? "").trim() || "Trolift Solutions";
   if (payeeVpa === "") {
     throw new Error("[payments] OWNER_UPI_ID is not configured. See .env.example.");
+  }
+  if (!isValidUpiVpa(payeeVpa)) {
+    // Fail closed: a malformed VPA renders a QR no UPI app can pay
+    // to. Never emit payment instructions with a broken payee.
+    throw new Error("[payments] OWNER_UPI_ID is not a valid UPI VPA (expected user@bank).");
   }
   return { payeeVpa, payeeName };
 }
@@ -29,6 +39,12 @@ export function buildUpiIntent(
   note: string,
   transactionRef?: string,
 ): string {
+  if (!isValidUpiVpa(info.payeeVpa)) {
+    throw new Error("[payments] Refusing to encode a UPI intent with an invalid payee VPA.");
+  }
+  if (!Number.isFinite(amountRupees) || amountRupees <= 0) {
+    throw new Error("[payments] Refusing to encode a UPI intent with a non-positive amount.");
+  }
   const params = new URLSearchParams({
     pa: info.payeeVpa,
     pn: info.payeeName,

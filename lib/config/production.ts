@@ -18,7 +18,17 @@
  */
 
 import { isStateCode } from "@/lib/tax/india";
+import { isValidGstin } from "@/lib/validations/common";
 import { hasUpstashConfig, isExplicitMemory } from "@/lib/rate-limit/index";
+
+/**
+ * UPI VPA shape (local copy — lib/payments/upi.ts owns the canonical
+ * `isValidUpiVpa`, but that module is server-only and this validator
+ * must stay importable from unit tests without the server runtime).
+ */
+function isUpiVpaShape(value: string): boolean {
+  return /^[A-Za-z0-9._-]{2,}@[A-Za-z0-9._-]{2,}$/.test(value.trim());
+}
 
 export type ConfigSeverity = "critical" | "warning";
 
@@ -74,15 +84,21 @@ export function verifyProductionConfig(): ConfigCheck[] {
   });
 
   // ── Payment identity (UPI) ────────────────────────────────────────
-  const upiOk = present("OWNER_UPI_ID");
+  // A malformed VPA prints a QR that no UPI app can pay to — the same
+  // harm as a missing one — so shape is part of the critical check.
+  const upiRaw = (process.env.OWNER_UPI_ID ?? "").trim();
+  const upiOk = upiRaw !== "" && isUpiVpaShape(upiRaw);
   checks.push({
     id: "upi",
     label: "Owner UPI id (payment instructions)",
     severity: "critical",
     ok: upiOk,
-    detail: upiOk
-      ? "OWNER_UPI_ID is set; payment instructions and QR generation work."
-      : "OWNER_UPI_ID is missing — checkout would show payment instructions with no payee. Refusing to be ready in production.",
+    detail:
+      upiRaw === ""
+        ? "OWNER_UPI_ID is missing — checkout would show payment instructions with no payee. Refusing to be ready in production."
+        : !isUpiVpaShape(upiRaw)
+          ? "OWNER_UPI_ID is set but is not a valid UPI VPA (expected user@bank) — QR/deep-links would fail. Fix the value; it is never echoed."
+          : "OWNER_UPI_ID is set and has a valid VPA shape; payment instructions and QR generation work.",
   });
 
   // ── Invoice / business identity ───────────────────────────────────
@@ -99,16 +115,35 @@ export function verifyProductionConfig(): ConfigCheck[] {
         : "TROLIFT_BUSINESS_NAME / TROLIFT_BUSINESS_ADDRESS missing — every invoice download would 500. Fix before taking payments.",
   });
 
-  const gstin = (process.env.TROLIFT_BUSINESS_GSTIN ?? "").trim();
+  // Display-only on the invoice, but a malformed GSTIN printed on a
+  // tax document is worse than none — flag the shape, never the value.
+  const gstin = (process.env.TROLIFT_BUSINESS_GSTIN ?? "").trim().toUpperCase();
+  const gstinOk = gstin !== "" && isValidGstin(gstin);
   checks.push({
     id: "gstin",
     label: "Seller GSTIN",
     severity: "warning",
-    ok: gstin !== "",
+    ok: gstinOk,
     detail:
-      gstin !== ""
-        ? "TROLIFT_BUSINESS_GSTIN is set (display-only on invoices)."
-        : "TROLIFT_BUSINESS_GSTIN is empty — invoices will carry no seller GSTIN. Confirm this is intended before GST-registered customers order.",
+      gstin === ""
+        ? "TROLIFT_BUSINESS_GSTIN is empty — invoices will carry no seller GSTIN. Confirm this is intended before GST-registered customers order."
+        : !isValidGstin(gstin)
+          ? "TROLIFT_BUSINESS_GSTIN is set but fails GSTIN format validation — every invoice would print a malformed seller GSTIN. Fix or clear it; the value is never echoed."
+          : "TROLIFT_BUSINESS_GSTIN is set and passes GSTIN format validation (display-only on invoices, never government-verified).",
+  });
+
+  // An invalid prefix throws inside getInvoicePrefix() at invoice-issue
+  // time (every paid-order download 500s). Fail readiness instead.
+  const prefixRaw = (process.env.TROLIFT_INVOICE_PREFIX ?? "INV").trim().toUpperCase();
+  const prefixOk = /^[A-Z]{2,10}$/.test(prefixRaw);
+  checks.push({
+    id: "invoice-prefix",
+    label: "Invoice number prefix",
+    severity: "critical",
+    ok: prefixOk,
+    detail: prefixOk
+      ? "TROLIFT_INVOICE_PREFIX is a valid invoice prefix (defaults to INV when unset)."
+      : "TROLIFT_INVOICE_PREFIX must be 2–10 uppercase letters — invoice issuance would throw for every paid order. Fix or unset it (default INV).",
   });
 
   // ── Tax configuration (never silently misleading) ─────────────────
@@ -178,4 +213,9 @@ export function verifyProductionConfig(): ConfigCheck[] {
 /** Critical failures only — what makes readiness itself fail. */
 export function criticalConfigFailures(checks: ConfigCheck[]): ConfigCheck[] {
   return checks.filter((c) => c.severity === "critical" && !c.ok);
+}
+
+/** Warning-level misses — reported by /api/ready, never fatal. */
+export function configWarnings(checks: ConfigCheck[]): ConfigCheck[] {
+  return checks.filter((c) => c.severity === "warning" && !c.ok);
 }
