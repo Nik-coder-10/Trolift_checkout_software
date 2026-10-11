@@ -22,8 +22,8 @@ export interface InvoiceItemSnapshot {
   quantity: number;
   unitPricePaise: number;
   lineTotalPaise: number;
-  /** GST percent decimal string (snapshot); null = 0%. */
-  gstRate: string | null;
+  /** GST percent decimal string (snapshot); null = 0%. A JSON number from PostgREST is accepted too. */
+  gstRate: string | number | null;
   lineTaxPaise: number;
 }
 
@@ -79,7 +79,7 @@ export interface InvoiceItem {
   unitPricePaise: number;
   /** Ex-GST line value. */
   taxablePaise: number;
-  gstRate: string | null;
+  gstRate: string | number | null;
   taxPaise: number;
   /** Taxable + tax. */
   lineTotalPaise: number;

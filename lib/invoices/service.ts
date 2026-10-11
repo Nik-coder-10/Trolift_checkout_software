@@ -33,23 +33,26 @@ const UUID_RE =
  * both routes fail closed identically (no IDOR oracle).
  */
 
+// Money columns are NUMERIC: PostgREST serves them as JSON numbers or
+// decimal strings depending on the client — typed as both so a shape
+// change can never become a runtime TypeError on the invoice path.
 interface OrderSnapshot {
   id: string;
   order_number: string;
   created_at: string;
   payment_status: string;
   order_status: string;
-  subtotal: string;
-  delivery_charge: string;
-  total_amount: string;
+  subtotal: string | number;
+  delivery_charge: string | number;
+  total_amount: string | number;
   delivery_pincode: string;
   delivery_partner_name: string;
   gstin_snapshot: string | null;
   tax_treatment: string;
-  taxable_amount: string;
-  cgst_amount: string;
-  sgst_amount: string;
-  igst_amount: string;
+  taxable_amount: string | number;
+  cgst_amount: string | number;
+  sgst_amount: string | number;
+  igst_amount: string | number;
   billing_name: string | null;
   billing_address_line: string | null;
   billing_city: string | null;
@@ -64,19 +67,28 @@ interface OrderSnapshot {
 interface ItemSnapshot {
   product_name: string;
   quantity: number;
-  unit_price: string;
-  line_total: string;
-  gst_rate_percent: string | null;
-  line_tax_amount: string;
+  unit_price: string | number;
+  line_total: string | number;
+  gst_rate_percent: string | number | null;
+  line_tax_amount: string | number;
 }
 
 /**
  * Exact NUMERIC(12,2) → integer paise (no floats: "1133.82" → 113382).
- * Anything off-shape fails closed — a tax document must never be built
- * from a mis-parsed amount.
+ * PostgREST returns NUMERIC columns as JSON numbers (12598.00 → 12598)
+ * or strings depending on the client — both shapes are accepted and
+ * normalized through the same exact decimal parse. Anything off-shape
+ * fails closed — a tax document must never be built from a mis-parsed
+ * amount.
  */
-const toPaise = (decimal: string): number => {
-  const m = /^(-?\d+)(?:\.(\d{1,2}))?$/.exec(decimal.trim());
+const toPaise = (decimal: string | number): number => {
+  const text =
+    typeof decimal === "number"
+      ? Number.isFinite(decimal)
+        ? decimal.toFixed(2)
+        : ""
+      : decimal.trim();
+  const m = /^(-?\d+)(?:\.(\d{1,2}))?$/.exec(text);
   if (!m) {
     throw new AppError("INTERNAL_ERROR", "Could not load the invoice.", 500);
   }

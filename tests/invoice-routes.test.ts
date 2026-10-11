@@ -236,6 +236,40 @@ describe("customer invoice route (token-gated, fail closed)", () => {
     ).toMatch(/^attachment; filename="INV-FY26-27-000042\.pdf"$/);
   });
 
+  it("serves the PDF when PostgREST returns NUMERIC columns as JSON numbers", async () => {
+    // Live PostgREST serves NUMERIC as JSON numbers (12598.00 → 12598),
+    // not the decimal strings the mocks historically used. A strict
+    // parser that assumes strings 500s every real download (Prompt 50).
+    const saved = { ...ORDER_ROW };
+    const savedItems = ITEM_ROWS.map((r) => ({ ...r }));
+    for (const key of [
+      "subtotal",
+      "delivery_charge",
+      "total_amount",
+      "taxable_amount",
+      "cgst_amount",
+      "sgst_amount",
+      "igst_amount",
+    ] as const) {
+      (ORDER_ROW as unknown as Record<string, unknown>)[key] = Number(
+        (saved as unknown as Record<string, unknown>)[key],
+      );
+    }
+    ITEM_ROWS[0]!.unit_price = 6299 as unknown as string;
+    ITEM_ROWS[0]!.line_total = 12598 as unknown as string;
+    ITEM_ROWS[0]!.gst_rate_percent = 18 as unknown as string;
+    ITEM_ROWS[0]!.line_tax_amount = 2267.64 as unknown as string;
+    try {
+      const res = await customerGet(customerReq(ORDER_ID), ctxFor(ORDER_ID));
+      expect(res.status).toBe(200);
+      const bytes = Buffer.from(await res.arrayBuffer());
+      expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
+    } finally {
+      Object.assign(ORDER_ROW, saved);
+      ITEM_ROWS[0] = savedItems[0]!;
+    }
+  });
+
   it("reuses the frozen invoice without renumbering", async () => {
     const first = await getInvoiceData(ORDER_ID);
     const second = await getInvoiceData(ORDER_ID);

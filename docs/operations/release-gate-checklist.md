@@ -117,7 +117,7 @@ None can be invented or approved by an agent.
 | D4 | Invoice seller block (`TROLIFT_BUSINESS_NAME/ADDRESS/PHONE/EMAIL`) | **BLOCKED** | Confirm the real legal identity to print. |
 | D5 | RPO/RTO ratification and PITR decision | **BLOCKED** | Accept the free-plan ≤24 h RPO, or buy PITR (≤5 min). |
 | D6 | Production secrets configured in host secret manager | **BLOCKED** | No host exists yet. |
-| D7 | Release-critical files are untracked — commit them before any gate can run from a fresh checkout | **RESOLVED (verify)** | Consolidation commit `1940628` now tracks `supabase/config.toml`, migrations `0001–0029`, `playwright.staging.config.ts`, `e2e/staging/`, and both workflows (`git ls-files` confirms; `git status` clean; old `e2e.yml` stays deleted). Operator to re-verify from a fresh checkout before relying on it. New migration `0030` (Prompt 49) is *uncommitted local work* until reviewed and committed — same rule applies. |
+| D7 | Release-critical files are untracked — commit them before any gate can run from a fresh checkout | **RESOLVED (verify)** | Commits `1940628` + `d50de05` now track `supabase/config.toml`, migrations `0001–0030`, `playwright.staging.config.ts`, `e2e/staging/`, and both workflows (`git ls-files` confirms; old `e2e.yml` stays deleted). Operator to re-verify from a fresh checkout before relying on it. |
 
 ## E. Production-only gates (NOT RUN — environment does not exist)
 
@@ -211,6 +211,201 @@ E1–E6 production-only gates. In particular: the 0030 SQL is
 (backup-verify → staging migrate → staging smoke → approval → prod
 migrate → post-verify) and a managed-staging restore drill before any
 production claim.
+
+## H. Prompt 50 addendum — customer-to-admin journey + 0030 verification (2026-10-11)
+
+Tree at start: clean at `d50de05` (Prompt 49 pushed); no staged,
+unstaged or untracked changes; old `e2e.yml` stays deleted. All work
+below is uncommitted (this prompt forbids committing).
+
+### Test boundary (recorded before running)
+
+- Target: disposable local Supabase stack only (`supabase start` /
+  `db reset` / `migration up`), loopback base `http://127.0.0.1:3100`
+  and loopback Supabase `http://127.0.0.1:54321`. Guards untouched:
+  `STAGING_E2E_ENABLED=1` required, non-loopback base/Supabase URLs
+  throw, keys from environment only, synthetic `stge2e-*` /
+  `STGE2E` identities with tracked-record-only sweep cleanup,
+  Desktop Chrome + Pixel 7, `retries: 0`.
+- Seed: `supabase/seed/seed.sql` via `db reset` (path fix from
+  Prompt 48 still in place). Auth: fresh per-run admin + plain-user
+  identities via Auth Admin API, written to gitignored
+  `e2e/staging/.auth/` (0600).
+- Migration parity (workflow `staging-e2e.yml` tree-max vs
+  `schema_migrations`-max) globs `supabase/migrations/*.sql`, so
+  `0030` is covered by construction — confirmed live: tree max
+  `0030` = DB max `0030` after the documented
+  `reset` → `migration up` sequence.
+
+### Two harness failures that are NOT app evidence
+
+1. First attempt passed empty keys (bad shell extraction) — config
+   refused to load (guard working as designed). NOT RUN.
+2. Second/third attempts used PowerShell-captured keys truncated by
+   console line-wrapping — the app received a partial JWT and every
+   catalogue query failed decode (`CompactDecodeError ... got 1`),
+   yielding 6 passed / 32 failed. Root cause was the extraction
+   method (verified: direct keys return REST 200), not the app. The
+   rerun passes keys from an unwrapped process instead. These runs
+   are discarded, not counted.
+
+### One real regression found by the journey (FIXED)
+
+Prompt 49's exact decimal→paise parser called `.trim()` on
+PostgREST NUMERIC values, which arrive as **JSON numbers**
+(`12598.00` → `12598`) on the live stack but as strings in all
+mocks — every real invoice download 500'd (`TypeError: e.trim is
+not a function`, download canceled in 2-admin + 4-failure invoice
+specs, desktop + mobile). Fixed: `toPaise()` accepts
+`string | number` (numbers via `toFixed(2)` into the same exact
+parse); snapshot interfaces and `parseGstRate`/`lineTaxPaise`/
+`rateLabel` widened accordingly. Regression test added
+(`invoice-routes.test.ts`: NUMERIC-as-number rows → 200 + `%PDF`).
+Full staging suite re-run whole afterwards: **38 passed / 2 skipped
+/ 0 failed** (the 2 skips are the pre-existing backend-outage
+`test.skip` at `4-failure.spec.ts:281`, counted twice — no new
+skips added).
+
+### Journey matrix (all synthetic, disposable stack unless noted)
+
+| # | Scenario | Expected | Actual | Evidence | Env | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| J1 | Browse catalogue, product detail, price/stock/delivery | Renders, correct money/availability | Pass | hermetic `catalogue.spec`, staging `1-customer` | mock + disposable | PASS |
+| J2 | Cart qty/totals, invalid + over-stock qty | Rejects with item named, creates nothing | Pass | `cart.test`, `checkout.test`, staging `4-failure` (stale cart, price-move repricing) | mock + disposable | PASS |
+| J3 | Checkout validation: missing fields, bad pincode, malformed GSTIN, GSTIN/state mismatch | 400/422, no order created | Pass | `gst.test`, `checkout.test`, `api-orders.test` | mock | PASS |
+| J4 | Tax math (paise rounding, intra vs inter, totals, frozen snapshots; later edits can't rewrite) | Exact identities hold | Pass | `gst.test`, `pricing.test`, `invoices.test`, staging `1-customer` | mock + disposable | PASS |
+| J5 | UPI instructions/intent from test config; no fund movement | Real QR from authoritative total; missing VPA fails loudly | Pass, no money moved | `payments.test` | mock | PASS |
+| J6 | Synthetic UTR claim; order stays unpaid until admin verifies | `pending`→`submitted` only; duplicate UTR conflicts; fresh retry works | Pass | `payments.test`, staging `1-customer`/`4-failure` | mock + disposable | PASS |
+| J7 | Customer-side paid-marking attempts / unauthorized verify | Denied, no status/invoice/inventory change | Pass | `guest-access.test`, `invoice-routes.test` (409), staging `3-auth` | mock + disposable | PASS |
+| J8 | Guest tracking: valid/invalid/expired/revoked/malformed/foreign token; zero-read probes | 404 fail-closed; one credential never opens another order | Pass | `guest-access.test` (incl. zero-DB-read), staging `3-auth` + `4-failure` (expiry, recovery) | mock + disposable | PASS |
+| J9 | Invoice before payment (409), after verification (PDF), builder paid-only + GST⇔GSTIN gates | Gate enforced in builder, not just callers | Pass | `invoices.test`, `invoice-routes.test`, staging `2-admin` + `4-failure` delivered-invoice | mock + disposable | PASS |
+| J10 | Invoice↔order↔snapshot paise reconciliation | Exact, not visual-only | Pass (unit-exact; browser asserts `%PDF` + totals) | `invoices.test`, `invoice-pdf.test`, staging delivered-invoice | mock + disposable | PASS |
+| J11 | Invoice-number allocation vs ordinary users | `anon`/`authenticated` denied (function + sequence, live calls); `service_role` retains | Pass on disposable DB; managed boundary untested | perm probe (`has_*` ×6 + live `SET ROLE` denials ×2, residue 0, no numbers burned) | disposable PG | PASS (local only) |
+| J12 | Admin auth: anon + non-admin denied on pages/APIs/mutations | 401/403 before any lookup | Pass | `shipment-auth.test`, `admin-*.test`, staging `3-auth` | mock + disposable | PASS |
+| J13 | Admin verify: approve once, reject/duplicates can't double-pay | Guarded transitions, `PAYMENT_VERIFIED` + `ORDER_CONFIRMED` exactly once | Pass | `admin-orders.test`, `invoice-routes.test` (single `INVOICE_ISSUED`), staging `2-admin` | mock + disposable | PASS |
+| J14 | Fulfillment transitions (valid/invalid/repeated/out-of-order) | 409 without corruption | Pass | `fulfillment-workflow.test`, `order-events.test`, staging `2-admin` | mock + disposable | PASS |
+| J15 | Shipment create/tracking/timeline consistency | Timeline consistent with order state | Pass | `shipments.test`, staging `2-admin`/`4-failure` | mock + disposable | PASS |
+| J16 | Admin notes + event scoping; no error-detail leakage | Scoped, authorized; generic customer errors | Pass | `staff-notes.test`, `order-events.test`, `error-handling.test` | mock | PASS |
+| J17 | Reservation/release across approve/reject/cancel/retry; idempotency + concurrency | Exactly-once stock moves; duplicate key replays one order | Pass | `inventory.test`, `journey.test`, `api-orders.test`, staging `4-failure` (rapid duplicates → one order) | mock + disposable | PASS |
+| J18 | Migration 0030 parity + clean apply | Tree max = DB max; `reset`→`up` green | Pass (live repro of CLI stale-cap: reset stopped at 0029, `up` applied 0030) | workflow parity step + this run | disposable | PASS (local only) |
+| J19 | DB tax-split CHECK (mixed split + taxed non_gst rejected; intra/non_gst/IGST accepted) | 5/5 correct, rolled back, residue 0 | Pass | disposable-DB probe `p50_tax_probe.sql` (NOTICEs) | disposable PG | PASS (local only) |
+| J20 | Upstash-backed outage E2E (rate-limit fail-closed, backend-outage specs) | Needs real credentials | Not exercised | `4-failure.spec.ts:281` skip (×2) | — | BLOCKED |
+
+### Layer results (exact commands, post-fix tree unless noted)
+
+- `npm run lint` → exit 0, 0 errors / 18 warnings (unchanged).
+- `npm run typecheck` → exit 0.
+- `npm test -- --run` → exit 0, **38 files, 622/622 passed** (+1 regression test vs §G).
+- `npm run build` (placeholder public env per §A4) → exit 0.
+- `npm run test:e2e` (hermetic) → exit 0, **56 passed**.
+- `npm run test:e2e:staging` (disposable loopback stack) → exit 0, **38 passed / 2 skipped / 0 failed** (2.5 min; skips = J20 placeholders, never passes).
+- Targeted SQL probes → all PASS, residue 0, no invoice numbers burned.
+
+### Changes made (uncommitted — this prompt forbids committing)
+
+- `lib/invoices/service.ts`: `toPaise()` accepts PostgREST JSON numbers; snapshot interfaces typed `string | number`.
+- `lib/tax/india.ts`: `parseGstRate`/`lineTaxPaise`/`TaxedLineInput` accept numbers.
+- `lib/invoices/data.ts`: `InvoiceItemSnapshot`/`InvoiceItem` accept numbers.
+- `lib/invoices/pdf.ts`: `rateLabel` accepts numbers.
+- `tests/invoice-routes.test.ts`: NUMERIC-as-number regression test.
+- `docs/operations/migrations.md`: `0030` inventory row + staging pre-check query.
+- This checklist: D7 corrected (0030 committed in `d50de05`), this §H.
+- `docs/operations/release-readiness.md`: Prompt 50 note (below).
+
+### Remaining blockers (unchanged classes)
+
+Owner: D1 state code, D2 GSTIN value-or-omit, D3 UPI value, D4
+seller block, D5 RPO/RTO+PITR, D6 prod secrets/host. Staging-creds:
+J20 Upstash-backed outage paths. Managed: 0030 staging migration
+per migrations.md steps 1–7 by an authorized operator (local apply
+does NOT approve it), managed restore drill, `staging-e2e.yml` first
+green dispatch. Production: all of §E (NOT RUN — no prod exists).
+
+## I. Prompt 51 addendum — managed-staging 0030 gate: BLOCKED before first mutation (2026-10-11)
+
+Tree at start: exactly the 8 uncommitted Prompt 50 files (3 docs +
+5 invoice/tax/test files), no untracked files; HEAD `d50de05`
+(pushed). Migration `0030` verified byte-identical between HEAD and
+worktree. All preserved; nothing discarded, committed, or pushed
+(this prompt forbids commit/push without separate authorization).
+
+### Authorization: NOT AVAILABLE — stopped before any managed change
+
+No explicit operator authorization exists in this task context, no
+managed staging project is identified (no project ref, no approved
+secret store), and no staging connection mechanism is present
+(`STAGING_DB_URL`, `SUPABASE_DB_URL`, `PROD_DB_URL`,
+`SUPABASE_ACCESS_TOKEN` all ABSENT — names only, never sought as
+values). Per the gate rules, **zero managed-environment commands
+were executed** — not even a connectivity probe (targets must not
+be discovered by trying credentials). No production system was
+touched, configured, or probed.
+
+### Read-only review (local files only — no database touched)
+
+- `0030` contents confirmed: (1) revoke generator + FY function
+  EXECUTE from `authenticated`, revoke sequence from
+  `authenticated`/`anon`, grant sequence usage to `service_role`;
+  (2) add `orders_tax_split_check`. Dependencies: columns from
+  `0016`, functions/sequence from `0017` — requires history
+  `0001–0029` present or the push errors; target must be Supabase
+  (`service_role` is a platform role).
+- Re-runnable shape (`drop constraint if exists`, idempotent
+  REVOKE/GRANT), no data rewrite, no table drop/truncate.
+  Rollback is forward-only: a corrective migration (drop CHECK
+  and/or re-grant), never history edits.
+- Lock note: `ADD CONSTRAINT … CHECK` validates with a table scan
+  (trivial at staging size; production will want a low-traffic
+  window — not this gate's concern).
+- Risk class for staging: LOW, conditional on the pre-check below.
+
+### Operator handoff (ready to execute once authorized)
+
+Missing prerequisites — return these before any run:
+
+1. Explicit authorization naming the **staging project ref** (managed
+   staging only — never production, never a personal DB).
+2. The documented connection mechanism (`STAGING_DB_URL` via the
+   approved secret store) made available to the operator shell.
+3. Backup/PITR evidence for the staging project per
+   `migrations.md` step 2 (existence AND restorability).
+4. Owner sign-off that staging may be mutated in the chosen window.
+
+Then, in order (migrations.md steps 1–7, nothing skipped, no
+`db reset` / drops / truncates on managed staging):
+
+```bash
+# 1. Inspection (already done locally — re-confirm on the day)
+git log --oneline -3  # expect 0030 present in history
+# 2. Backup verification (backup-restore.md — must be real evidence, not a tick)
+# 3. Read-only pre-checks against STAGING (adapt nothing; must return 0 / 0030-pending):
+psql "$STAGING_DB_URL" -tAc "select max(version) from supabase_migrations.schema_migrations;"
+psql "$STAGING_DB_URL" -tAc "SELECT count(*) FROM public.orders WHERE (cgst_amount + sgst_amount <> 0 AND igst_amount <> 0) OR (tax_treatment = 'non_gst' AND (cgst_amount <> 0 OR sgst_amount <> 0 OR igst_amount <> 0));"
+# 4. Staging migration (documented mechanism only)
+supabase db push --db-url "$STAGING_DB_URL"
+# 5. Post-verify: history shows 0030 once; re-run the count above (0);
+#    has_function_privilege/has_sequence_privilege per role (Prompt 50 local probe as template);
+#    /api/ready on the staging app; invoice smoke items.
+# 6-7. Record approval + post-migration verification here; Upstash outage specs stay skipped.
+```
+
+Stop-and-report triggers: any version mismatch, nonzero
+pre-check count, unexpected error, or missing backup evidence — do
+not repair staging or edit migration history.
+
+### Workflow dispatch: NOT DISPATCHED (would test the wrong revision)
+
+`staging-e2e.yml` verified: manual `workflow_dispatch` only, zero
+secrets, disposable runner-local stack, no deploy/migrate job, no
+production path. But it checks out the **committed** revision — the
+8 uncommitted Prompt 50 changes (including the invoice NUMERIC-shape
+fix the staging suite now depends on) are NOT in `d50de05`. A
+dispatch today would run stale code and its invoice specs would fail
+for reasons already fixed locally. Dispatch stays blocked until (a)
+the 8 files are reviewed, committed, and pushed under a separate
+explicit authorization, and (b) the operator confirms the exact
+revision and approves the dispatch. Upstash outage specs remain
+BLOCKED regardless.
 
 ## What an agent may NOT do
 

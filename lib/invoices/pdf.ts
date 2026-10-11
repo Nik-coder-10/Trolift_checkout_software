@@ -33,7 +33,7 @@ export function formatINR(paise: number): string {
   return `Rs. ${rupees.toLocaleString("en-IN")}.${String(p).padStart(2, "0")}`;
 }
 
-function rateLabel(rate: string | null): string {
+function rateLabel(rate: string | number | null): string {
   if (rate === null) return "—";
   const n = Number(rate);
   if (!Number.isFinite(n)) return "—";

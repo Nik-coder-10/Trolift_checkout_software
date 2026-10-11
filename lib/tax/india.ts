@@ -21,8 +21,8 @@ export type TaxType = "none" | "cgst_sgst" | "igst";
 
 export interface TaxedLineInput {
   lineTotalPaise: number;
-  /** GST percent as a decimal string (NUMERIC), or null when unset. */
-  gstRate: string | null;
+  /** GST percent as a decimal string (NUMERIC), or null when unset. A JSON number from PostgREST is accepted too. */
+  gstRate: string | number | null;
 }
 
 export interface OrderTax {
@@ -128,7 +128,7 @@ export function getBusinessStateCode(): string | null {
   return isStateCode(code) ? code : null;
 }
 
-export function parseGstRate(value: string | null): number {
+export function parseGstRate(value: string | number | null): number {
   if (value === null) return 0;
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0 || n > 100) return 0;
@@ -196,6 +196,6 @@ export function computeOrderTax(input: {
 }
 
 /** Per-line GST for snapshots/invoices (same rounding as the order). */
-export function lineTaxPaise(lineTotalPaise: number, gstRate: string | null): number {
+export function lineTaxPaise(lineTotalPaise: number, gstRate: string | number | null): number {
   return Math.round((lineTotalPaise * parseGstRate(gstRate)) / 100);
 }

@@ -233,6 +233,34 @@ tax-split CHECK. Full unit suite is now **621/621** (38 files); lint
 the unchanged BLOCKED/NOT RUN items are in
 `release-gate-checklist.md` §G. Nothing was deployed or migrated.
 
+Prompt 50 follow-up (2026-10-11, uncommitted local work): full
+customer-to-admin journey executed against the disposable loopback
+stack — staging E2E **38 passed / 2 skipped / 0 failed** (skips are
+the pre-existing Upstash-blocked placeholders). The journey caught
+one real Prompt-49 regression: the exact paise parser assumed
+string-shaped NUMERICs while live PostgREST serves JSON numbers, so
+real invoice downloads 500'd — fixed (`toPaise` + GST-rate types
+accept both shapes) with a regression test; unit suite now
+**622/622**. Migration `0030` verified locally only: parity
+tree-max = DB-max `0030`, clean `reset`→`up` apply, 5/5 tax-split
+constraint cases, per-role numbering grants confirmed with live
+denied calls (residue 0, no numbers burned). Managed-staging and
+production gates remain NOT RUN / BLOCKED. Full matrix and commands
+in `release-gate-checklist.md` §H. Nothing was deployed, no
+production system touched, nothing committed (per this prompt's
+rules).
+
+Prompt 51 follow-up (2026-10-11, uncommitted local work): the
+managed-staging 0030 gate was prepared but NOT executed — no
+authorization, no identified staging target, and no staging
+connection mechanism exist in this context, so zero
+managed-environment commands ran (details + ready-to-use operator
+handoff in `release-gate-checklist.md` §I). The first
+`staging-e2e.yml` dispatch was also withheld: the workflow tests the
+committed revision, which lacks the 8 uncommitted Prompt 50 files.
+No production system touched, configured, or probed; nothing
+committed or pushed.
+
 ## 10. Path to `PRODUCTION VERIFIED`
 
 1. Provision production Supabase + host; set the env vars in §7;
