@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the template carries names only (no values) and is required by
+# tests/staging-workflow.test.ts on every checkout, so track it.
+!.env.example
 
 # vercel
 .vercel
