@@ -295,7 +295,7 @@ describe("order request billing (server authority)", () => {
 
   it("carries live GST rates through server-side line pricing", () => {
     const priced = priceOrderLines(
-      [{ id: "p1", name: "Trolley", price: "6299.00", gst_rate: "18.00", is_active: true, available: 99 }],
+      [{ id: "p1", name: "Trolley", price: "6299.00", gst_rate: "18.00", hsn_code: "87168010", is_active: true, available: 99 }],
       [{ productId: "p1", quantity: 2 }],
     );
     expect(priced).toEqual([
@@ -307,6 +307,7 @@ describe("order request billing (server authority)", () => {
         lineTotalPaise: 1259800,
         gstRate: "18.00",
         lineTaxPaise: 226764,
+        hsn: "87168010",
       },
     ]);
     // Identity: subtotal + tax + delivery = total holds in integers.

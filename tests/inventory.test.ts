@@ -59,6 +59,7 @@ const ROW = (over: Record<string, unknown> = {}) => ({
   name: "Trolley",
   price: "6299.00",
   gst_rate: null,
+  hsn_code: null,
   is_active: true,
   available: 10,
   ...over,
@@ -192,6 +193,7 @@ describe("atomic order path (race loser fails safe)", () => {
         lineTotalPaise: 629900 * qty,
         gstRate: null as string | null,
         lineTaxPaise: 0,
+        hsn: null,
       },
     ],
     subtotalPaise: 629900 * qty,
@@ -362,6 +364,7 @@ describe("admin stock controls (audited adjustments)", () => {
     isActive: true,
     gstRate: "",
     weightKg: "",
+    hsnCode: "",
   };
 
   it("logs manual stock changes with signed deltas", async () => {

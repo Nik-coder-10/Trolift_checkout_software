@@ -23,6 +23,8 @@ export interface ProductFormInput {
   gstRate: string;
   /** Shipping weight in kg as typed ("", "12.5"); blank = unknown. */
   weightKg: string;
+  /** HSN code as typed ("", "8716", "871680"); blank = not configured. */
+  hsnCode: string;
 }
 
 export type ProductField =
@@ -36,7 +38,8 @@ export type ProductField =
   | "stockQuantity"
   | "lowStockThreshold"
   | "gstRate"
-  | "weightKg";
+  | "weightKg"
+  | "hsnCode";
 
 export type ProductFormErrors = Partial<Record<ProductField, string>>;
 
@@ -56,6 +59,8 @@ export interface ValidProduct {
   gstRate: string | null;
   /** NUMERIC(10,3) decimal string; NULL = weight unknown. */
   weightKg: string | null;
+  /** HSN 4/6/8 digits; NULL = not configured (blank cell). */
+  hsnCode: string | null;
 }
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -149,6 +154,18 @@ export function validateProductInput(
     }
   }
 
+  // HSN: blank = not configured (blank cell on documents). Otherwise
+  // 4, 6 or 8 digits.
+  const hsnRaw = input.hsnCode.trim();
+  let hsnCode: string | null = null;
+  if (hsnRaw !== "") {
+    if (!/^[0-9]{4}([0-9]{2}([0-9]{2})?)?$/.test(hsnRaw)) {
+      errors.hsnCode = "HSN must be blank or 4, 6 or 8 digits.";
+    } else {
+      hsnCode = hsnRaw;
+    }
+  }
+
   // Shipping weight: blank = unknown (weight slabs are skipped, never
   // guessed). Otherwise up to 100000 kg with at most 3 decimals,
   // stored NUMERIC(10,3).
@@ -182,6 +199,7 @@ export function validateProductInput(
       isActive: input.isActive,
       gstRate,
       weightKg,
+      hsnCode,
     },
   };
 }

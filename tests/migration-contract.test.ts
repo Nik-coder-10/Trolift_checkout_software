@@ -86,3 +86,33 @@ describe("DB status CHECK covers the app state machine", () => {
     }
   });
 });
+
+describe("import_products HSN omission policy (Prompt 62)", () => {
+  // The four behavioural cases are proven against real PostgreSQL in
+  // scripts/db-drills/import-products-hsn.sql. This static guard keeps
+  // CI honest: it fails the moment 0032 reverts to the unconditional
+  // overwrite that silently erased an existing HSN for keyless callers.
+  const sql = readFileSync(
+    join(__dirname, "..", "supabase", "migrations", "0032_import_hsn.sql"),
+    "utf8",
+  );
+
+  it("UPDATE preserves an existing HSN when the key is absent", () => {
+    // `?` tests key presence; absent -> keep the stored value.
+    expect(sql).toMatch(
+      /when\s+v_item\s+\?\s+'hsn_code'\s+then\s+nullif\(v_item\s+->>\s+'hsn_code',\s*''\)\s+else\s+hsn_code\s+end/i,
+    );
+  });
+
+  it("INSERT stores NULL for an absent or blank HSN", () => {
+    const insert = sql.slice(sql.indexOf("insert into public.products"));
+    expect(insert).toMatch(/hsn_code/);
+    expect(insert).toMatch(/nullif\(v_item ->> 'hsn_code', ''\)/);
+  });
+
+  it("never unconditionally overwrites hsn_code on UPDATE", () => {
+    expect(sql).not.toMatch(
+      /update public\.products set[\s\S]*?hsn_code = nullif\(v_item ->> 'hsn_code', ''\),\s*\n\s*updated_at/i,
+    );
+  });
+});

@@ -96,6 +96,16 @@ export default async function AdminProductPage({
                 )}
               </p>
               <p className="mt-1 text-xs text-zinc-500">
+                HSN:{" "}
+                {product.hsnCode !== null ? (
+                  <span className="font-semibold text-zinc-800">
+                    {product.hsnCode}
+                  </span>
+                ) : (
+                  "not configured (blank on documents)"
+                )}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
                 Stock:{" "}
                 <span className="font-semibold text-zinc-800">
                   {product.available} sellable
@@ -133,6 +143,7 @@ export default async function AdminProductPage({
                 isActive: product.isActive,
                 gstRate: product.gstRate ?? "",
                 weightKg: product.weightKg ?? "",
+                hsnCode: product.hsnCode ?? "",
               }}
               submitLabel="Save changes"
               endpoint={`/api/admin/products/${product.id}`}

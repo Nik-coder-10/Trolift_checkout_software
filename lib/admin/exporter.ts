@@ -66,16 +66,19 @@ const DEFINITIONS: Record<ExportDataset, DatasetDef> = {
   products: {
     filename: (s) => `products-${s}.csv`,
     count: (c) => countTable(c, "products"),
+    // Column order matches the product CSV import header exactly (plus
+    // trailing hsn) so an export re-imports without edits. HSN travels
+    // or it is lost — never silently dropped.
     columns: [
-      "slug", "name", "description", "category", "price",
-      "stock", "threshold", "active", "gst", "weight",
+      "name", "slug", "description", "category", "price",
+      "stock", "threshold", "active", "gst", "weight", "hsn",
     ],
     page: async (client, from, to) => {
       const { data, error } = await client
         .from("products")
         .select(
           "slug,name,description,category,price,stock_quantity," +
-            "low_stock_threshold,is_active,gst_rate,weight_kg",
+            "low_stock_threshold,is_active,gst_rate,weight_kg,hsn_code",
         )
         .order("slug", { ascending: true })
         .range(from, to);
@@ -93,12 +96,13 @@ const DEFINITIONS: Record<ExportDataset, DatasetDef> = {
         is_active: boolean;
         gst_rate: string | null;
         weight_kg: string | null;
+        hsn_code: string | null;
       }>;
       if (rows.length === 0) return null;
       return rows.map((r) => [
-        r.slug, r.name, r.description, r.category, r.price,
+        r.name, r.slug, r.description, r.category, r.price,
         str(r.stock_quantity), str(r.low_stock_threshold), str(r.is_active),
-        r.gst_rate ?? "", r.weight_kg ?? "",
+        r.gst_rate ?? "", r.weight_kg ?? "", r.hsn_code ?? "",
       ]);
     },
   },

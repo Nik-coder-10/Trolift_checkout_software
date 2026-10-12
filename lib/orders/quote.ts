@@ -44,6 +44,8 @@ export interface PricedOrderLine {
   gstRate: string | null;
   /** Integer paise line GST (same rounding as the order engine). */
   lineTaxPaise: number;
+  /** HSN snapshot for quotations (null = blank cell). */
+  hsn: string | null;
 }
 
 export interface BillingInput {
@@ -77,6 +79,7 @@ interface ProductRow {
   name: string;
   price: string;
   gst_rate: string | null;
+  hsn_code: string | null;
   is_active: boolean;
   /**
    * Reserve-aware units available (on-hand minus live holds) at fetch
@@ -147,6 +150,7 @@ export function priceOrderLines(
       lineTotalPaise,
       gstRate: product.gst_rate,
       lineTaxPaise: lineTaxPaise(lineTotalPaise, product.gst_rate),
+      hsn: product.hsn_code,
     };
   });
 }
@@ -165,7 +169,7 @@ export async function quoteOrder(input: {
   const [{ data, error }, availability] = await Promise.all([
     supabase
       .from("products")
-      .select("id,name,price,gst_rate,is_active")
+      .select("id,name,price,gst_rate,hsn_code,is_active")
       .in("id", ids.length > 0 ? ids : ["00000000-0000-0000-0000-000000000000"]),
     fetchAvailability(supabase, ids),
   ]);

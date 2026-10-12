@@ -6,6 +6,7 @@ import { logAdminAudit } from "@/lib/admin/audit";
 import { parseRateCsv, type CsvRateRow } from "@/lib/admin/delivery-import";
 import {
   PRODUCT_CSV_HEADER,
+  PRODUCT_CSV_HEADER_V2,
   parseProductCsv,
   type CsvProductRow,
 } from "@/lib/admin/product-import";
@@ -138,6 +139,7 @@ function validateProductRows(rows: CsvProductRow[]): {
       isActive: row.active === "" ? true : row.active === "true",
       gstRate: row.gst.trim(),
       weightKg: row.weight.trim(),
+      hsnCode: row.hsn.trim(),
     };
     const { errors, value } = validateProductInput(input);
     if (!value) {
@@ -405,6 +407,7 @@ export async function confirmImport(
         is_active: value.isActive,
         gst_rate: value.gstRate ?? "",
         weight_kg: value.weightKg ?? "",
+        hsn_code: value.hsnCode ?? "",
       };
     });
     try {
@@ -516,4 +519,4 @@ export async function confirmImport(
   }
 }
 
-export { PRODUCT_CSV_HEADER };
+export { PRODUCT_CSV_HEADER, PRODUCT_CSV_HEADER_V2 };

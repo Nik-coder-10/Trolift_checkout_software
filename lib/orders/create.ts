@@ -82,6 +82,7 @@ export async function persistOrder(input: {
       line_total: toRupees(l.lineTotalPaise),
       gst_rate_percent: l.gstRate,
       line_tax_amount: toRupees(l.lineTaxPaise),
+      hsn_snapshot: l.hsn,
     })),
     p_payment: {
       amount: toRupees(quote.totalPaise),

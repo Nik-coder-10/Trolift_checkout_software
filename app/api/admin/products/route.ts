@@ -69,5 +69,6 @@ export function coerceProductInput(body: unknown): ProductFormInput {
     isActive: r["isActive"] !== false,
     gstRate: String(r["gstRate"] ?? ""),
     weightKg: String(r["weightKg"] ?? ""),
+    hsnCode: String(r["hsnCode"] ?? ""),
   };
 }

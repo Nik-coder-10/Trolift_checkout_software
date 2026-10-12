@@ -251,6 +251,72 @@ describe("import routes (whitelist + auth)", () => {
   });
 });
 
+describe("product HSN across CSV import/export", () => {
+  const V2_CSV = `name,slug,description,category,price,stock,threshold,active,gst,weight,hsn
+Demo Trolley,demo-trolley,Steel trolley,Trolleys,6299.00,10,5,true,18,32,87168010
+Plain Cart,plain-cart,,Trolleys,100.00,,,true,,,`;
+
+  it("parses the current header with HSN populated and empty", () => {
+    const { rows, errors } = parseProductCsv(V2_CSV);
+    expect(errors).toEqual([]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ slug: "demo-trolley", hsn: "87168010" });
+    expect(rows[1]).toMatchObject({ slug: "plain-cart", hsn: "" });
+  });
+
+  it("accepts legacy 10-column files with a blank HSN", () => {
+    const { rows, errors } = parseProductCsv(PRODUCT_CSV);
+    expect(errors).toEqual([]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ slug: "demo-trolley", hsn: "" });
+  });
+
+  it("rejects a bad HSN naming the row, not the whole file", async () => {
+    wireProducts([]);
+    const bad = `name,slug,description,category,price,stock,threshold,active,gst,weight,hsn
+Demo Trolley,demo-trolley,Steel trolley,Trolleys,6299.00,10,5,true,18,32,12`;
+    const preview = await previewImport("products", bad);
+    expect(preview.valid).toBe(0);
+    expect(preview.invalidTotal).toBe(1);
+    expect(preview.invalid[0]?.message).toMatch(/hsn/i);
+  });
+
+  it("export output re-imports with HSN preserved (round trip)", async () => {
+    // The export header IS an accepted import header (contract).
+    expect(exportColumns("products").join(",")).toBe(
+      "name,slug,description,category,price,stock,threshold,active,gst,weight,hsn",
+    );
+    const exported = `${exportColumns("products").join(",")}
+"Demo, Trolley",demo-trolley,Steel trolley,Trolleys,6299.00,10,5,true,18.00,,87168010`;
+    const { rows, errors } = parseProductCsv(exported);
+    expect(errors).toEqual([]);
+    expect(rows[0]).toMatchObject({ slug: "demo-trolley", hsn: "87168010" });
+  });
+
+  it("carries HSN through confirm to the import RPC", async () => {
+    let rpcArgs: unknown = null;
+    handler = (op) => {
+      if (op.table === "products" && !op.updateValues) {
+        return { rows: [], error: null };
+      }
+      if (op.rpc === "import_products") {
+        rpcArgs = (op as { rpcArgs?: unknown }).rpcArgs ?? null;
+        return { rows: [{ inserted: 1, updated: 0 }], error: null };
+      }
+      if (op.table === "admin_audit_log") {
+        return { rows: [{ id: "a1" }], error: null };
+      }
+      throw new Error(`unexpected ${op.table ?? op.rpc}`);
+    };
+    const result = await confirmImport("products", V2_CSV, "admin-1");
+    expect(result.inserted).toBe(1);
+    const rows = (rpcArgs as { p_rows: Array<Record<string, unknown>> }).p_rows;
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.["hsn_code"]).toBe("87168010");
+    expect(rows[1]?.["hsn_code"]).toBe("");
+  });
+});
+
 describe("exports (allowlisted columns, snapshot orders)", () => {
   const get = (type: string) =>
     exportGet(new Request("http://localhost/x"), {
@@ -281,6 +347,7 @@ describe("exports (allowlisted columns, snapshot orders)", () => {
       is_active: true,
       gst_rate: "18.00",
       weight_kg: null,
+      hsn_code: "87168010",
     };
     handler = (op) => {
       if (op.table === "products" && !op.updateValues) {
@@ -301,10 +368,10 @@ describe("exports (allowlisted columns, snapshot orders)", () => {
     const text = await res.text();
     const [header, body] = text.trim().split("\n");
     expect(header).toBe(
-      "slug,name,description,category,price,stock,threshold,active,gst,weight",
+      "name,slug,description,category,price,stock,threshold,active,gst,weight,hsn",
     );
     expect(body).toBe(
-      'demo-trolley,"Demo, Trolley","Steel ""tough""",Trolleys,6299.00,10,5,true,18.00,',
+      '"Demo, Trolley",demo-trolley,"Steel ""tough""",Trolleys,6299.00,10,5,true,18.00,,87168010',
     );
     for (const secret of ["password", "service_role", "SUPABASE", "token"]) {
       expect(text.toLowerCase()).not.toContain(secret);

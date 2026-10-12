@@ -303,9 +303,9 @@ export default async function AdminProductsPage({
           <BulkImportDialog
             dataset="products"
             title="Slug is the stable match key (existing slugs update in place). Images and specifications stay form-managed."
-            columnsHelp="name,slug,description,category,price,stock,threshold,active,gst,weight"
-            sampleCsv={`name,slug,description,category,price,stock,threshold,active,gst,weight
-Demo Trolley,demo-trolley,Steel platform trolley,Trolleys,6299.00,10,5,true,18,32`}
+            columnsHelp="name,slug,description,category,price,stock,threshold,active,gst,weight,hsn"
+            sampleCsv={`name,slug,description,category,price,stock,threshold,active,gst,weight,hsn
+Demo Trolley,demo-trolley,Steel platform trolley,Trolleys,6299.00,10,5,true,18,32,87168010`}
             sampleName="products-sample.csv"
           />
           <p className="mt-3 text-sm">

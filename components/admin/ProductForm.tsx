@@ -173,6 +173,16 @@ export function ProductForm({
           error={errors.weightKg}
           hint="Per-unit weight for freight rules. Blank = unknown (weight slabs skipped)."
         />
+        <Input
+          label="HSN code (optional)"
+          name="hsnCode"
+          inputMode="numeric"
+          placeholder="e.g. 87168010"
+          value={form.hsnCode}
+          onChange={(e) => set("hsnCode", e.target.value)}
+          error={errors.hsnCode}
+          hint="4, 6 or 8 digits. Printed per line on quotations. Blank = blank cell."
+        />
       </div>
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-semibold text-zinc-800">

@@ -24,6 +24,13 @@ Legend for the environment matrix: **R** = required, **O** = optional,
 | `TROLIFT_BUSINESS_EMAIL` | — | O | O | O | O | Optional invoice field; omitted when empty. |
 | `TROLIFT_BUSINESS_GSTIN` | — | O | O | R† | R† | Seller GSTIN (format-checked, display-only — never verified with the government). Empty or malformed ⇒ readiness **warning** (never 503); the value is never echoed. |
 | `TROLIFT_INVOICE_PREFIX` | — | O | O | O | O | 2–10 uppercase letters prefixing invoice numbers. Default `INV`. An invalid value is **readiness-critical in production** (issuance would 500 every paid-order download, so `/api/ready` 503s instead — fail-safe, no silent fallback on a financial document). |
+| `QUOTATION_VALIDITY_DAYS` | — | O | O | O | O | Quotation validity window in days. Default 7; invalid values fail safe to 7. Frozen into each quotation at issuance. |
+| `TROLIFT_DELIVERY_GST_RATE` | — | O | O | O | O | GST percent on the cartage (delivery) line of quotations. Default `18.00`; invalid values fail safe to `18.00` (quoted freight must never silently zero-rate). The order/invoice delivery charge itself stays untaxed. |
+| `TROLIFT_DELIVERY_SAC` | — | O | O | O | O | 6-digit SAC for the cartage line; invalid/blank renders the cell blank. |
+| `TROLIFT_DELIVERY_LINE_NAME` / `TROLIFT_DELIVERY_LINE_DESC` | — | O | O | O | O | Cartage line copy overrides; defaults match current quotation practice. |
+| `TROLIFT_BANK_NAME` / `TROLIFT_BANK_ACCOUNT_NAME` / `TROLIFT_BANK_ACCOUNT_NO` / `TROLIFT_BANK_IFSC` / `TROLIFT_BANK_ACCOUNT_TYPE` | **Secret-ish** | O | O | O | O | Bank block printed on quotations (server-only, display-only). The block is omitted unless the account number is set. Configure via the host secret manager; never commit values. |
+| `TROLIFT_SIGNATORY_NAME` / `TROLIFT_SIGNATORY_TITLE` | — | O | O | O | O | Signatory printed on quotations; omitted when the name is blank. |
+| `TROLIFT_QUOTATION_TERMS` | — | O | O | O | O | Newline-separated quotation terms override; defaults are the current standard terms. Frozen into each quotation at issuance. |
 | `BUSINESS_TIMEZONE` | — | O | O | R | R | IANA zone for business-day boundaries (dashboards/reports). Default `Asia/Kolkata`; an *invalid* name is a readiness warning (would silently shift day boundaries to UTC — not acceptable un-signalled). |
 | `RATE_LIMIT_BACKEND` | — | O | O | `memory`† | **R** | `auto` \| `memory` \| `upstash`. Production without Upstash **and** without explicit `memory` ⇒ financial mutations fail closed (429). |
 | `UPSTASH_REDIS_REST_URL` | **Secret** | — | — | O | **R** | Shared sliding-window store so all instances enforce one budget. |

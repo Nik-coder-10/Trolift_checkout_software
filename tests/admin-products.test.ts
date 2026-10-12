@@ -58,6 +58,7 @@ const INPUT: ProductFormInput = {
   isActive: true,
   gstRate: "18",
   weightKg: "12.5",
+  hsnCode: "87168010",
 };
 
 const routePost = (
@@ -88,6 +89,20 @@ describe("validateProductInput", () => {
     expect(value?.slug).toBe("test-trolley");
     expect(value?.specifications).toEqual({ capacity_kg: 500 });
     expect(value?.gstRate).toBe("18.00");
+    expect(value?.hsnCode).toBe("87168010");
+  });
+
+  it("accepts a blank HSN as not-configured and rejects bad codes", () => {
+    expect(validateProductInput({ ...INPUT, hsnCode: "" }).value?.hsnCode).toBeNull();
+    for (const bad of ["12", "12345", "1234567", "123456789", "ABCD1234", "8716 8010"]) {
+      expect(
+        validateProductInput({ ...INPUT, hsnCode: bad }).errors.hsnCode,
+        bad,
+      ).toBeTruthy();
+    }
+    for (const good of ["8716", "871680", "87168010"]) {
+      expect(validateProductInput({ ...INPUT, hsnCode: good }).value?.hsnCode).toBe(good);
+    }
   });
 
   it("accepts a blank GST rate as not-configured and rejects bad rates", () => {

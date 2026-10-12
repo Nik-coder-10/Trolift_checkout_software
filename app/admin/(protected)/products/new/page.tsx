@@ -22,6 +22,7 @@ const EMPTY: ProductFormInput = {
   isActive: true,
   gstRate: "",
   weightKg: "",
+  hsnCode: "",
 };
 
 /** Blank creation form (server validation + slug uniqueness enforced). */

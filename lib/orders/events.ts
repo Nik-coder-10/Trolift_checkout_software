@@ -27,6 +27,7 @@ export const ORDER_EVENT_TYPES = [
   "DELIVERED",
   "CANCELLED",
   "INVOICE_ISSUED",
+  "QUOTATION_ISSUED",
   "STATUS_CHANGED",
 ] as const;
 
@@ -48,6 +49,7 @@ export const LEGACY_ACTION: Record<OrderEventType, string> = {
   DELIVERED: "delivered",
   CANCELLED: "order_cancelled",
   INVOICE_ISSUED: "invoice_issued",
+  QUOTATION_ISSUED: "quotation_issued",
   STATUS_CHANGED: "status_changed",
 };
 
@@ -58,6 +60,7 @@ const METADATA_ALLOWLIST: ReadonlySet<string> = new Set([
   "item_count",
   "total_paise",
   "invoice_number",
+  "quotation_number",
 ]);
 
 const SENSITIVE_KEY_PATTERN =
@@ -105,6 +108,7 @@ export const ADMIN_EVENT_DESCRIPTIONS: Record<OrderEventType, string> = {
   DELIVERED: "Delivered",
   CANCELLED: "Order cancelled",
   INVOICE_ISSUED: "Tax invoice issued",
+  QUOTATION_ISSUED: "Quotation issued",
   STATUS_CHANGED: "Status changed",
 };
 
@@ -127,6 +131,7 @@ export const CUSTOMER_EVENT_LABELS: Partial<Record<OrderEventType, string>> = {
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
   INVOICE_ISSUED: "Tax invoice ready",
+  QUOTATION_ISSUED: "Quotation ready",
 };
 
 export interface CustomerTimelineEntry {
