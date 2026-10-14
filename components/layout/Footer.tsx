@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { siteConfig } from "@/config/site";
 import { slugifyCategory } from "@/lib/catalog/products";
@@ -13,10 +14,16 @@ export function Footer() {
     <footer className="bg-brand-950 text-brand-100 print:hidden">
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
         <div>
-          <p className="text-lg font-extrabold tracking-tight text-white">
-            TROLIFT <span className="text-amber-400">Solutions</span>
-          </p>
-          <p className="mt-3 max-w-xs text-sm leading-6 text-brand-200">
+          <div className="mb-3 inline-flex items-center rounded-lg bg-white px-2.5 py-1 shadow-xs">
+            <Image
+              src="/images/logo.png"
+              alt={siteConfig.name}
+              width={130}
+              height={40}
+              className="h-8.5 w-auto object-contain"
+            />
+          </div>
+          <p className="mt-2 max-w-xs text-sm leading-6 text-brand-200">
             Industrial material-handling equipment for Indian warehouses,
             plants and workshops — with GST invoicing and pan-India
             delivery.

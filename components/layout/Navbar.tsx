@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -17,20 +18,16 @@ const LINKS = [
 
 function BrandMark() {
   return (
-    <span className="flex items-center gap-2.5" aria-label={siteConfig.name}>
-      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden className="shrink-0">
-        <rect width="34" height="34" rx="6" fill="#1e344d" />
-        <g stroke="#f5a301" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 24 V12 h9 l4 5 v7" />
-          <circle cx="12" cy="25" r="2.2" fill="#f5a301" stroke="none" />
-          <circle cx="23" cy="25" r="2.2" fill="#f5a301" stroke="none" />
-        </g>
-      </svg>
-      <span className="flex flex-col leading-none">
-        <span className="text-lg font-extrabold tracking-tight text-white">TROLIFT</span>
-        <span className="text-[10px] font-semibold tracking-[0.18em] text-amber-400 uppercase">
-          Solutions
-        </span>
+    <span className="flex items-center" aria-label={siteConfig.name}>
+      <span className="flex items-center rounded-lg bg-white px-2.5 py-1 shadow-xs transition-transform hover:scale-[1.02]">
+        <Image
+          src="/images/logo.png"
+          alt={siteConfig.name}
+          width={120}
+          height={38}
+          className="h-8.5 w-auto object-contain"
+          priority
+        />
       </span>
     </span>
   );

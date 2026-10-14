@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
@@ -44,9 +45,18 @@ export function AdminShell({
   return (
     <div className="flex min-h-screen bg-paper">
       <aside className="hidden w-60 shrink-0 border-r border-zinc-200 bg-white p-3 lg:block">
-        <p className="px-3 py-2 text-base font-extrabold tracking-tight text-brand-900">
-          TROLIFT <span className="text-xs font-bold text-zinc-500">Admin</span>
-        </p>
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Image
+            src="/images/logo-transparent.png"
+            alt="Trolift Admin"
+            width={110}
+            height={34}
+            className="h-8 w-auto object-contain"
+          />
+          <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold text-brand-700 uppercase">
+            Admin
+          </span>
+        </div>
         <AdminSidebar activeHref={current} />
       </aside>
 
@@ -59,9 +69,18 @@ export function AdminShell({
           />
           <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto bg-white p-3 shadow-xl">
             <div className="flex items-center justify-between px-1 py-1">
-              <p className="px-2 text-base font-extrabold tracking-tight text-brand-900">
-                TROLIFT <span className="text-xs font-bold text-zinc-500">Admin</span>
-              </p>
+              <div className="flex items-center gap-2 px-2">
+                <Image
+                  src="/images/logo-transparent.png"
+                  alt="Trolift Admin"
+                  width={110}
+                  height={34}
+                  className="h-8 w-auto object-contain"
+                />
+                <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold text-brand-700 uppercase">
+                  Admin
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setDrawer(false)}

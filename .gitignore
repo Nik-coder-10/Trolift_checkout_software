@@ -57,3 +57,5 @@ next-env.d.ts
 
 # staging E2E identities (synthetic credentials, never commit)
 /e2e/staging/.auth/
+
+.vercel
