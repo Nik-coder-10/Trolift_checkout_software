@@ -49,7 +49,7 @@ describe("checkout validation", () => {
   it("keeps GSTIN optional but format-checks it", () => {
     expect(validateCheckoutForm(VALID, 1).valid).toBe(true);
     expect(
-      validateCheckoutForm({ ...VALID, gstin: "27ABCDE1234F1Z5" }, 1).valid,
+      validateCheckoutForm({ ...VALID, gstin: "27ABCDE1234F1Z0" }, 1).valid,
     ).toBe(true);
     const r = validateCheckoutForm({ ...VALID, gstin: "BOGUS" }, 1);
     expect(r.valid).toBe(false);
@@ -93,14 +93,14 @@ describe("checkout validation", () => {
       normalizeCheckoutForm({
         ...VALID,
         email: "  ",
-        gstin: "27abcde1234f1z5",
+        gstin: "27abcde1234f1z0",
         pincode: " 400001 ",
       }),
     ).toEqual({
       name: "Demo Traders",
       phone: "+919876543210",
       email: null,
-      gstin: "27ABCDE1234F1Z5",
+      gstin: "27ABCDE1234F1Z0",
       pincode: "400001",
     });
   });

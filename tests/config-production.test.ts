@@ -94,12 +94,12 @@ describe("verifyProductionConfig", () => {
   it("never echoes environment values, only names", () => {
     setEnv({
       OWNER_UPI_ID: "super-secret-vpa@bank",
-      TROLIFT_BUSINESS_GSTIN: "27ABCDE1234F1Z5",
+      TROLIFT_BUSINESS_GSTIN: "27ABCDE1234F1Z0",
       UPSTASH_REDIS_REST_TOKEN: "secret-token",
     });
     const serialized = JSON.stringify(verifyProductionConfig());
     expect(serialized).not.toContain("super-secret-vpa@bank");
-    expect(serialized).not.toContain("27ABCDE1234F1Z5");
+    expect(serialized).not.toContain("27ABCDE1234F1Z0");
     expect(serialized).not.toContain("secret-token");
   });
 
@@ -154,7 +154,7 @@ describe("verifyProductionConfig", () => {
     expect(gstin.ok).toBe(false);
     expect(JSON.stringify(gstin)).not.toContain("BOGUS-GSTIN");
 
-    setEnv({ TROLIFT_BUSINESS_GSTIN: "27ABCDE1234F1Z5" });
+    setEnv({ TROLIFT_BUSINESS_GSTIN: "27ABCDE1234F1Z0" });
     expect(checkById("gstin").ok).toBe(true);
   });
 

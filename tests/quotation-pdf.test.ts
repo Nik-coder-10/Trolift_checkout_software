@@ -16,7 +16,7 @@ const BUSINESS = {
   address: "14 Industrial Estate, Mumbai 400001",
   phone: "+919810000000",
   email: "sales@trolift.in",
-  gstin: "27ABCDE1234F1Z5",
+  gstin: "27ABCDE1234F1Z0",
 };
 
 function base(over: Partial<BuildQuotationInput> = {}): BuildQuotationInput {
@@ -43,7 +43,7 @@ function base(over: Partial<BuildQuotationInput> = {}): BuildQuotationInput {
       name: "Acme Pvt Ltd",
       phone: "+919810001111",
       email: null,
-      gstin: "07ABCDE1234F1Z5",
+      gstin: "07ABCDE1234F1Z2",
     },
     billing: {
       name: "Acme Pvt Ltd",

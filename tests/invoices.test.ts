@@ -20,7 +20,7 @@ const BUSINESS = {
   address: "14 Industrial Estate, Mumbai 400001",
   phone: "+919810000000",
   email: "sales@trolift.in",
-  gstin: "27ABCDE1234F1Z5",
+  gstin: "27ABCDE1234F1Z0",
 };
 
 const BILLING = {
@@ -45,7 +45,7 @@ function gstInput(over: Partial<BuildInvoiceInput> = {}): BuildInvoiceInput {
       name: "Acme Pvt Ltd",
       phone: "+919810001111",
       email: "acme@example.in",
-      gstin: "27ABCDE1234F1Z5",
+      gstin: "27ABCDE1234F1Z0",
     },
     billing: { ...BILLING },
     shipping: {

@@ -57,7 +57,7 @@ const ORDER_ROW = {
   total_amount: "5520.00",
   delivery_pincode: "110075",
   delivery_partner_name: "Partner A",
-  gstin_snapshot: "07ABCDE1234F1Z5",
+  gstin_snapshot: "07ABCDE1234F1Z2",
   tax_treatment: "gst",
   taxable_amount: "5050.00",
   cgst_amount: "0.00",
@@ -119,7 +119,7 @@ beforeEach(() => {
   adminFlag = true;
   process.env.TROLIFT_BUSINESS_NAME = "Trolift Solutions";
   process.env.TROLIFT_BUSINESS_ADDRESS = "Jaipur 302022, Rajasthan";
-  process.env.TROLIFT_BUSINESS_GSTIN = "27ABCDE1234F1Z5";
+  process.env.TROLIFT_BUSINESS_GSTIN = "27ABCDE1234F1Z0";
   delete process.env.TROLIFT_BANK_ACCOUNT_NO;
   delete process.env.TROLIFT_SIGNATORY_NAME;
 

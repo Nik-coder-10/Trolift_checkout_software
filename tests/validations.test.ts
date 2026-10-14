@@ -27,15 +27,20 @@ describe("pincode validation (matches DB CHECK ^[1-9][0-9]{5}$)", () => {
   });
 });
 
-describe("GSTIN validation (optional; 15-char format)", () => {
+describe("GSTIN validation (optional; format + checksum)", () => {
   it("accepts empty (optional field)", () => {
     expect(isValidGstin("")).toBe(true);
   });
   it("accepts a well-formed GSTIN", () => {
-    expect(isValidGstin("27ABCDE1234F1Z5")).toBe(true);
+    expect(isValidGstin("27ABCDE1234F1Z0")).toBe(true);
   });
   it("accepts lowercase input after normalisation", () => {
-    expect(isValidGstin(normalizeGstin("27abcde1234f1z5"))).toBe(true);
+    expect(isValidGstin(normalizeGstin("27abcde1234f1z0"))).toBe(true);
+  });
+  it("accepts a published valid GSTIN (independent check-digit vector)", () => {
+    // 27AAPFU0939F1ZV is a documented worked example whose trailing V
+    // is the check digit the GSTN base-36 algorithm produces.
+    expect(isValidGstin("27AAPFU0939F1ZV")).toBe(true);
   });
   it.each(["BOGUS123", "27ABCDE1234F1Z", "27ABCDE1234F1Z55"])(
     "rejects %s",
@@ -43,6 +48,14 @@ describe("GSTIN validation (optional; 15-char format)", () => {
       expect(isValidGstin(g)).toBe(false);
     },
   );
+  it.each([
+    // Well-formed but the check digit does not match the first 14 chars.
+    "27ABCDE1234F1Z5",
+    "27AAPFU0939F1ZQ",
+    "07ABCDE1234F1Z5",
+  ])("rejects checksum-invalid %s", (g) => {
+    expect(isValidGstin(g)).toBe(false);
+  });
 });
 
 describe("phone + email", () => {

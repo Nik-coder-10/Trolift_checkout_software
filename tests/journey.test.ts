@@ -814,7 +814,7 @@ describe("customer journey: catalogue to delivered invoice", () => {
         name: "Acme Pvt Ltd",
         phone: PHONE,
         email: "",
-        gstin: "27ABCDE1234F1Z5",
+        gstin: "27ABCDE1234F1Z0",
       },
       billing: {
         name: "Acme Pvt Ltd",

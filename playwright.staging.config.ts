@@ -107,7 +107,7 @@ export default defineConfig({
       TROLIFT_BUSINESS_ADDRESS: "1 Test Estate, Mumbai, Maharashtra 400001",
       TROLIFT_BUSINESS_PHONE: "9000000000",
       TROLIFT_BUSINESS_EMAIL: "staging@example.test",
-      TROLIFT_BUSINESS_GSTIN: "27ABCDE1234F1Z5",
+      TROLIFT_BUSINESS_GSTIN: "27ABCDE1234F1Z0",
       // Letters only (2–10): digits make getInvoicePrefix() throw.
       TROLIFT_INVOICE_PREFIX: "STG",
       // Mumbai (27) matches the journey's billing state, so GST orders

@@ -22,7 +22,7 @@ import {
 import { parseOrderRequestBody } from "@/lib/orders/request";
 import { priceOrderLines } from "@/lib/orders/quote";
 
-const GSTIN = "27ABCDE1234F1Z5";
+const GSTIN = "27ABCDE1234F1Z0";
 const lines = (rates: Array<string | null>, base = 10000) =>
   rates.map((gstRate) => ({ lineTotalPaise: base, gstRate }));
 

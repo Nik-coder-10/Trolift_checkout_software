@@ -1,5 +1,6 @@
 import { fail, internalError } from "@/lib/api/response";
 import { generateReferenceId } from "@/lib/observability/reference";
+import { logError } from "@/lib/observability/logger";
 
 export const ErrorCategory = {
   VALIDATION: "VALIDATION_ERROR",
@@ -170,6 +171,16 @@ export function handleRouteError(error: unknown) {
     return fail(error.code, error.message, init);
   }
   const referenceId = generateReferenceId();
-  console.error("[api] Unhandled route error:", error, "Reference:", referenceId);
+  // Never log the raw error object: messages, stacks, and attached
+  // details can carry secrets, tokens, or personal data (database
+  // errors, for example, echo bound values). The error class plus the
+  // reference ID preserve triage context — the request-scoped log line
+  // in withErrorHandling() already records route, method, and timing
+  // under the same correlation ID.
+  logError("Unhandled route error", {
+    errorCategory: ErrorCategory.INTERNAL,
+    referenceId,
+    errorName: error instanceof Error ? error.name : typeof error,
+  });
   return internalError("Something went wrong. Please try again.", referenceId);
 }

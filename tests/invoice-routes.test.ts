@@ -56,7 +56,7 @@ const ORDER_ROW = {
   total_amount: "15315.64",
   delivery_pincode: "400001",
   delivery_partner_name: "Partner A",
-  gstin_snapshot: "27ABCDE1234F1Z5",
+  gstin_snapshot: "27ABCDE1234F1Z0",
   tax_treatment: "gst",
   taxable_amount: "12598.00",
   cgst_amount: "1133.82",
@@ -120,7 +120,7 @@ beforeEach(() => {
   process.env.TROLIFT_BUSINESS_ADDRESS = "14 Industrial Estate, Mumbai 400001";
   process.env.TROLIFT_BUSINESS_PHONE = "+919810000000";
   process.env.TROLIFT_BUSINESS_EMAIL = "sales@trolift.in";
-  process.env.TROLIFT_BUSINESS_GSTIN = "27ABCDE1234F1Z5";
+  process.env.TROLIFT_BUSINESS_GSTIN = "27ABCDE1234F1Z0";
 
   handler = (op) => {
     if (op.rpc === "generate_invoice_number") {

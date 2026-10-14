@@ -13,7 +13,7 @@ const BUSINESS = {
   address: "14 Industrial Estate, Mumbai 400001",
   phone: "+919810000000",
   email: "sales@trolift.in",
-  gstin: "27ABCDE1234F1Z5",
+  gstin: "27ABCDE1234F1Z0",
 };
 
 function base(over: Partial<BuildInvoiceInput> = {}): BuildInvoiceInput {
@@ -29,7 +29,7 @@ function base(over: Partial<BuildInvoiceInput> = {}): BuildInvoiceInput {
       name: "Acme Pvt Ltd",
       phone: "+919810001111",
       email: "acme@example.in",
-      gstin: "27ABCDE1234F1Z5",
+      gstin: "27ABCDE1234F1Z0",
     },
     billing: {
       name: "Acme Pvt Ltd",
@@ -140,7 +140,7 @@ describe("invoice PDF (structured data → A4 document)", () => {
     const pdf = await renderInvoicePdf(
       buildInvoiceData(
         base({
-          customer: { name: long, phone: "+919810001111", email: null, gstin: "27ABCDE1234F1Z5" },
+          customer: { name: long, phone: "+919810001111", email: null, gstin: "27ABCDE1234F1Z0" },
           items,
           totals: {
             treatment: "gst",

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createMockClient,
+  type MockOp,
   type MockResponder,
   type MockUser,
 } from "@/tests/helpers/supabase-mock";
@@ -21,6 +22,8 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import {
+  escapeLikeWildcards,
+  listAdminOrders,
   parseAdminOrderQuery,
   transitionOrderStatus,
   verifyPaymentClaim,
@@ -332,5 +335,56 @@ describe("admin order list", () => {
       customerName: "A",
       totalPaise: 11000,
     });
+  });
+});
+
+describe("admin order search LIKE escaping", () => {
+  it("escapes backslash, percent and underscore; leaves the rest alone", () => {
+    expect(escapeLikeWildcards("100%_\\")).toBe("100\\%\\_\\\\");
+    expect(escapeLikeWildcards("TS-261001-0001")).toBe("TS-261001-0001");
+    expect(escapeLikeWildcards("")).toBe("");
+  });
+
+  function wireSearch(customers: Array<{ id: string }>): {
+    seen: MockOp[];
+  } {
+    const seen: MockOp[] = [];
+    handler = (op) => {
+      seen.push(op);
+      if (op.table === "profiles") return { rows: [{ is_admin: true }], error: null };
+      if (op.table === "customers") return { rows: customers, error: null };
+      if (op.table === "orders") return { rows: [], error: null, count: 0 };
+      throw new Error(`unexpected ${op.table}`);
+    };
+    return { seen };
+  }
+
+  it("passes an escaped ilike pattern when no customer matches", async () => {
+    const { seen } = wireSearch([]);
+    await listAdminOrders(parseAdminOrderQuery({ q: "100%_x" }));
+    const ilike = seen
+      .find((op) => op.table === "orders")
+      ?.filters.find((f) => f.op === "ilike");
+    expect(ilike?.val).toBe("%100\\%\\_x%");
+  });
+
+  it("escapes the pattern inside or() when customers match", async () => {
+    const { seen } = wireSearch([{ id: "c1" }]);
+    await listAdminOrders(parseAdminOrderQuery({ q: "100%_x" }));
+    const or = seen
+      .find((op) => op.table === "orders")
+      ?.filters.find((f) => f.op === "or");
+    expect(or?.val).toBe(
+      "order_number.ilike.%100\\%\\_x%,customer_id.in.(c1)",
+    );
+  });
+
+  it("leaves ordinary search terms untouched", async () => {
+    const { seen } = wireSearch([]);
+    await listAdminOrders(parseAdminOrderQuery({ q: "TS-261001" }));
+    const ilike = seen
+      .find((op) => op.table === "orders")
+      ?.filters.find((f) => f.op === "ilike");
+    expect(ilike?.val).toBe("%TS-261001%");
   });
 });

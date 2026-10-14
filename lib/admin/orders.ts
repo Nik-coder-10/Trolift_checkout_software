@@ -55,6 +55,18 @@ export function sanitizeSearch(value: string): string {
   return value.replace(/[,()]/g, "").trim().slice(0, 60);
 }
 
+/**
+ * Escape SQL LIKE wildcards so admin search text matches literally.
+ * PostgREST passes ilike patterns straight to Postgres LIKE, where
+ * backslash is the default escape character — without this, a user
+ * typing "%" would match every row and "_" would match any character.
+ * Unlike sanitizeSearch (which deletes characters), escaping preserves
+ * the user's literal input.
+ */
+export function escapeLikeWildcards(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 function parseDate(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const d = new Date(value);
@@ -112,7 +124,7 @@ async function customerIdsForSearch(
   client: AdminClient,
   q: string,
 ): Promise<string[]> {
-  const pattern = `%${q}%`;
+  const pattern = `%${escapeLikeWildcards(q)}%`;
   const { data, error } = await client
     .from("customers")
     .select("id")
@@ -147,7 +159,7 @@ export async function listAdminOrders(
       { count: "exact" },
     );
   if (query.q) {
-    const pattern = `%${query.q}%`;
+    const pattern = `%${escapeLikeWildcards(query.q)}%`;
     builder =
       ids.length > 0
         ? builder.or(`order_number.ilike.${pattern},customer_id.in.(${ids.join(",")})`)

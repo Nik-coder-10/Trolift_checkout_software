@@ -93,7 +93,7 @@ test.describe("staging customer journey", () => {
       .getByRole("radiogroup", { name: "Customer type" })
       .getByText(/business/i)
       .click();
-    await page.getByLabel(/GSTIN/i).fill("27ABCDE1234F1Z5");
+    await page.getByLabel(/GSTIN/i).fill("27ABCDE1234F1Z0");
     await page.getByLabel(/legal \/ business name/i).fill("STGE2E Traders");
     await page.getByLabel(/street address/i).fill("14 Industrial Estate");
     await page.getByLabel(/^city$/i).fill("Mumbai");

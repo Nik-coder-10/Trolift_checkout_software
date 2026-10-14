@@ -114,6 +114,68 @@ describe("handleRouteError", () => {
     const res = handleRouteError(dbError);
     expect(res.status).toBe(500);
   });
+
+  it("logs structured output without the raw error or its secrets", async () => {
+    // The emitted console line — not the logger input — is the surface
+    // that reaches log storage, so the test parses actual output.
+    const err = Object.assign(new Error("DB exploded"), {
+      token: "tok_secret_123",
+      phone: "+919999999999",
+      password: "hunter2",
+      nested: { service_role_key: "srk_value" },
+    });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = handleRouteError(err);
+      const body = (await res.json()) as {
+        ok: boolean;
+        error: { details?: { referenceId?: string } };
+      };
+      const referenceId = body.error.details?.referenceId;
+      expect(referenceId).toMatch(/^ERR-[0-9A-Z]{6}$/);
+      expect(spy).toHaveBeenCalledTimes(1);
+      const raw = String(spy.mock.calls[0]?.[0] ?? "");
+      const entry = JSON.parse(raw) as Record<string, unknown>;
+      expect(entry["level"]).toBe("error");
+      expect(entry["message"]).toBe("Unhandled route error");
+      expect(entry["referenceId"]).toBe(referenceId);
+      expect(entry["errorName"]).toBe("Error");
+      for (const secret of [
+        "tok_secret_123",
+        "+919999999999",
+        "hunter2",
+        "srk_value",
+        "DB exploded",
+      ]) {
+        expect(raw, secret).not.toContain(secret);
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("logs non-Error throws without leaking them", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = handleRouteError({ code: "P0001", secret: "shh" });
+      expect(res.status).toBe(500);
+      const raw = String(spy.mock.calls[0]?.[0] ?? "");
+      expect(raw).not.toContain("shh");
+      expect(JSON.parse(raw)).toMatchObject({ errorName: "object" });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("emits no error log for AppError (the wrapper logs those)", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      handleRouteError(AppError.notFound("Resource not found"));
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 describe("withErrorHandling wrapper", () => {

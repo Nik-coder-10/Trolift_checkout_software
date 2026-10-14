@@ -190,7 +190,7 @@ describe("event metadata allowlist (no secrets, no PII)", () => {
       { phone: "+919876543210" },
       { email: "a@b.in" },
       { customer_address: "x" },
-      { gstin: "27ABCDE1234F1Z5" },
+      { gstin: "27ABCDE1234F1Z0" },
       { api_key: "sk" },
       { password: "x" },
       { token: "x" },

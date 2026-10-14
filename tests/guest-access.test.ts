@@ -196,8 +196,8 @@ describe("PII redaction", () => {
     expect(maskPhoneFull("+919876543210")).toBe("••••••3210");
     expect(maskPhoneFull(null)).toBe("—");
     expect(maskPhoneFull("+919876543210")).not.toContain("98765");
-    expect(maskGstin("27ABCDE1234F1Z5")).toBe("27•••••••1Z5");
-    expect(maskGstin("27ABCDE1234F1Z5")).not.toContain("ABCDE");
+    expect(maskGstin("27ABCDE1234F1Z0")).toBe("27•••••••1Z0");
+    expect(maskGstin("27ABCDE1234F1Z0")).not.toContain("ABCDE");
     expect(maskGstin(null)).toBeNull();
     expect(maskReference("UTR202610050001")).toBe("••••0001");
     expect(maskReference("UTR202610050001")).not.toContain("UTR2026");
@@ -532,7 +532,7 @@ describe("protected routes", () => {
               total_amount: "110.00",
               delivery_pincode: "400001",
               delivery_partner_name: "Partner A",
-              gstin_snapshot: "27ABCDE1234F1Z5",
+              gstin_snapshot: "27ABCDE1234F1Z0",
               tax_treatment: "non_gst",
               taxable_amount: "0.00",
               cgst_amount: "0.00",
@@ -561,8 +561,8 @@ describe("protected routes", () => {
     // …but even the admin-shaped projection carries no raw PII.
     const dumped = JSON.stringify(order);
     expect(dumped).not.toContain("919876543210");
-    expect(dumped).not.toContain("27ABCDE1234F1Z5");
+    expect(dumped).not.toContain("27ABCDE1234F1Z0");
     expect(order?.customerPhoneMasked).toBe("••••••3210");
-    expect(order?.gstinMasked).toBe("27•••••••1Z5");
+    expect(order?.gstinMasked).toBe("27•••••••1Z0");
   });
 });

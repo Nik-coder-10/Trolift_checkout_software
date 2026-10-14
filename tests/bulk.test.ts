@@ -386,7 +386,7 @@ describe("exports (allowlisted columns, snapshot orders)", () => {
       customer_name_snapshot: "Acme",
       customer_phone_snapshot: "+919810001111",
       customer_email_snapshot: null,
-      gstin_snapshot: "27ABCDE1234F1Z5",
+      gstin_snapshot: "27ABCDE1234F1Z0",
       billing_name: null,
       billing_address_line: null,
       billing_city: null,
@@ -421,7 +421,7 @@ describe("exports (allowlisted columns, snapshot orders)", () => {
     const text = await res.text();
     expect(text).toContain("TS-1");
     expect(text).toContain("15315.64");
-    expect(text).toContain("27ABCDE1234F1Z5");
+    expect(text).toContain("27ABCDE1234F1Z0");
     // No live-catalogue read may occur for an order export.
     expect(exportColumns("orders")).not.toContain("price");
   });
