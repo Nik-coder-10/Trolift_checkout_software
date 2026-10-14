@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AppError } from "@/lib/api/errors";
 import {
-  assertClaimAllowed,
+  canSubmitClaim,
   isValidPaymentReference,
   normalizePaymentReference,
 } from "@/lib/payments/claims";
@@ -10,6 +10,19 @@ import { normalizePhone } from "@/lib/validations/common";
 import { canTransition } from "@/lib/orders/transitions";
 import { logOrderEvent } from "@/lib/admin/orders";
 import type { OrderStatus, PaymentStatus } from "@/types";
+
+export function assertClaimAllowed(
+  paymentStatus: PaymentStatus,
+  orderStatus: OrderStatus,
+): void {
+  if (!canSubmitClaim(paymentStatus, orderStatus)) {
+    throw new AppError(
+      "BAD_REQUEST",
+      "This order cannot accept a payment claim in its current state.",
+      409,
+    );
+  }
+}
 
 /**
  * Payment-claim persistence (server-only).

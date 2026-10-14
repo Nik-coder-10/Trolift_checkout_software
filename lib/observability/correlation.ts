@@ -1,4 +1,5 @@
-import { AsyncLocalStorage } from "async_hooks";
+import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 const REQUEST_ID_HEADER = "x-request-id";
 const RESPONSE_ID_HEADER = "x-request-id";

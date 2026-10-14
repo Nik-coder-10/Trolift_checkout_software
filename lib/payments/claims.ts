@@ -1,4 +1,3 @@
-import { AppError } from "@/lib/api/errors";
 import type { OrderStatus, PaymentStatus } from "@/types";
 
 /**
@@ -25,17 +24,4 @@ export function canSubmitClaim(
 ): boolean {
   if (paymentStatus !== "pending" && paymentStatus !== "failed") return false;
   return orderStatus === "pending_payment" || orderStatus === "draft";
-}
-
-export function assertClaimAllowed(
-  paymentStatus: PaymentStatus,
-  orderStatus: OrderStatus,
-): void {
-  if (!canSubmitClaim(paymentStatus, orderStatus)) {
-    throw new AppError(
-      "BAD_REQUEST",
-      "This order cannot accept a payment claim in its current state.",
-      409,
-    );
-  }
 }
