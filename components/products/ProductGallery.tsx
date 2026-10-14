@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
+import { ProductImage } from "@/components/ui/ProductImage";
 
 export interface GalleryImage {
   src: string;
@@ -12,6 +12,10 @@ export interface GalleryImage {
  * Product image gallery: primary image + thumbnail strip when several
  * images exist. Thumbnails are real buttons (keyboard accessible) with
  * aria-pressed; secondary images lazy-load.
+ *
+ * Every image renders through ProductImage, so a photo that is missing
+ * (not shipped yet) or fails to load shows the branded placeholder in
+ * the SAME 4:3 box — the gallery geometry never changes.
  */
 export function ProductGallery({
   images,
@@ -27,10 +31,11 @@ export function ProductGallery({
   return (
     <div>
       <div className="overflow-hidden rounded-lg border border-zinc-200 bg-brand-50">
-        <Image
+        <ProductImage
           key={current.src}
           src={current.src}
           alt={current.alt}
+          fallbackAlt={`${current.alt} — photo unavailable`}
           width={800}
           height={600}
           sizes="(max-width: 1024px) 100vw, 50vw"
@@ -56,7 +61,7 @@ export function ProductGallery({
                     active ? "border-brand-700" : "border-transparent hover:border-zinc-300"
                   }`}
                 >
-                  <Image
+                  <ProductImage
                     src={img.src}
                     alt=""
                     width={160}

@@ -8,10 +8,12 @@ import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/StatusBadg
 import { PaymentActions } from "@/components/admin/PaymentActions";
 import { StatusActions } from "@/components/admin/StatusActions";
 import { getAdminOrderDetail } from "@/lib/admin/orders";
+import { getOrderDocumentActions } from "@/lib/admin/order-documents";
 import { listStaffNotes } from "@/lib/admin/notes";
 import { ADMIN_EVENT_DESCRIPTIONS } from "@/lib/orders/events";
 import { getShipmentByOrderId } from "@/lib/shipments/service";
 import { NotesSection } from "@/components/admin/NotesSection";
+import { DocumentActions } from "@/components/admin/DocumentActions";
 
 export const metadata: Metadata = {
   title: "Order detail",
@@ -43,6 +45,22 @@ export default async function AdminOrderPage({
   } catch {
     notes = [];
   }
+  // Read-only: documents are numbered/frozen by the download routes, so
+  // rendering this page never issues one. A failed probe only hides the
+  // panel (fail closed); the server re-authorizes every download anyway.
+  let documents: Awaited<ReturnType<typeof getOrderDocumentActions>> | null =
+    null;
+  if (order) {
+    try {
+      documents = await getOrderDocumentActions({
+        id: order.id,
+        paymentStatus: order.paymentStatus,
+        orderStatus: order.orderStatus,
+      });
+    } catch {
+      documents = null;
+    }
+  }
 
   return (
     <AdminShell title="Order detail" subtitle="Snapshots, payment and audit trail">
@@ -71,26 +89,16 @@ export default async function AdminOrderPage({
             <span className="inline-flex items-center rounded-md border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-xs font-bold text-zinc-600" title="Inventory position: reserved (held), consumed (sold), restored (returned), none (pre-inventory)">
               Stock: {order.stockState}
             </span>
-            {order.paymentStatus === "paid" ? (
-              <span className="flex flex-wrap gap-2">
-                <a
-                  href={`/api/admin/orders/${order.id}/invoice`}
-                  download
-                  className="inline-flex h-10 items-center rounded-md bg-brand-800 px-4 text-sm font-bold text-white hover:bg-brand-700"
-                >
-                  Download Invoice
-                </a>
-                <a
-                  href={`/api/admin/orders/${order.id}/invoice?disposition=inline`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex h-10 items-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-bold text-zinc-800 hover:bg-zinc-50"
-                >
-                  Print Invoice
-                </a>
-              </span>
-            ) : null}
           </div>
+
+          {documents ? (
+            <DocumentActions
+              invoice={documents.invoice}
+              quotation={documents.quotation}
+              paymentStatus={order.paymentStatus}
+              orderStatus={order.orderStatus}
+            />
+          ) : null}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section aria-label="Customer" className="rounded-lg border border-zinc-200 bg-white p-5">

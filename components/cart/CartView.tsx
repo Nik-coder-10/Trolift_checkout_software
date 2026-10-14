@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useCart } from "@/components/cart/CartProvider";
 import { PriceDisplay } from "@/components/ui/PriceDisplay";
+import { ProductImage } from "@/components/ui/ProductImage";
 import { QuantitySelector } from "@/components/ui/QuantitySelector";
 import { EmptyState } from "@/components/ui/States";
 
@@ -38,7 +38,7 @@ export function CartView() {
                 aria-label={`View ${item.name}`}
                 className="block w-24 shrink-0 overflow-hidden rounded-md bg-brand-50"
               >
-                <Image
+                <ProductImage
                   src={item.image}
                   alt=""
                   width={160}

@@ -1,10 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import { PriceDisplay } from "@/components/ui/PriceDisplay";
+import { ProductImage } from "@/components/ui/ProductImage";
 import { StockBadge } from "@/components/ui/StatusBadge";
 import { priceToPaise, type CatalogProduct } from "@/lib/catalog/products";
+import { resolveProductImage } from "@/lib/storage/images";
 
 /**
  * Catalogue product card (homepage + /products grid).
@@ -20,7 +21,10 @@ export function ProductCard({
   product: CatalogProduct;
   actions?: ReactNode;
 }) {
-  const image = product.images[0] ?? "/images/products/placeholder.svg";
+  // Single source of truth for display paths: the first VALID image or
+  // the branded placeholder. The same value is snapshotted into the
+  // cart, so a malformed/empty path can never be persisted either.
+  const image = resolveProductImage(product.images);
   return (
     <article className="flex flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white">
       <Link
@@ -28,9 +32,10 @@ export function ProductCard({
         aria-label={`View ${product.name}`}
         className="block bg-brand-50"
       >
-        <Image
+        <ProductImage
           src={image}
-          alt={`${product.name} — product photo coming soon`}
+          alt={`${product.name} — product photo`}
+          fallbackAlt={`${product.name} — product photo unavailable`}
           width={400}
           height={300}
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { ProductImage } from "@/components/ui/ProductImage";
 import Link from "next/link";
 import { BulkImportDialog } from "@/components/admin/BulkImportDialog";
 import { listRecentAudits, type AuditRow } from "@/lib/admin/audit";
@@ -215,7 +215,7 @@ export default async function AdminProductsPage({
                     <tr key={p.id} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
                       <td className="py-2.5 pr-3">
                         <span className="flex items-center gap-3">
-                          <Image
+                          <ProductImage
                             src={p.firstImage}
                             alt=""
                             width={48}

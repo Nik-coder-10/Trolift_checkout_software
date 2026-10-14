@@ -15,6 +15,10 @@ import {
 } from "@/lib/catalog/products";
 import { siteConfig } from "@/config/site";
 import { toJsonLdScript } from "@/lib/seo/jsonld";
+import {
+  isValidImageSrc,
+  PRODUCT_IMAGE_PLACEHOLDER,
+} from "@/lib/storage/images";
 
 export async function generateMetadata({
   params,
@@ -57,16 +61,20 @@ export default async function ProductPage({
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
+  // Only well-formed paths reach the gallery (a malformed path would
+  // request a non-image); an asset that is missing entirely still shows
+  // the branded placeholder in place, via ProductImage.
+  const validImages = product.images.filter((src) => isValidImageSrc(src));
   const images =
-    product.images.length > 0
-      ? product.images.map((src, i) => ({
+    validImages.length > 0
+      ? validImages.map((src, i) => ({
           src,
           alt: `${product.name} — photo ${i + 1}`,
         }))
       : [
           {
-            src: "/images/products/placeholder.svg",
-            alt: `${product.name} — product photo coming soon`,
+            src: PRODUCT_IMAGE_PLACEHOLDER,
+            alt: `${product.name} — product photo unavailable`,
           },
         ];
   const specs = formatSpecEntries(product.specifications);
@@ -143,7 +151,7 @@ export default async function ProductPage({
                 name: product.name,
                 category: product.category,
                 pricePaise: priceToPaise(product.price),
-                image: images[0]?.src ?? "/images/products/placeholder.svg",
+                image: images[0]?.src ?? PRODUCT_IMAGE_PLACEHOLDER,
                 stockQuantity: product.stock_quantity,
               }}
             />

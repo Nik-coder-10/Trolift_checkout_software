@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { ProductImage } from "@/components/ui/ProductImage";
 import { AdminShell } from "@/components/layout/admin/AdminShell";
 import { Badge } from "@/components/ui/Badge";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
@@ -60,7 +60,7 @@ export default async function AdminProductPage({
       ) : (
         <div className="mt-4 flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-3 rounded-lg border border-zinc-200 bg-white p-4">
-            <Image
+            <ProductImage
               src={resolveProductImage(product.images)}
               alt=""
               width={96}
