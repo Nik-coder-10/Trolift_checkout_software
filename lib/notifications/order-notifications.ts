@@ -112,7 +112,7 @@ export async function notifyOrderPlaced(
       category: "whatsapp",
       orderNumber: input.orderNumber,
       operation: "order-notification",
-      hint: "Set TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_WHATSAPP_FROM and OWNER_WHATSAPP_NUMBER.",
+      hint: "Set META_WHATSAPP_ACCESS_TOKEN/META_WHATSAPP_PHONE_NUMBER_ID/META_WHATSAPP_TEMPLATE_NAME and WHATSAPP_OWNER_PHONE.",
     });
     return { sent: 0, failed: 0, skipped: messages.length };
   }
@@ -150,7 +150,7 @@ export async function notifyOrderPlaced(
     }
   });
   if (owner === null) {
-    logWarn("OWNER_WHATSAPP_NUMBER is unset — owner copy not sent.", {
+    logWarn("WHATSAPP_OWNER_PHONE is unset — owner copy not sent.", {
       category: "whatsapp",
       operation: "order-notification",
       orderNumber: input.orderNumber,
