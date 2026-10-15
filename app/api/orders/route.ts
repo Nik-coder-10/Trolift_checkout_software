@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { ok } from "@/lib/api/response";
 import { AppError } from "@/lib/api/errors";
 import { withErrorHandling } from "@/lib/api/handler";
@@ -6,6 +7,7 @@ import { parseOrderRequestBody } from "@/lib/orders/request";
 import { quoteOrder } from "@/lib/orders/quote";
 import { fetchOrderSummary, persistOrder } from "@/lib/orders/create";
 import { issueGuestToken } from "@/lib/guest-access/guard";
+import { notifyOrderPlaced } from "@/lib/notifications/order-notifications";
 
 /**
  * POST /api/orders — place an order from cart + checkout details.
@@ -28,6 +30,11 @@ import { issueGuestToken } from "@/lib/guest-access/guard";
  * without the order UUID ever acting as authorization. The raw token is
  * never logged; only its hash is stored. Callers must not persist it in
  * localStorage — the cookie is the session.
+ *
+ * Notifications: after the response goes out, `after()` sends the
+ * customer and owner WhatsApp copies of the order details. A messaging
+ * outage is logged and can never fail or delay a committed order, and
+ * a replayed idempotency key (duplicate) does not ring twice.
  */
 export const POST = withErrorHandling(async (req: Request) => {
   const denied = await denyIfLimited("orders", await checkRateLimit(req, "orders"));
@@ -64,5 +71,36 @@ export const POST = withErrorHandling(async (req: Request) => {
     guestExpiresAt: issued?.expiresAt ?? null,
   });
   if (issued) res.headers.append("Set-Cookie", issued.cookie);
+  // Owner + customer WhatsApp copies, after the response is on the wire.
+  // A duplicate submit (same idempotency key) is the same order, so it
+  // must not message anyone a second time.
+  if (!persisted.duplicate) {
+    const notify = () =>
+      notifyOrderPlaced({
+        orderNumber: summary.orderNumber,
+        customer: {
+          name: parsed.customer.name,
+          phone: parsed.customer.phone,
+        },
+        billing: parsed.billing,
+        lines: quote.lines.map((line) => ({
+          productName: line.productName,
+          quantity: line.quantity,
+          lineTotalPaise: line.lineTotalPaise,
+        })),
+        subtotalPaise: summary.subtotalPaise,
+        taxPaise: summary.cgstPaise + summary.sgstPaise + summary.igstPaise,
+        deliveryChargePaise: summary.deliveryChargePaise,
+        deliveryPartnerName: quote.deliveryPartnerName,
+        etaDays: null,
+        totalPaise: summary.totalPaise,
+        pincode: quote.pincode,
+      });
+    try {
+      after(notify);
+    } catch {
+      void notify();
+    }
+  }
   return res;
 });

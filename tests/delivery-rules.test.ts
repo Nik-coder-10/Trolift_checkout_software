@@ -298,11 +298,37 @@ describe("rule engine (precedence + selection)", () => {
     expect(q.reason).toContain("25,000");
   });
 
-  it("reports unserviceable pincodes without leaking internals", async () => {
-    wireEngine({ rates: [] });
-    const q = await quoteDelivery("799001");
+  it("blocks out-of-area pincodes without touching the database", async () => {
+    // `handler` still throws "unexpected query": the Delhivery list
+    // veto must resolve before any Supabase read.
+    const q = await quoteDelivery("680522");
     expect(q.serviceable).toBe(false);
     expect(q.selected).toBeNull();
+    expect(q.coverage).toMatchObject({
+      listed: true,
+      oda: true,
+      deliverable: false,
+    });
+    expect(q.reason).toContain("outside our delivery area");
+    expect(JSON.stringify(q)).not.toContain("delivery_weight_slabs");
+  });
+
+  it("cannot be overridden by a configured rate for an out-of-area pincode", async () => {
+    wireEngine({ rates: [rate()], products: [product()] });
+    const q = await quoteDelivery("680522", undefined, [
+      { productId: P1, quantity: 1 },
+    ]);
+    expect(q.serviceable).toBe(false);
+    expect(q.selected).toBeNull();
+  });
+
+  it("reports a covered pincode with no configured rate as deliverable but unpriced", async () => {
+    wireEngine({ rates: [] });
+    const q = await quoteDelivery("799001");
+    expect(q.serviceable).toBe(true);
+    expect(q.selected).toBeNull();
+    expect(q.coverage.deliverable).toBe(true);
+    expect(q.reason).toContain("charge");
     expect(JSON.stringify(q)).not.toContain("delivery_weight_slabs");
   });
 });
@@ -345,6 +371,33 @@ describe("check API (forged figures are structurally ignored)", () => {
     expect(json.data.totalWeightKg).toBe(64);
     expect(json.data.subtotalPaise).toBe(1259800);
     expect(json.data.deliveryChargePaise).toBe(45000);
+    expect(json.data.coverage).toMatchObject({
+      pincode: "400001",
+      listed: true,
+      oda: false,
+      state: "Maharashtra",
+      deliverable: true,
+    });
+  });
+
+  it("answers out-of-area coverage from the list without a database", async () => {
+    handler = () => {
+      throw new Error("unexpected query");
+    };
+    const res = await postCheck({ pincode: "680522" });
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: Record<string, unknown>;
+    };
+    expect(res.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.data.serviceable).toBe(false);
+    expect(json.data.selected).toBeNull();
+    expect(json.data.coverage).toMatchObject({
+      listed: true,
+      oda: true,
+      deliverable: false,
+    });
   });
 
   it("rejects malformed items without touching the engine", async () => {

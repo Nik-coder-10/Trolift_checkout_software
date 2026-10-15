@@ -22,6 +22,13 @@ interface PreviewItem {
 interface PreviewResult {
   serviceable: boolean;
   pincode: string;
+  coverage?: {
+    listed: boolean;
+    oda: boolean | null;
+    state: string | null;
+    deliverable: boolean;
+    reason: string | null;
+  };
   partner: { id: string; name: string } | null;
   deliveryChargePaise: number | null;
   etaDays?: { min: number; max: number };
@@ -262,6 +269,15 @@ export function PreviewTool({ products }: { products: PreviewProduct[] }) {
                   </li>
                 ))}
               </ul>
+            ) : null}
+          </Alert>
+        ) : null}
+        {result && result.serviceable && !result.partner ? (
+          <Alert tone="warning" title="Covered — no rate configured">
+            {result.reason ??
+              "The pincode is deliverable but no delivery rate is configured for it yet."}
+            {result.coverage?.state ? (
+              <p className="mt-1 text-xs">Serviceable area: {result.coverage.state}</p>
             ) : null}
           </Alert>
         ) : null}

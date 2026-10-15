@@ -2,6 +2,10 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { isValidPincode, normalizePincode } from "@/lib/validations/common";
 import { AppError } from "@/lib/api/errors";
+import {
+  lookupDelhiveryPincode,
+  type PincodeCoverage,
+} from "@/lib/delivery/delhivery-pincodes";
 
 /**
  * Production delivery engine (server-only).
@@ -12,6 +16,11 @@ import { AppError } from "@/lib/api/errors";
  * the weight or the rules.
  *
  * RULE PRECEDENCE (first match wins, documented for operators):
+ *   0. Pincode coverage — the Delhivery pincode list
+ *      (lib/delivery/delhivery-pincodes) decides whether the pincode is
+ *      deliverable at all: ODA false → deliverable; ODA true, blank or
+ *      unlisted → not deliverable, before any rate lookup runs. This is
+ *      the one rule that answers without the database.
  *   1. Category handling surcharges — flat per-order additions for
  *      configured product categories (partner-independent, so they
  *      never affect partner choice).
@@ -26,7 +35,18 @@ import { AppError } from "@/lib/api/errors";
  *
  * All money is integer paise; all weights are integer grams (NUMERIC
  * inputs carry at most 3 decimals, so both conversions are exact).
+ *
+ * COVERAGE vs PRICE: a pincode the list covers still needs a configured
+ * rate row to be priced. With no rows at all (or an unreachable
+ * database) the quote reports it as deliverable with no selected option
+ * and a charge-to-be-confirmed reason. Rows that exist but qualify
+ * nothing (serviceable=false, inactive partner, order windows) are the
+ * operator's explicit "no" and stay not serviceable.
  */
+
+/** Verdict for a pincode the list covers but no rate row prices yet. */
+const UNPRICED_REASON =
+  "Delivery is available for this pincode, but the delivery charge isn't configured yet. Please contact us to confirm it.";
 
 export interface DeliveryLineInput {
   productId: string;
@@ -56,7 +76,13 @@ export interface DeliveryPartnerRef {
 
 export interface DeliveryQuote {
   pincode: string;
+  /** True when the pincode is deliverable (Delhivery list coverage). */
   serviceable: boolean;
+  /**
+   * Priced option, or null when coverage exists but no rate is
+   * configured yet. Orders cannot be placed in that state — the order
+   * API requires a selected partner and charge.
+   */
   selected: {
     partner: DeliveryPartnerRef;
     deliveryChargePaise: number;
@@ -79,6 +105,8 @@ export interface DeliveryQuote {
   appliedRules: string[];
   /** Effective subtotal used for order windows (paise). */
   subtotalPaise: number | null;
+  /** Delhivery list coverage for this pincode (always present). */
+  coverage: PincodeCoverage;
   reason?: string;
 }
 
@@ -207,6 +235,11 @@ export async function quoteDelivery(
   }
   validateLines(lines);
 
+  // Coverage first (pure, no database): the Delhivery pincode list
+  // decides whether the pincode is deliverable at all, so a "no"
+  // resolves before any rate lookup and works without Supabase.
+  const coverage = lookupDelhiveryPincode(pincode);
+
   const empty: DeliveryQuote = {
     pincode,
     serviceable: false,
@@ -218,11 +251,27 @@ export async function quoteDelivery(
     handlingPaise: null,
     appliedRules: [],
     subtotalPaise: subtotalPaise ?? null,
+    coverage,
   };
 
+  if (!coverage.deliverable) {
+    return {
+      ...empty,
+      reason: coverage.reason ?? "Delivery is not available for this pincode.",
+    };
+  }
+
   // Indexed pincode lookup (pincode_rates_pincode_idx) — one narrow
-  // query, never a table scan — plus the small rule tables.
-  const supabase = await createClient();
+  // query, never a table scan — plus the small rule tables. An
+  // unconfigured/unreachable database degrades to "coverage yes, charge
+  // to be confirmed" instead of failing: coverage is already answered
+  // and no money is decided here.
+  let supabase: Awaited<ReturnType<typeof createClient>> | null = null;
+  try {
+    supabase = await createClient();
+  } catch {
+    return { ...empty, serviceable: true, reason: UNPRICED_REASON };
+  }
   const ids = lines.length > 0 ? [...new Set(lines.map((l) => l.productId))] : [];
   const [
     { data: rateData, error: rateError },
@@ -262,10 +311,9 @@ export async function quoteDelivery(
 
   const rows = (rateData ?? []) as unknown as RateRow[];
   if (rows.length === 0) {
-    return {
-      ...empty,
-      reason: "Delivery is not available for this pincode yet.",
-    };
+    // The list covers this pincode but no rate is configured for it:
+    // deliverable, unpriced, and not orderable until a rate exists.
+    return { ...empty, serviceable: true, reason: UNPRICED_REASON };
   }
   const slabs = (slabData ?? []) as unknown as SlabRow[];
   const categoryRules = (ruleData ?? []) as unknown as CategoryRuleRow[];
@@ -431,6 +479,7 @@ export async function quoteDelivery(
   return {
     pincode,
     serviceable: true,
+    coverage,
     selected: {
       partner: { id: selected.partnerId, name: selected.partnerName },
       deliveryChargePaise: selected.deliveryChargePaise + handlingPaise,

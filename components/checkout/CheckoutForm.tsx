@@ -409,11 +409,22 @@ export function CheckoutForm() {
     );
   }
 
+  // null when no charge is known: either the pincode is unchecked, or
+  // it is covered by the list but has no configured rate yet ("to be
+  // confirmed") — never render ₹0.00, which would read as free freight.
   const deliveryPaise =
     delivery.status === "ok"
-      ? (delivery.result.selected?.deliveryChargePaise ?? 0)
+      ? (delivery.result.selected?.deliveryChargePaise ?? null)
       : null;
+  const deliveryPending = delivery.status === "ok" && !delivery.result.selected;
   const totalPaise = deliveryPaise !== null ? subtotalPaise + deliveryPaise : null;
+  const deliverySummary = deliveryPending ? (
+    <span className="text-amber-700">To be confirmed</span>
+  ) : delivery.status === "unavailable" ? (
+    <span className="text-amber-700">Unavailable</span>
+  ) : (
+    <span className="text-zinc-400">Check pincode</span>
+  );
 
   return (
     <form noValidate onSubmit={submit} className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
@@ -608,6 +619,11 @@ export function CheckoutForm() {
                       ? ` · ${delivery.result.selected.etaDays.min}–${delivery.result.selected.etaDays.max} days`
                       : null}
                   </p>
+                  {delivery.result.coverage.state ? (
+                    <p className="mt-1 text-xs">
+                      Serviceable area: {delivery.result.coverage.state}
+                    </p>
+                  ) : null}
                   {delivery.result.options.length > 1 ? (
                     <p className="mt-1 text-xs">
                       {delivery.result.options.length} partner options — best
@@ -627,6 +643,22 @@ export function CheckoutForm() {
                       {delivery.result.appliedRules.length > 0
                         ? delivery.result.appliedRules.join(" + ")
                         : null}
+                    </p>
+                  ) : null}
+                </Alert>
+              ) : null}
+              {delivery.status === "ok" && !delivery.result.selected ? (
+                <Alert
+                  tone="warning"
+                  title="Delivery available — charge to be confirmed"
+                >
+                  <p>
+                    {delivery.result.reason ??
+                      "Our team will confirm the delivery charge for this pincode."}
+                  </p>
+                  {delivery.result.coverage.state ? (
+                    <p className="mt-1 text-xs">
+                      Serviceable area: {delivery.result.coverage.state}
                     </p>
                   ) : null}
                 </Alert>
@@ -676,7 +708,7 @@ export function CheckoutForm() {
               {deliveryPaise !== null ? (
                 <PriceDisplay amountPaise={deliveryPaise} size="sm" />
               ) : (
-                <span className="text-zinc-400">Check pincode</span>
+                deliverySummary
               )}
             </dd>
           </div>

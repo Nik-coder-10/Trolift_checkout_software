@@ -126,7 +126,29 @@ describe("POST /api/delivery/check", () => {
     expect(json.data["totalWeightKg"]).toBeNull();
   });
 
-  it("reports unknown pincodes as unserviceable, not errors", async () => {    serverHandler = (op) => {
+  it("reports out-of-area pincodes as unserviceable, not errors", async () => {
+    // 680522 is flagged ODA in the Delhivery list: the verdict comes
+    // from the list alone, and this handler throws if any table is read.
+    serverHandler = () => {
+      throw new Error("unreachable");
+    };
+    const res = await call(deliveryPost, { pincode: "680522" });
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: Record<string, unknown>;
+    };
+    expect(json.ok).toBe(true);
+    expect(json.data.serviceable).toBe(false);
+    expect(json.data.coverage).toMatchObject({
+      listed: true,
+      oda: true,
+      deliverable: false,
+    });
+    expect(String(json.data.reason)).toContain("outside our delivery area");
+  });
+
+  it("reports a covered pincode with no configured rate as deliverable but unpriced", async () => {
+    serverHandler = (op) => {
       if (op.table === "delivery_pincode_rates") {
         return { rows: [], error: null };
       }
@@ -144,7 +166,10 @@ describe("POST /api/delivery/check", () => {
       data: Record<string, unknown>;
     };
     expect(json.ok).toBe(true);
-    expect(json.data.serviceable).toBe(false);
+    expect(json.data.serviceable).toBe(true);
+    expect(json.data.selected).toBeNull();
+    expect(json.data.coverage).toMatchObject({ listed: true, oda: false });
+    expect(String(json.data.reason)).toContain("charge");
   });
 
   it("rejects malformed input", async () => {

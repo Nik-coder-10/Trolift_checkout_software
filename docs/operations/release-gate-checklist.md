@@ -407,6 +407,37 @@ explicit authorization, and (b) the operator confirms the exact
 revision and approves the dispatch. Upstash outage specs remain
 BLOCKED regardless.
 
+## J. Prompt 53 addendum — remote CI on 21c9335 is RED (pre-existing causes, 2026-10-11)
+
+Push `21c9335` (parent `d50de05`) ran CI run `38172109214`
+(`github.com/Nik-coder-10/whatsapp_automation/actions/runs/38172109214`):
+**lint / typecheck / security success**; **unit / build / e2e failure**.
+The parent `d50de05` run (`38167092887`) shows the **identical**
+3-green / 3-red pattern, so none of this is caused by `21c9335`.
+
+Root causes (from check-run annotations + a Linux-container repro of
+the build; no code changed, nothing retried):
+
+1. **unit** — `tests/staging-workflow.test.ts:80` reads
+   `.env.example` repo-relative, but that file is gitignored and has
+   **never been committed** (`git log -- .env.example` empty), so any
+   fresh checkout hits ENOENT. Smallest fix: track the names-only
+   `.env.example` (operator decision + commit).
+2. **build** — `package-lock.json` lists only
+   `lightningcss-win32-x64-msvc`; Linux runners install no native
+   Tailwind binding and `next build` crashes in seconds (reproduced
+   in a local Linux container with the CI placeholder env).
+3. **e2e** — hermetic webServer (`npm run dev`) needs the same CSS
+   pipeline, so the app never becomes ready → 120 s webServer
+   timeout. Same lockfile fix as (2); e.g. regenerate the lock to
+   include all platforms and re-verify `npm ci` on Linux.
+
+Consequence: local gates (§A) still pass on this machine, but the
+pushed revision is **not CI-green**. Do not dispatch `staging-e2e.yml`
+as a release signal until CI is green on the dispatched revision;
+do not retry or fix without a separate authorization (fix = new
+commit, not a re-run).
+
 ## What an agent may NOT do
 
 Do not manufacture credentials, GST/UPI details, test results, or owner

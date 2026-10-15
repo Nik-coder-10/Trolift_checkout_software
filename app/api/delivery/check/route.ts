@@ -80,6 +80,9 @@ export const POST = withErrorHandling(async (req: Request) => {
   return ok({
     serviceable: quote.serviceable,
     pincode: quote.pincode,
+    // Delhivery list coverage: listed/oda/state + the deliverable
+    // verdict behind `serviceable` (same for every consumer).
+    coverage: quote.coverage,
     // Canonical DeliveryQuote shape (CheckoutForm reads `selected`).
     // The flattened partner/charge fields stay for older consumers.
     selected: quote.selected,
