@@ -248,12 +248,14 @@ describe("store timeout / unavailability policy", () => {
 });
 
 describe("production without shared store", () => {
-  it("fails closed for mutations, degraded-open for reads", async () => {
+  it("serves mutations from per-instance memory (degraded), never a blanket 429", async () => {
     vi.stubEnv("NODE_ENV", "production");
     try {
-      // No UPSTASH vars, no explicit backend → memory in production.
+      // No UPSTASH vars, no explicit backend → in-process memory in
+      // production: still bounded per instance, so rather than rejecting
+      // every customer, requests are served and marked degraded.
       const orders = await checkRateLimit(req(), "orders");
-      expect(orders.allowed).toBe(false);
+      expect(orders.allowed).toBe(true);
       expect(orders.degraded).toBe(true);
 
       const delivery = await checkRateLimit(req(), "delivery");

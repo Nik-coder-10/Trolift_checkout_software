@@ -291,10 +291,13 @@ export async function checkRateLimit(
   }
 
   // In-process fallback: fine for dev/single-instance. In production
-  // this is best-effort only — say so loudly, and refuse to run
-  // financial mutations as if they were protected, UNLESS the operator
-  // explicitly opted into memory (disposable staging, single-node
-  // deploys). Explicit choice is logged, never silent.
+  // this is best-effort — say so loudly. An unconfigured shared store
+  // is NOT treated as an outage: each instance still enforces the
+  // category budget, so abuse stays bounded. Refusing every financial
+  // mutation because Upstash was never provisioned takes the whole
+  // ordering flow down, which is strictly worse than the multi-instance
+  // bypass it guards against. Genuine backend failures (Upstash selected
+  // but unreachable) still fail closed — see degradedDecision below.
   if (isProduction() && !warnedNoSharedStore) {
     warnedNoSharedStore = true;
     const { logError, logWarn } = await import("@/lib/observability/logger");
@@ -306,17 +309,9 @@ export async function checkRateLimit(
     } else {
       logError("Rate limiting without a shared store in production.", {
         category: "rate-limit",
-        hint: "Set RATE_LIMIT_BACKEND=upstash with UPSTASH_REDIS_REST_URL/TOKEN.",
+        hint: "Set RATE_LIMIT_BACKEND=upstash with UPSTASH_REDIS_REST_URL/TOKEN for a shared budget. Falling back to in-process memory meanwhile.",
       });
     }
-  }
-  if (isProduction() && !isExplicitMemory() && policy.onBackendError === "closed") {
-    const { logWarn } = await import("@/lib/observability/logger");
-    logWarn("Rate-limit fail-closed: no shared store in production.", {
-      category: String(route),
-      operation: "rate-limit",
-    });
-    return { allowed: false, remaining: 0, resetMs: policy.windowMs, degraded: true };
   }
   try {
     const result = await decide(defaultStore);

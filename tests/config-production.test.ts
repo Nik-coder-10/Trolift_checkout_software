@@ -110,11 +110,11 @@ describe("verifyProductionConfig", () => {
     expect(tz.severity).toBe("warning");
   });
 
-  it("production without a shared rate-limit store is a critical failure", () => {
+  it("production without a shared rate-limit store warns (degraded, not fatal)", () => {
     vi.stubEnv("NODE_ENV", "production");
     setEnv({});
     const rl = checkById("rate-limit");
-    expect(rl.severity).toBe("critical");
+    expect(rl.severity).toBe("warning");
     expect(rl.ok).toBe(false);
 
     // Explicit memory is an acknowledged single-instance choice.

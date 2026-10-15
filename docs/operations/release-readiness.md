@@ -19,11 +19,12 @@ DNS — does not yet exist to be verified.
 
 - **Fail-safe production configuration** — new
   `lib/config/production.ts`, wired into `GET /api/ready`: in
-  production, missing `OWNER_UPI_ID`, invoice seller block, Supabase
-  credentials, or a shared rate-limit store returns **503** with
+  production, missing `OWNER_UPI_ID`, invoice seller block or Supabase
+  credentials returns **503** with
   variable *names* only (values never leave the process; unit-tested
-  for leakage). Tax/timezone misconfiguration is surfaced as
-  warnings: an invalid `TROLIFT_STATE_CODE` is treated as unset
+  for leakage). Tax/timezone misconfiguration, and a missing shared
+  rate-limit store (budgets then fall back to per-instance memory), are
+  surfaced as warnings: an invalid `TROLIFT_STATE_CODE` is treated as unset
   (IGST everywhere — never a narrower split), an invalid
   `BUSINESS_TIMEZONE` is flagged rather than silently shifting day
   boundaries to UTC. 8 new unit tests (609 total, all passing).

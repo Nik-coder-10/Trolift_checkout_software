@@ -186,10 +186,11 @@ export function verifyProductionConfig(): ConfigCheck[] {
   });
 
   // ── Shared rate-limit backend ─────────────────────────────────────
-  // In production, financial mutations FAIL CLOSED without a shared
-  // store (see lib/rate-limit). That is safe but availability-hostile,
-  // so readiness says so loudly instead of an operator discovering it
-  // during an incident.
+  // In production without a shared store, budgets are enforced
+  // per-instance from in-process memory (see lib/rate-limit): bounded,
+  // but not shared across instances, so a burst can still fan out. That
+  // is a degradation to flag loudly — not a fatal misconfiguration, since
+  // ordering and payment stay available.
   if (production) {
     const explicitMemory = isExplicitMemory();
     const upstash = hasUpstashConfig();
@@ -197,13 +198,13 @@ export function verifyProductionConfig(): ConfigCheck[] {
     checks.push({
       id: "rate-limit",
       label: "Shared rate-limit backend",
-      severity: "critical",
+      severity: "warning",
       ok: rlOk,
       detail: rlOk
         ? explicitMemory
           ? "RATE_LIMIT_BACKEND=memory explicitly chosen — budgets are per-instance only (single-instance deploys only)."
           : "Upstash shared store configured; all instances enforce one budget."
-        : "No UPSTASH_REDIS_REST_URL/TOKEN and no explicit RATE_LIMIT_BACKEND — financial mutations would fail closed (429) for every customer. Configure Upstash or consciously set RATE_LIMIT_BACKEND=memory.",
+        : "No UPSTASH_REDIS_REST_URL/TOKEN and no explicit RATE_LIMIT_BACKEND — budgets fall back to per-instance memory (degraded, not shared). Configure Upstash for one global budget; set RATE_LIMIT_BACKEND=memory to acknowledge single-instance.",
     });
   }
 

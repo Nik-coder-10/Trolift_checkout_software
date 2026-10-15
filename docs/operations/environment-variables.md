@@ -11,6 +11,7 @@ Legend for the environment matrix: **R** = required, **O** = optional,
 | --- | --- | --- | --- | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Public | R | R | R | R | Supabase project URL (anon-scoped client). |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | R | R | R | R | Anon key; RLS is the real boundary. |
+| `NEXT_PUBLIC_WHATSAPP_NUMBER` | Public | O | O | O | O | Trolift's WhatsApp number (international, digits only) for the post-order click-to-chat link. Public by design; blank hides automatic addressing. |
 | `NEXT_PUBLIC_SITE_URL` | Public | O | O | R | R | Canonical origin for absolute URLs (metadata, robots). Default `http://localhost:3000`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Secret** | R | R | R | R | Server-only bypass of RLS. `server-only` import guards bundling. |
 | `SUPABASE_DB_URL` | **Secret** | O | — | O | O | Direct Postgres URL for `supabase db push` / migration CLI only. Never read by app code. |
@@ -32,7 +33,7 @@ Legend for the environment matrix: **R** = required, **O** = optional,
 | `TROLIFT_SIGNATORY_NAME` / `TROLIFT_SIGNATORY_TITLE` | — | O | O | O | O | Signatory printed on quotations; omitted when the name is blank. |
 | `TROLIFT_QUOTATION_TERMS` | — | O | O | O | O | Newline-separated quotation terms override; defaults are the current standard terms. Frozen into each quotation at issuance. |
 | `BUSINESS_TIMEZONE` | — | O | O | R | R | IANA zone for business-day boundaries (dashboards/reports). Default `Asia/Kolkata`; an *invalid* name is a readiness warning (would silently shift day boundaries to UTC — not acceptable un-signalled). |
-| `RATE_LIMIT_BACKEND` | — | O | O | `memory`† | **R** | `auto` \| `memory` \| `upstash`. Production without Upstash **and** without explicit `memory` ⇒ financial mutations fail closed (429). |
+| `RATE_LIMIT_BACKEND` | — | O | O | `memory`† | O | `auto` \| `memory` \| `upstash`. Production without Upstash falls back to per-instance memory (degraded, not shared); set `upstash` to enforce one global budget. |
 | `UPSTASH_REDIS_REST_URL` | **Secret** | — | — | O | **R** | Shared sliding-window store so all instances enforce one budget. |
 | `UPSTASH_REDIS_REST_TOKEN` | **Secret** | — | — | O | **R** | Paired token for the Upstash REST API. |
 | `RATE_LIMIT_UPSTREAM_TIMEOUT_MS` | — | O | O | O | O | Shared-store call timeout. Default 1500. |
@@ -50,8 +51,10 @@ green. Do not "fix" the warning by inventing a GSTIN — confirm the
 real one with the owner, or record that invoices intentionally omit it.
 
 † Staging E2E runs single-instance against a disposable stack, so
-in-process memory is the honest choice there; production mutations fail
-closed without a shared store, which is what forces the Upstash choice.
+in-process memory is the honest choice there. Production without a
+shared store also falls back to per-instance memory (so orders never
+fail with 429 for want of Upstash), but that is degraded — budgets are
+not shared across instances, so configure Upstash for real enforcement.
 
 ## Staging E2E variables (Playwright, never app runtime)
 
@@ -77,11 +80,13 @@ without the enable flag; synthetic storage objects are namespaced
 
 - **Production + any critical check failing ⇒ HTTP 503.** Critical:
   Supabase credentials, `OWNER_UPI_ID` (presence + `user@bank` shape),
-  invoice seller block, invoice prefix shape, shared rate-limit
-  backend. Serving money traffic without these produces broken
-  payment instructions or un-downloadable invoices — worse than down.
+  invoice seller block, invoice prefix shape. Serving money traffic
+  without these produces broken payment instructions or
+  un-downloadable invoices — worse than down.
 - **Warnings are reported, never fatal**: GSTIN empty/malformed, home
-  state unset/invalid, invalid timezone. `/api/ready` lists them under
+  state unset/invalid, invalid timezone, and a missing shared
+  rate-limit store (budgets degrade to per-instance memory, so ordering
+  and payment stay available). `/api/ready` lists them under
   `checks.config.warnings` (ids only) on every probe.
 - **Outside production nothing here can fail readiness** — dev and
   the hermetic test suite never fight production-only knobs.
