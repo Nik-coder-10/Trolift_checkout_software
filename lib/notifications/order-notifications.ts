@@ -5,26 +5,24 @@ import { getPaymentWindowHours } from "@/lib/payments/upi";
 import {
   buildCustomerOrderMessage,
   buildOwnerOrderMessage,
-  orderMessageTemplateVariables,
   type NotificationLine,
   type OrderMessageInput,
 } from "@/lib/notifications/order-message";
 import {
-  ownerWhatsAppNumber,
-  sendWhatsAppMessages,
-  whatsappConfigured,
-  type WhatsAppMessage,
+  emailConfigured,
+  getOrderNotificationRecipient,
+  sendEmailMessages,
+  type EmailMessage,
 } from "@/lib/notifications/whatsapp";
 
 /**
  * "An order was placed" notifications: the customer's own copy plus the
- * owner's alert, over WhatsApp.
+ * owner's alert, over email.
  *
  * Called from the order route through Next's `after()` so the customer
  * gets their confirmation response first — a slow or rejected message
  * never delays or fails a placed order. Every outcome is logged with
- * the order number; failures are reported, never retried in a loop
- * (a wrong number or an unapproved template must not hammer Twilio).
+ * the order number; failures are reported, never retried in a loop.
  */
 
 export interface OrderNotificationInput {
@@ -61,7 +59,7 @@ function composeAddress(billing: OrderNotificationInput["billing"]): string | nu
 
 export async function notifyOrderPlaced(
   input: OrderNotificationInput,
-  deps?: { fetchImpl?: typeof fetch },
+  deps?: { sendMail?: (msg: { from: string; to: string; subject: string; text: string }) => Promise<unknown> },
 ): Promise<{ sent: number; failed: number; skipped: number }> {
   const messageInput: OrderMessageInput = {
     orderNumber: input.orderNumber,
@@ -82,42 +80,41 @@ export async function notifyOrderPlaced(
     siteUrl: siteConfig.url,
   };
 
-  const templateVariables = orderMessageTemplateVariables(messageInput);
-  const owner = ownerWhatsAppNumber();
-  const messages: Array<{ role: "customer" | "owner"; message: WhatsAppMessage }> = [
+  const recipient = getOrderNotificationRecipient();
+  const messages: Array<{ role: "customer" | "owner"; message: EmailMessage }> = [
     {
       role: "customer",
       message: {
-        to: input.customer.phone,
+        to: recipient ?? "",
+        subject: `Order Confirmation — ${input.orderNumber}`,
         body: buildCustomerOrderMessage(messageInput),
-        templateVariables,
       },
     },
-    ...(owner === null
+    ...(recipient === null
       ? []
       : [
           {
             role: "owner" as const,
             message: {
-              to: owner,
+              to: recipient,
+              subject: `New Order — ${input.orderNumber}`,
               body: buildOwnerOrderMessage(messageInput),
-              templateVariables,
             },
           },
         ]),
   ];
 
-  if (!whatsappConfigured()) {
-    logWarn("Order placed without WhatsApp notification — provider not configured.", {
-      category: "whatsapp",
+  if (!emailConfigured()) {
+    logWarn("Order placed without email notification — provider not configured.", {
+      category: "email",
       orderNumber: input.orderNumber,
       operation: "order-notification",
-      hint: "Set META_WHATSAPP_ACCESS_TOKEN/META_WHATSAPP_PHONE_NUMBER_ID/META_WHATSAPP_TEMPLATE_NAME and WHATSAPP_OWNER_PHONE.",
+      hint: "Set SMTP_USER/SMTP_PASS and ORDER_NOTIFICATION_EMAIL.",
     });
     return { sent: 0, failed: 0, skipped: messages.length };
   }
 
-  const outcomes = await sendWhatsAppMessages(
+  const outcomes = await sendEmailMessages(
     messages.map((m) => m.message),
     deps,
   );
@@ -129,29 +126,28 @@ export async function notifyOrderPlaced(
     const role = messages[index]?.role ?? "customer";
     if (outcome.status === "sent") {
       sent += 1;
-      logInfo("WhatsApp notification sent.", {
-        category: "whatsapp",
+      logInfo("Email notification sent.", {
+        category: "email",
         operation: "order-notification",
         orderNumber: input.orderNumber,
         recipient: role,
       });
     } else if (outcome.status === "failed") {
       failed += 1;
-      logWarn("WhatsApp notification failed.", {
-        category: "whatsapp",
+      logWarn("Email notification failed.", {
+        category: "email",
         operation: "order-notification",
         orderNumber: input.orderNumber,
         recipient: role,
-        // Reason only — never the number itself.
         reason: outcome.detail ?? "unknown",
       });
     } else {
       skipped += 1;
     }
   });
-  if (owner === null) {
-    logWarn("WHATSAPP_OWNER_PHONE is unset — owner copy not sent.", {
-      category: "whatsapp",
+  if (recipient === null) {
+    logWarn("ORDER_NOTIFICATION_EMAIL is unset — notifications not sent.", {
+      category: "email",
       operation: "order-notification",
       orderNumber: input.orderNumber,
     });
