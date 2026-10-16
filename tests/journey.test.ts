@@ -31,10 +31,19 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => createMockClient(adminHandler),
 }));
+vi.mock("@/lib/storage/payment-proofs", async () => {
+  const { paymentProofsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentProofsMock();
+});
+vi.mock("@/lib/notifications/payment-notifications", async () => {
+  const { paymentNotificationsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentNotificationsMock();
+});
 
 import { POST as ordersPost } from "@/app/api/orders/route";
 import { POST as deliveryPost } from "@/app/api/delivery/check/route";
 import { POST as claimPost } from "@/app/api/payments/claim/route";
+import { claimMultipartRequest } from "@/tests/helpers/payment-proof";
 import { POST as statusPost } from "@/app/api/admin/orders/status/route";
 import { GET as customerInvoiceGet } from "@/app/api/orders/[id]/invoice/route";
 import { GET as adminInvoiceGet } from "@/app/api/admin/orders/[id]/invoice/route";
@@ -565,6 +574,10 @@ const post = (fn: (req: Request, ctx?: never) => Promise<Response>, body: unknow
     }),
   );
 
+/** Multipart claim: UTR + phone + the mandatory payment screenshot. */
+const postClaim = (fields: Record<string, string>) =>
+  claimPost(claimMultipartRequest(fields));
+
 const validBody = (over: Record<string, unknown> = {}) => ({
   items: [{ productId: P1, quantity: 2 }],
   customer: { name: "Demo Traders", phone: PHONE },
@@ -662,8 +675,8 @@ describe("customer journey: catalogue to delivered invoice", () => {
         }),
         { params: Promise.resolve({ id }) },
       );
-    const authedClaim = (body: Record<string, unknown>, token: string) =>
-      post(claimPost, { ...body, accessToken: token });
+    const authedClaim = (body: Record<string, string>, token: string) =>
+      postClaim({ ...body, accessToken: token });
 
     // 3. Reopen any time with the token; UUID alone grants nothing.
     expect(await getPayableOrderForGuest(orderId, null)).toBeNull();
@@ -697,7 +710,7 @@ describe("customer journey: catalogue to delivered invoice", () => {
       guestToken,
     );
     expect(wrong.status).toBe(404);
-    const noToken = await post(claimPost, {
+    const noToken = await postClaim({
       orderId,
       reference: UTR,
       phone: PHONE,
@@ -712,6 +725,11 @@ describe("customer journey: catalogue to delivered invoice", () => {
       guestToken,
     );
     expect(claimed.status).toBe(200);
+    // The screenshot path is persisted on the payment row for the
+    // owner's verification email and the admin dashboard.
+    const claimedRow = (db.payments.get(orderId) ?? [])[0];
+    expect(claimedRow?.["proof_path"]).toBe(`${orderId}/proof.png`);
+    expect(claimedRow?.["transaction_reference"]).toBe(UTR);
 
     // 6. Duplicate claim on settled state is rejected.
     const dupClaim = await authedClaim(
@@ -926,7 +944,7 @@ describe("failure flows fail safe with the item named", () => {
     const firstToken = first.json.data["guestToken"] as string;
     expect(
       (
-        await post(claimPost, {
+        await postClaim({
           orderId: firstId,
           reference: UTR,
           phone: PHONE,
@@ -937,7 +955,7 @@ describe("failure flows fail safe with the item named", () => {
     // Same UTR on another order → conflict.
     expect(
       (
-        await post(claimPost, {
+        await postClaim({
           orderId: otherId,
           reference: UTR,
           phone: PHONE,
@@ -948,7 +966,7 @@ describe("failure flows fail safe with the item named", () => {
     // Too-short reference → validation error.
     expect(
       (
-        await post(claimPost, {
+        await postClaim({
           orderId: otherId,
           reference: "abc",
           phone: PHONE,
@@ -959,7 +977,7 @@ describe("failure flows fail safe with the item named", () => {
   });
 
   it("fails closed on unknown orders and backend failures", async () => {
-    const missing = await post(claimPost, {
+    const missing = await postClaim({
       orderId: uuid(999),
       reference: UTR,
       phone: PHONE,

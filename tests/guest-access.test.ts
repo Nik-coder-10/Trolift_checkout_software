@@ -19,6 +19,14 @@ vi.mock("@/lib/supabase/admin", () => ({
     return createMockClient(handler);
   },
 }));
+vi.mock("@/lib/storage/payment-proofs", async () => {
+  const { paymentProofsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentProofsMock();
+});
+vi.mock("@/lib/notifications/payment-notifications", async () => {
+  const { paymentNotificationsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentNotificationsMock();
+});
 
 import {
   expiredGuestCookie,
@@ -43,6 +51,7 @@ import {
 } from "@/lib/guest-access/guard";
 import { getPayableOrderForGuest } from "@/lib/payments/order";
 import { POST as claimPost } from "@/app/api/payments/claim/route";
+import { claimMultipartRequest } from "@/tests/helpers/payment-proof";
 import { GET as invoiceGet } from "@/app/api/orders/[id]/invoice/route";
 import { POST as sessionPost } from "@/app/api/orders/[id]/session/route";
 import { POST as rotatePost } from "@/app/api/orders/[id]/rotate/route";
@@ -352,17 +361,12 @@ describe("protected routes", () => {
   it("claim: token required on top of phone match", async () => {
     const good = generateGuestToken();
     tokens.push(rowFor(good, ORDER_ID));
-    const post = (body: unknown, cookie: string | null) =>
+    const post = (fields: Record<string, string>, cookie: string | null) =>
       claimPost(
-        new Request("http://localhost/api/payments/claim", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(cookie
-              ? { Cookie: `${guestCookieName(ORDER_ID)}=${cookie}` }
-              : {}),
-          },
-          body: JSON.stringify(body),
+        claimMultipartRequest(fields, {
+          cookie: cookie
+            ? `${guestCookieName(ORDER_ID)}=${cookie}`
+            : undefined,
         }),
       );
     const base = {
@@ -385,15 +389,11 @@ describe("protected routes", () => {
   it("claim failures never echo the token", async () => {
     const raw = generateGuestToken();
     const res = await claimPost(
-      new Request("http://localhost/api/payments/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId: ORDER_ID,
-          reference: "123456789012",
-          phone: "+919876543210",
-          accessToken: raw,
-        }),
+      claimMultipartRequest({
+        orderId: ORDER_ID,
+        reference: "123456789012",
+        phone: "+919876543210",
+        accessToken: raw,
       }),
     );
     const text = await res.text();

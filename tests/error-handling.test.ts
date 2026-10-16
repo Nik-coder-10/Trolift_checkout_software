@@ -27,6 +27,14 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => createMockClient(adminHandler),
 }));
+vi.mock("@/lib/storage/payment-proofs", async () => {
+  const { paymentProofsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentProofsMock();
+});
+vi.mock("@/lib/notifications/payment-notifications", async () => {
+  const { paymentNotificationsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentNotificationsMock();
+});
 
 describe("Error model", () => {
   it("creates validation errors with correct category and status", () => {
@@ -309,18 +317,14 @@ describe("Retry safety", () => {
   it("payment claim uses guarded updates for safe retries", async () => {
     const { POST } = await import("@/app/api/payments/claim/route");
     const { generateGuestToken } = await import("@/lib/guest-access/tokens");
-    const body = {
+    const { claimMultipartRequest } = await import("@/tests/helpers/payment-proof");
+    const req = claimMultipartRequest({
       orderId: "c0ffee00-0001-4000-8000-000000000001",
       reference: "123456789012",
       phone: "9876543210",
       // A well-formed token forces the DB authorization path, where the
       // failing backend surfaces a generic 500 (never the raw error).
       accessToken: generateGuestToken(),
-    };
-    const req = new Request("http://localhost/api/payments/claim", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
     });
     const res = await POST(req);
     expect(res.status).toBe(500);

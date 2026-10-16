@@ -34,6 +34,22 @@ export function uniqueUtr(prefix = "STGE2E"): string {
   return `${prefix}${Date.now().toString(36).toUpperCase()}`.slice(0, 24);
 }
 
+/**
+ * Tiny real PNG for payment-screenshot uploads — the claim API sniffs
+ * magic bytes, so a fake extension alone is rejected. Works with both
+ * Playwright's setInputFiles() and request.post multipart.
+ */
+export function paymentProofUpload() {
+  return {
+    name: "payment-proof.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+      "base64",
+    ),
+  };
+}
+
 export function serviceHeaders(): Record<string, string> {
   const key = process.env.STAGING_SERVICE_ROLE_KEY ?? "";
   return {

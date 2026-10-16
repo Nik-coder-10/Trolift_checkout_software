@@ -31,6 +31,14 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => createMockClient(adminHandler),
 }));
+vi.mock("@/lib/storage/payment-proofs", async () => {
+  const { paymentProofsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentProofsMock();
+});
+vi.mock("@/lib/notifications/payment-notifications", async () => {
+  const { paymentNotificationsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentNotificationsMock();
+});
 
 const SAVED_ENV = { ...process.env };
 
@@ -341,6 +349,7 @@ describe("claim abuse end to end (token + budget)", () => {
     process.env.RATE_LIMIT_CLAIM_PER_MIN = "2";
     const { POST } = await import("@/app/api/payments/claim/route");
     const { generateGuestToken, hashGuestToken } = await import("@/lib/guest-access/tokens");
+    const { claimMultipartRequest } = await import("@/tests/helpers/payment-proof");
     const raw = generateGuestToken();
     const tokenRow = {
       token_hash: hashGuestToken(raw),
@@ -354,9 +363,9 @@ describe("claim abuse end to end (token + budget)", () => {
       }
       if (op.table === "order_access_tokens") return { rows: [{ id: "t" }], error: null };
       if (op.table === "orders" && !op.updateValues) {
-        return { rows: [{ id: OID, order_number: "TS-1", customer_id: "c1", payment_status: "pending", order_status: "pending_payment" }], error: null };
+        return { rows: [{ id: OID, order_number: "TS-1", customer_id: "c1", payment_status: "pending", order_status: "pending_payment", total_amount: "20870.00" }], error: null };
       }
-      if (op.table === "customers") return { rows: [{ phone: "+919876543210" }], error: null };
+      if (op.table === "customers") return { rows: [{ name: "Rate Test", phone: "+919876543210", email: null }], error: null };
       if (op.table === "payments" && !op.updateValues) return { rows: [{ id: "p1", status: "pending" }], error: null };
       if (op.updateValues) return { rows: [{ id: "x" }], error: null };
       if (op.table === "order_events") return { rows: [{ id: "e1" }], error: null };
@@ -364,10 +373,11 @@ describe("claim abuse end to end (token + budget)", () => {
     };
     const post = (reference: string) =>
       POST(
-        new Request("http://localhost/api/payments/claim", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: OID, reference, phone: "+919876543210", accessToken: raw }),
+        claimMultipartRequest({
+          orderId: OID,
+          reference,
+          phone: "+919876543210",
+          accessToken: raw,
         }),
       );
     expect((await post("123456789012")).status).toBe(200);

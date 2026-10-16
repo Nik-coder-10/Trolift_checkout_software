@@ -42,6 +42,10 @@ export interface ClaimResult {
   orderNumber: string;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
+  /** Object path of the uploaded screenshot (payments.proof_path). */
+  proofPath: string;
+  totalPaise: number;
+  customer: { name: string; phone: string; email: string | null };
 }
 
 export async function submitPaymentClaim(input: {
@@ -49,6 +53,8 @@ export async function submitPaymentClaim(input: {
   reference: string;
   /** Customer's mobile — must match the order's customer (IDOR guard). */
   phone: string;
+  /** Stored screenshot of the payment (uploaded before this call). */
+  proofPath: string;
 }): Promise<ClaimResult> {
   const reference = normalizePaymentReference(input.reference);
   if (!isValidPaymentReference(input.reference)) {
@@ -62,7 +68,7 @@ export async function submitPaymentClaim(input: {
 
   const { data: order, error: orderError } = await admin
     .from("orders")
-    .select("id,order_number,customer_id,payment_status,order_status")
+    .select("id,order_number,customer_id,payment_status,order_status,total_amount")
     .eq("id", input.orderId)
     .maybeSingle();
   const orderRow = order as unknown as {
@@ -71,6 +77,7 @@ export async function submitPaymentClaim(input: {
     customer_id: string;
     payment_status: PaymentStatus;
     order_status: OrderStatus;
+    total_amount: string;
   } | null;
   if (orderError || !orderRow) {
     throw new AppError("NOT_FOUND", "Order not found.", 404);
@@ -80,7 +87,7 @@ export async function submitPaymentClaim(input: {
   const [{ data: customer }, { data: payment, error: paymentError }] = await Promise.all([
     admin
       .from("customers")
-      .select("phone")
+      .select("name,phone,email")
       .eq("id", orderRow.customer_id)
       .maybeSingle(),
     admin
@@ -91,7 +98,11 @@ export async function submitPaymentClaim(input: {
       .limit(1)
       .maybeSingle(),
   ]);
-  const customerRow = customer as unknown as { phone: string } | null;
+  const customerRow = customer as unknown as {
+    name: string;
+    phone: string;
+    email: string | null;
+  } | null;
   if (
     !customerRow ||
     normalizePhone(input.phone) !== normalizePhone(customerRow.phone)
@@ -125,7 +136,7 @@ export async function submitPaymentClaim(input: {
 
   const { error: refError } = await admin
     .from("payments")
-    .update({ transaction_reference: reference })
+    .update({ transaction_reference: reference, proof_path: input.proofPath })
     .eq("id", paymentRow.id);
   if (refError) {
     // Duplicate UTR (partial unique index) lands here too.
@@ -185,5 +196,12 @@ export async function submitPaymentClaim(input: {
     orderNumber: orderRow.order_number,
     paymentStatus: "submitted",
     orderStatus: "payment_submitted",
+    proofPath: input.proofPath,
+    totalPaise: Math.round(Number(orderRow.total_amount) * 100),
+    customer: {
+      name: customerRow.name,
+      phone: customerRow.phone,
+      email: customerRow.email,
+    },
   };
 }

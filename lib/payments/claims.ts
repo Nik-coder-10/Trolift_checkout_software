@@ -18,6 +18,18 @@ export function normalizePaymentReference(value: string): string {
   return value.trim().toUpperCase();
 }
 
+/**
+ * Payment-screenshot constraints, shared by the client form (fast
+ * feedback) and the server validator (authoritative — re-checks by
+ * sniffing magic bytes in lib/storage/payment-proofs).
+ */
+export const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+export const PROOF_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+
+export function isValidProofMimeType(type: string): boolean {
+  return (PROOF_MIME_TYPES as readonly string[]).includes(type);
+}
+
 export function canSubmitClaim(
   paymentStatus: PaymentStatus,
   orderStatus: OrderStatus,

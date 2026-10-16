@@ -15,6 +15,7 @@ import {
   trackedProductIds,
   uniquePhone,
   uniqueUtr,
+  paymentProofUpload,
 } from "./helpers";
 
 /**
@@ -181,13 +182,20 @@ test.describe("staging failure journeys", () => {
     });
     const claimAs = (orderId: string, claimPhone: string, reference: string, accessToken?: string) =>
       page.request.post(`${baseURL}/api/payments/claim`, {
-        data: { orderId, reference, phone: claimPhone, ...(accessToken ? { accessToken } : {}) },
+        multipart: {
+          orderId,
+          reference,
+          phone: claimPhone,
+          ...(accessToken ? { accessToken } : {}),
+          screenshot: paymentProofUpload(),
+        },
       });
     // First claim through the RENDERED form (cookie session authorizes).
     await page.goto(`/orders/${created.id}/pay`);
     await page.getByLabel(/order mobile number/i).fill(phone);
     const utr = uniqueUtr();
     await page.getByLabel(/utr number/i).fill(utr);
+    await page.getByLabel(/payment screenshot/i).setInputFiles(paymentProofUpload());
     await page.getByRole("button", { name: /submit reference/i }).click();
     await expect(page.getByText(/payment submitted for verification/i)).toBeVisible({ timeout: 20_000 });
     // Same UTR again (same session) → conflict, order untouched.

@@ -5,7 +5,12 @@ import {
 } from "@/tests/helpers/supabase-mock";
 import { resetRateLimits } from "@/lib/rate-limit/index";
 
-beforeEach(() => resetRateLimits());
+beforeEach(() => {
+  resetRateLimits();
+  vi.mocked(assertValidProofFile).mockImplementation(() => "image/png");
+  vi.mocked(uploadPaymentProof).mockClear();
+  vi.mocked(notifyPaymentClaimSubmitted).mockClear();
+});
 
 vi.mock("server-only", () => ({}));
 
@@ -21,10 +26,25 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => createMockClient(adminHandler),
 }));
+vi.mock("@/lib/storage/payment-proofs", async () => {
+  const { paymentProofsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentProofsMock();
+});
+vi.mock("@/lib/notifications/payment-notifications", async () => {
+  const { paymentNotificationsMock } = await import("@/tests/helpers/payment-proof");
+  return paymentNotificationsMock();
+});
 
 import { POST as deliveryPost } from "@/app/api/delivery/check/route";
 import { POST as claimPost } from "@/app/api/payments/claim/route";
 import { generateGuestToken, hashGuestToken } from "@/lib/guest-access/tokens";
+import { assertValidProofFile, uploadPaymentProof } from "@/lib/storage/payment-proofs";
+import { notifyPaymentClaimSubmitted } from "@/lib/notifications/payment-notifications";
+import {
+  claimMultipartRequest,
+  TINY_PNG,
+} from "@/tests/helpers/payment-proof";
+import { AppError } from "@/lib/api/errors";
 
 const OID = "c0ffee00-0001-4000-8000-000000000001";
 // Bearer for OID: the mock answers the token table with its hash.
@@ -192,8 +212,9 @@ const orderRow = {
   customer_id: "cust-1",
   payment_status: "pending",
   order_status: "pending_payment",
+  total_amount: "20870.00",
 };
-const customerRow = { phone: "+919876543210" };
+const customerRow = { name: "Test Buyer", phone: "+919876543210", email: "buyer@example.com" };
 const paymentRow = { id: "pay-1", status: "pending" };
 
 function wireClaim(over: {
@@ -236,7 +257,7 @@ function wireClaim(over: {
   };
 }
 
-const claimBody = (over: Record<string, unknown> = {}) => ({
+const claimBody = (over: Record<string, string> = {}) => ({
   orderId: OID,
   reference: "123456789012",
   phone: "09876543210",
@@ -244,10 +265,15 @@ const claimBody = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-describe("POST /api/payments/claim (reference only, never amounts)", () => {
-  it("submits a valid claim with phone match + guest token", async () => {
+const callClaim = (
+  fields: Record<string, string>,
+  opts: { withProof?: boolean } = {},
+) => claimPost(claimMultipartRequest(fields, opts));
+
+describe("POST /api/payments/claim (multipart: UTR + screenshot)", () => {
+  it("submits a valid claim with phone match + guest token + screenshot", async () => {
     wireClaim();
-    const res = await call(claimPost, claimBody());
+    const res = await callClaim(claimBody());
     const json = (await res.json()) as {
       ok: boolean;
       data: Record<string, unknown>;
@@ -257,28 +283,79 @@ describe("POST /api/payments/claim (reference only, never amounts)", () => {
       orderId: OID,
       paymentStatus: "submitted",
       orderStatus: "payment_submitted",
+      proofPath: `${OID}/proof.png`,
+      totalPaise: 2087000,
+      customer: { name: "Test Buyer", phone: "+919876543210", email: "buyer@example.com" },
     });
+    // The screenshot lands in storage BEFORE the state transition.
+    expect(uploadPaymentProof).toHaveBeenCalledWith(
+      OID,
+      expect.objectContaining({ bytes: expect.any(Uint8Array) }),
+      "image/png",
+    );
+  });
+
+  it("notifies the owner with client details, UTR and the screenshot path", async () => {
+    wireClaim();
+    await callClaim(claimBody({ reference: "UTR99887766" }));
+    expect(notifyPaymentClaimSubmitted).toHaveBeenCalledWith({
+      orderNumber: "TS-261004-0001",
+      customer: { name: "Test Buyer", phone: "+919876543210", email: "buyer@example.com" },
+      reference: "UTR99887766",
+      totalPaise: 2087000,
+      proofPath: `${OID}/proof.png`,
+    });
+  });
+
+  it("rejects JSON bodies — the screenshot is mandatory", async () => {
+    wireClaim();
+    const res = await call(claimPost, claimBody());
+    const json = (await res.json()) as { ok: boolean; error: { code: string } };
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe("BAD_REQUEST");
+  });
+
+  it("rejects a multipart claim without the screenshot", async () => {
+    wireClaim();
+    const res = await callClaim(claimBody(), { withProof: false });
+    const json = (await res.json()) as { ok: boolean; error: { message: string } };
+    expect(json.ok).toBe(false);
+    expect(json.error.message).toMatch(/screenshot/i);
+    expect(uploadPaymentProof).not.toHaveBeenCalled();
+  });
+
+  it("rejects a screenshot that is not a PNG/JPEG/WebP image", async () => {
+    wireClaim();
+    vi.mocked(assertValidProofFile).mockImplementationOnce(() => {
+      throw AppError.validation(
+        "The payment screenshot must be a PNG, JPEG or WebP image.",
+      );
+    });
+    const res = await callClaim(claimBody());
+    const json = (await res.json()) as { ok: boolean; error: { code: string } };
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe("VALIDATION_ERROR");
+    expect(uploadPaymentProof).not.toHaveBeenCalled();
   });
 
   it("rejects claims without a guest token (UUID alone authorizes nothing)", async () => {
     wireClaim();
-    const noToken = claimBody() as Record<string, unknown>;
+    const noToken = claimBody() as Record<string, string>;
     delete noToken["accessToken"];
-    const res = await call(claimPost, noToken);
+    const res = await callClaim(noToken);
     const json = (await res.json()) as {
       ok: boolean;
       error: { code: string };
     };
     expect(json.ok).toBe(false);
     expect(json.error.code).toBe("NOT_FOUND");
+    // Unauthorized callers never reach storage.
+    expect(uploadPaymentProof).not.toHaveBeenCalled();
   });
 
   it("rejects a mismatched phone without confirming the order (generic 404)", async () => {
     wireClaim();
-    const res = await call(
-      claimPost,
-      claimBody({ phone: "+911111111111" }),
-    );
+    const res = await callClaim(claimBody({ phone: "+911111111111" }));
     const json = (await res.json()) as {
       ok: boolean;
       error: { code: string };
@@ -292,7 +369,7 @@ describe("POST /api/payments/claim (reference only, never amounts)", () => {
       order: { ...orderRow, payment_status: "paid", order_status: "confirmed" },
       payment: { id: "pay-1", status: "paid" },
     });
-    const res = await call(claimPost, claimBody({ phone: "+919876543210" }));
+    const res = await callClaim(claimBody({ phone: "+919876543210" }));
     const json = (await res.json()) as {
       ok: boolean;
       error: { code: string };
@@ -305,10 +382,7 @@ describe("POST /api/payments/claim (reference only, never amounts)", () => {
     wireClaim({
       updateError: { message: "duplicate key", code: "23505" },
     });
-    const res = await call(
-      claimPost,
-      claimBody({ phone: "+919876543210" }),
-    );
+    const res = await callClaim(claimBody({ phone: "+919876543210" }));
     const json = (await res.json()) as {
       ok: boolean;
       error: { code: string };
@@ -317,14 +391,44 @@ describe("POST /api/payments/claim (reference only, never amounts)", () => {
     expect(json.error.code).toBe("BAD_REQUEST");
   });
 
-  it("rejects malformed bodies", async () => {
+  it("rejects malformed fields", async () => {
     for (const body of [
-      { orderId: "nope", reference: "123456789012", phone: "+919876543210" },
-      { orderId: OID, reference: "", phone: "+919876543210" },
-      { orderId: OID, reference: "123456789012", phone: "" },
+      { orderId: "nope", reference: "123456789012", phone: "+919876543210", accessToken: CLAIM_TOKEN },
+      { orderId: OID, reference: "", phone: "+919876543210", accessToken: CLAIM_TOKEN },
+      { orderId: OID, reference: "123456789012", phone: "", accessToken: CLAIM_TOKEN },
     ]) {
-      const res = await call(claimPost, body);
+      const res = await callClaim(body);
       expect(((await res.json()) as { ok: boolean }).ok).toBe(false);
     }
+  });
+
+  it("uses the sniffed bytes, not the declared type, for storage", async () => {
+    wireClaim();
+    const fd = new FormData();
+    fd.set("orderId", OID);
+    fd.set("reference", "123456789012");
+    fd.set("phone", "+919876543210");
+    fd.set("accessToken", CLAIM_TOKEN);
+    // Declared image/png but the bytes are JPEG magic — the server
+    // stores under the SNIFFED type returned by the validator.
+    fd.set(
+      "screenshot",
+      new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], "fake.png", {
+        type: "image/png",
+      }),
+    );
+    vi.mocked(assertValidProofFile).mockImplementationOnce(() => "image/jpeg");
+    const res = await claimPost(
+      new Request("http://localhost/x", { method: "POST", body: fd }),
+    );
+    const json = (await res.json()) as { ok: boolean };
+    expect(json.ok).toBe(true);
+    expect(uploadPaymentProof).toHaveBeenCalledWith(
+      OID,
+      expect.objectContaining({ bytes: expect.any(Uint8Array) }),
+      "image/jpeg",
+    );
+    // The fixture PNG stays imported for the default multipart path.
+    expect(TINY_PNG.length).toBeGreaterThan(8);
   });
 });

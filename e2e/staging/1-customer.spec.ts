@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
+  paymentProofUpload,
   trackPhone,
   uniquePhone,
   uniqueUtr,
@@ -122,8 +123,11 @@ test.describe("staging customer journey", () => {
     await expect(page.getByText(/confirm payment/i)).toBeVisible();
 
     // 12. Simulated payment claim (test UTR — never a real transfer).
+    // The screenshot is mandatory: a tiny real PNG satisfies the
+    // server-side magic-byte sniff.
     await page.getByLabel(/order mobile number/i).fill(phone);
     await page.getByLabel(/utr number/i).fill(utr);
+    await page.getByLabel(/payment screenshot/i).setInputFiles(paymentProofUpload());
     await page.getByRole("button", { name: /submit reference/i }).click();
     await expect(
       page.getByText(/payment submitted for verification/i),

@@ -127,7 +127,7 @@ export default async function OrderPayPage({
                 <li>Open any UPI app (GPay, PhonePe, Paytm, BHIM…).</li>
                 <li>Scan the QR and verify the exact amount above.</li>
                 <li>Complete the payment and note the 12-digit UTR.</li>
-                <li>Submit the UTR below — we verify every payment manually.</li>
+                <li>Submit the UTR and the payment screenshot below — we verify every payment manually.</li>
               </ol>
             </>
           )}
@@ -213,7 +213,8 @@ export default async function OrderPayPage({
                 order.orderStatus === "payment_submitted" ? (
                 <Alert tone="info" title="Payment under verification">
                   We received your reference
-                  {order.paymentReferenceMasked ? ` (${order.paymentReferenceMasked})` : ""} and
+                  {order.paymentReferenceMasked ? ` (${order.paymentReferenceMasked})` : ""}
+                  {order.hasPaymentProof ? " and your payment screenshot" : ""} and
                   will confirm your order after verification.
                 </Alert>
               ) : (

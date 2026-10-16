@@ -75,6 +75,8 @@ export interface PayableOrder {
   items: PayableOrderItem[];
   /** Last-4 only — the full UTR never appears in order views. */
   paymentReferenceMasked: string | null;
+  /** True once the claim's payment screenshot is stored (proof_path). */
+  hasPaymentProof: boolean;
   createdAt: string;
   /**
    * Customer-safe event feed (labels + timestamps only — built through
@@ -153,7 +155,7 @@ export async function getPayableOrderForAdmin(
         .order("product_name"),
       admin
         .from("payments")
-        .select("transaction_reference,status")
+        .select("transaction_reference,status,proof_path")
         .eq("order_id", o.id)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -175,6 +177,7 @@ export async function getPayableOrderForAdmin(
   const p = payment as unknown as {
     transaction_reference: string | null;
     status: PaymentStatus;
+    proof_path?: string | null;
   } | null;
   const eventRows = (events ?? []) as unknown as Array<{
     event_type: string;
@@ -210,6 +213,7 @@ export async function getPayableOrderForAdmin(
       lineTotalPaise: toPaise(r.line_total) + toPaise(r.line_tax_amount),
     })),
     paymentReferenceMasked: maskReference(p?.transaction_reference ?? null),
+    hasPaymentProof: Boolean(p?.proof_path),
     createdAt: o.created_at,
     timeline: customerSafeTimeline(
       eventRows.map((e) => ({
