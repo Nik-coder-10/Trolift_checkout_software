@@ -23,7 +23,7 @@ on conflict (id) do nothing;
 
 -- ─── Products ─────────────────────────────────────────────────────────
 insert into public.products
-  (id, name, slug, description, category, specifications, price, stock_quantity, weight_kg, images, is_active)
+  (id, name, slug, description, category, specifications, price, stock_quantity, weight_kg, gst_rate, images, is_active)
 values
   (
     'b1c2d3e4-0001-4000-8000-000000000001',
@@ -32,7 +32,7 @@ values
     'Heavy-duty hydraulic hand pallet truck for warehouses and loading bays. Sealed hydraulics, overload valve and 180-degree steering arc.',
     'Pallet Handling',
     '{"capacity_kg": 2500, "fork_length_mm": 1150, "fork_width_mm": 540, "min_height_mm": 85, "max_height_mm": 200, "wheel": "polyurethane"}',
-    24999.00, 42, 68.000,
+    24999.00, 42, 68.000, 18.00,
     array['/images/products/hydraulic-hand-pallet-truck-2500kg-1.jpg'],
     true
   ),
@@ -43,7 +43,7 @@ values
     'Battery-operated pallet stacker with 3 m lift height for racking and truck loading. Includes charger and hour meter.',
     'Lifting & Stacking',
     '{"capacity_kg": 1500, "lift_height_m": 3.0, "battery": "24V 210Ah", "charger": "inbuilt", "aisle_width_mm": 2200}',
-    285000.00, 8, 890.000,
+    285000.00, 8, 890.000, 18.00,
     array['/images/products/electric-pallet-stacker-1500kg-1.jpg'],
     true
   ),
@@ -54,7 +54,7 @@ values
     'Mobile scissor lift table for ergonomic loading at assembly lines. Foot-operated hydraulics with safety locking.',
     'Lifting & Stacking',
     '{"capacity_kg": 1000, "table_size_mm": "1300x800", "lift_height_mm": 1000, "operation": "foot pedal hydraulic"}',
-    78500.00, 15, 210.000,
+    78500.00, 15, 210.000, 18.00,
     array['/images/products/hydraulic-scissor-lift-table-1000kg-1.jpg'],
     true
   ),
@@ -65,7 +65,7 @@ values
     'Steel-deck platform trolley with foldable handle and puncture-proof wheels for shop floors and godowns.',
     'Trolleys',
     '{"capacity_kg": 500, "deck_size_mm": "1200x700", "wheels": "puncture-proof rubber", "handle": "foldable"}',
-    6299.00, 120, 32.000,
+    6299.00, 120, 32.000, 18.00,
     array['/images/products/heavy-duty-platform-trolley-500kg-1.jpg'],
     true
   ),
@@ -76,7 +76,7 @@ values
     'Four-wheel drum handler for 210-litre MS and plastic drums. Grips, lifts and transports without spillage.',
     'Drum Handling',
     '{"drum_litres": 210, "capacity_kg": 350, "wheels": 4, "finish": "powder-coated"}',
-    12750.00, 30, 41.500,
+    12750.00, 30, 41.500, 18.00,
     array['/images/products/oil-drum-handler-trolley-1.jpg'],
     true
   ),
@@ -87,7 +87,7 @@ values
     '2-tonne chain pulley block with 3 m standard lift for workshops and site erection work. Tested with certificate.',
     'Lifting & Stacking',
     '{"capacity_t": 2, "lift_height_m": 3, "standard": "IS 3832", "test_certificate": true}',
-    8999.00, 55, 18.250,
+    8999.00, 55, 18.250, 18.00,
     array['/images/products/manual-chain-pulley-block-2t-1.jpg'],
     true
   ),
@@ -98,7 +98,7 @@ values
     'Pit-mounted hydraulic dock leveler bridging dock and truck bed. Push-button operation with lip extension.',
     'Dock Equipment',
     '{"capacity_t": 6, "platform_mm": "2000x2500", "operation": "electro-hydraulic", "lip_mm": 400}',
-    145000.00, 5, 1250.000,
+    145000.00, 5, 1250.000, 18.00,
     array['/images/products/hydraulic-dock-leveler-6t-1.jpg'],
     true
   ),
@@ -109,7 +109,7 @@ values
     'Ride-on electric tow tractor for moving multi-trailer trains across large plants. Opportunity charging.',
     'Material Movement',
     '{"towing_capacity_t": 3, "battery": "48V", "drive": "AC motor", "max_speed_kmh": 12}',
-    325000.00, 4, 1480.000,
+    325000.00, 4, 1480.000, 18.00,
     array['/images/products/electric-tow-tractor-3t-1.jpg'],
     true
   )

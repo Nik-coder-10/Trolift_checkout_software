@@ -167,12 +167,10 @@ export function buildInvoiceData(input: BuildInvoiceInput): InvoiceData {
   if (input.paymentStatus !== "paid") {
     fail("a tax invoice is issued only for paid orders.");
   }
-  // Treatment/GSTIN coherence: GST documents require a customer GSTIN
-  // (the order engine sets treatment from GSTIN presence), and non-GST
-  // documents must not carry one — a mismatch means corrupt snapshots.
-  if (input.totals.treatment === "gst" && (input.customer.gstin ?? "") === "") {
-    fail("a GST invoice needs the customer GSTIN snapshot.");
-  }
+  // Treatment/GSTIN coherence: GST now applies to every order (B2C
+  // and B2B alike), so a missing GSTIN on a GST invoice is normal —
+  // it just has no input credit. A non-GST document must not carry
+  // one (legacy rows only) — a mismatch means corrupt snapshots.
   if (input.totals.treatment === "non_gst" && (input.customer.gstin ?? "") !== "") {
     fail("a non-GST invoice must not carry a customer GSTIN.");
   }
@@ -239,8 +237,12 @@ export function buildInvoiceData(input: BuildInvoiceInput): InvoiceData {
       fail("non-GST invoice carries tax amounts.");
     }
   } else {
-    if (lineTax !== t.cgstPaise + t.sgstPaise + t.igstPaise) {
-      fail("order tax split does not equal the sum of line taxes.");
+    const orderTax = t.cgstPaise + t.sgstPaise + t.igstPaise;
+    // Delivery GST (18% of the freight) is folded into the order's
+    // cgst/sgst/igst split — it is not per-line — so order tax can
+    // exceed the sum of line taxes by exactly the delivery tax.
+    if (orderTax < lineTax) {
+      fail("order tax split is less than the sum of line taxes.");
     }
     // CGST+SGST and IGST are mutually exclusive by construction.
     const intra = t.cgstPaise + t.sgstPaise;

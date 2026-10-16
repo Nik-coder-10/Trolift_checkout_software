@@ -267,7 +267,9 @@ function footer(ctx: Ctx, invoice: InvoiceData): void {
   const notes = [
     invoice.customer.gstin
       ? "Customer GSTIN is customer-provided and not government-verified."
-      : "No customer GSTIN — no GST charged on this order.",
+      : invoice.treatment === "gst"
+        ? "No customer GSTIN — B2C sale, GST charged with no input credit."
+        : "No customer GSTIN — no GST charged on this order.",
     `Generated from frozen order ${invoice.orderNumber} snapshots — catalogue or profile edits cannot alter this document.`,
   ];
   doc.text(notes.join(" "), MARGIN, doc.y, { width: CONTENT_WIDTH });

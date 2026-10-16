@@ -637,7 +637,9 @@ describe("customer journey: catalogue to delivered invoice", () => {
       orderNumber: "TS-261005-0001",
       subtotalPaise: 1259800,
       deliveryChargePaise: 45000,
-      totalPaise: 1304800,
+      // Goods GST is 0 (product rate null) but delivery carries 18%
+      // GST: round(45000 × 18/100) = 8100 folded into the tax split.
+      totalPaise: 1312900,
       paymentStatus: "pending",
       duplicate: false,
     });
@@ -730,7 +732,7 @@ describe("customer journey: catalogue to delivered invoice", () => {
       quantity: 2,
       unitPricePaise: 629900,
     });
-    expect(detail?.totalPaise).toBe(1304800);
+    expect(detail?.totalPaise).toBe(1312900);
     expect(detail?.paymentReference).toBe(UTR);
     expect(detail?.events.map((e) => e.action)).toContain("payment_verified");
     // Canonical audit trail so far: creation (customer actor) then
@@ -825,8 +827,9 @@ describe("customer journey: catalogue to delivered invoice", () => {
       },
     });
     expect(res.status).toBe(200);
-    // 2 × 629900 taxable; product gst_rate is null → zero tax, gst treatment.
-    expect(json.data).toMatchObject({ taxTreatment: "gst", totalPaise: 1304800 });
+    // 2 × 629900 taxable; product gst_rate is null → 0 goods GST, but
+    // delivery still carries 18% GST (round(45000 × 18/100) = 8100).
+    expect(json.data).toMatchObject({ taxTreatment: "gst", totalPaise: 1312900 });
   });
 });
 
@@ -880,16 +883,17 @@ describe("failure flows fail safe with the item named", () => {
 
   it("reprices when catalogue or rates move mid-checkout", async () => {
     const first = await placeOrder("30");
-    expect(first.json.data.totalPaise).toBe(1304800);
+    expect(first.json.data.totalPaise).toBe(1312900);
     const p = db.products.get(P1);
     if (p) p["price"] = "7000.00";
     charge = "700.00";
     const second = await placeOrder("31");
-    // New price (2 × 700000) + new charge (70000): browser figures ignored.
+    // New price (2 × 700000) + new charge (70000) + 18% delivery GST
+    // (round(70000 × 18/100) = 12600): browser figures ignored.
     expect(second.json.data).toMatchObject({
       subtotalPaise: 1400000,
       deliveryChargePaise: 70000,
-      totalPaise: 1470000,
+      totalPaise: 1482600,
     });
   });
 

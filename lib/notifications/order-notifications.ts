@@ -125,31 +125,35 @@ export async function notifyOrderPlaced(
     hasPaymentQr: qrAttachment !== null,
   };
 
-  const recipient = getOrderNotificationRecipient();
-  const messages: Array<{ role: "customer" | "owner"; message: EmailMessage }> = [
-    {
+  const ownerRecipient = getOrderNotificationRecipient();
+  const customerEmail = input.customer.email?.trim() || null;
+
+  const messages: Array<{ role: "customer" | "owner"; message: EmailMessage }> = [];
+  // Customer confirmation goes to the customer's own email — never to
+  // the owner's inbox. Skipped when the checkout left email blank.
+  if (customerEmail !== null) {
+    messages.push({
       role: "customer",
       message: {
-        to: recipient ?? "",
+        to: customerEmail,
         subject: `Order Confirmation — ${input.orderNumber}`,
         body: buildCustomerOrderMessage(messageInput),
         attachments,
       },
-    },
-    ...(recipient === null
-      ? []
-      : [
-          {
-            role: "owner" as const,
-            message: {
-              to: recipient,
-              subject: `New Order — ${input.orderNumber}`,
-              body: buildOwnerOrderMessage(messageInput),
-              attachments,
-            },
-          },
-        ]),
-  ];
+    });
+  }
+  // Owner alert goes only to ORDER_NOTIFICATION_EMAIL.
+  if (ownerRecipient !== null) {
+    messages.push({
+      role: "owner",
+      message: {
+        to: ownerRecipient,
+        subject: `New Order — ${input.orderNumber}`,
+        body: buildOwnerOrderMessage(messageInput),
+        attachments,
+      },
+    });
+  }
 
   if (!emailConfigured()) {
     logWarn("Order placed without email notification — provider not configured.", {
@@ -159,6 +163,15 @@ export async function notifyOrderPlaced(
       hint: "Set SMTP_USER/SMTP_PASS and ORDER_NOTIFICATION_EMAIL.",
     });
     return { sent: 0, failed: 0, skipped: messages.length };
+  }
+
+  if (messages.length === 0) {
+    logWarn("Order placed with no email recipients — customer email blank and ORDER_NOTIFICATION_EMAIL unset.", {
+      category: "email",
+      orderNumber: input.orderNumber,
+      operation: "order-notification",
+    });
+    return { sent: 0, failed: 0, skipped: 0 };
   }
 
   const outcomes = await sendEmailMessages(
@@ -192,8 +205,8 @@ export async function notifyOrderPlaced(
       skipped += 1;
     }
   });
-  if (recipient === null) {
-    logWarn("ORDER_NOTIFICATION_EMAIL is unset — notifications not sent.", {
+  if (ownerRecipient === null) {
+    logWarn("ORDER_NOTIFICATION_EMAIL is unset — owner alert not sent.", {
       category: "email",
       operation: "order-notification",
       orderNumber: input.orderNumber,

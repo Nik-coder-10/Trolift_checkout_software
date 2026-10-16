@@ -358,7 +358,7 @@ describe("order notification orchestration", () => {
     expect(result).toEqual({ sent: 0, failed: 0, skipped: 2 });
   });
 
-  it("emails the customer and the owner when configured", async () => {
+  it("emails the customer their own copy and the owner the alert", async () => {
     setEnv({ ...EMAIL_ENV, PAYMENT_WINDOW_HOURS: "24" });
     const recipients: string[] = [];
     const subjects: string[] = [];
@@ -369,7 +369,9 @@ describe("order notification orchestration", () => {
       }) as never,
     });
     expect(result).toEqual({ sent: 2, failed: 0, skipped: 0 });
-    expect(recipients).toEqual(["bizwise.ops@gmail.com", "bizwise.ops@gmail.com"]);
+    // Customer confirmation goes to the customer's email; the owner
+    // alert goes to ORDER_NOTIFICATION_EMAIL — never the reverse.
+    expect(recipients).toEqual(["rahul@example.com", "bizwise.ops@gmail.com"]);
     expect(subjects[0]).toContain("Order Confirmation");
     expect(subjects[1]).toContain("New Order");
   });
@@ -398,6 +400,21 @@ describe("order notification orchestration", () => {
     });
     expect(calls).toBe(2);
     expect(result).toEqual({ sent: 2, failed: 0, skipped: 0 });
+  });
+
+  it("skips the customer copy when the customer left no email", async () => {
+    setEnv({ ...EMAIL_ENV });
+    const recipients: string[] = [];
+    const result = await notifyOrderPlaced(
+      { ...ORDER, customer: { ...ORDER.customer, email: null } },
+      {
+        sendMail: (async (msg: { to: string }) => {
+          recipients.push(msg.to);
+        }) as never,
+      },
+    );
+    expect(result).toEqual({ sent: 1, failed: 0, skipped: 0 });
+    expect(recipients).toEqual(["bizwise.ops@gmail.com"]);
   });
 
   it("still sends the customer copy when the notification email is missing", async () => {

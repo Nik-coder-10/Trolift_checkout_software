@@ -6,8 +6,10 @@ import {
   computeOrderTax,
   getBusinessStateCode,
   lineTaxPaise,
+  stateCodeFromName,
   type OrderTax,
 } from "@/lib/tax/india";
+import { getDeliveryGstRate } from "@/lib/quotations/config";
 import { fetchAvailability } from "@/lib/inventory/availability";
 
 /**
@@ -23,7 +25,7 @@ import { fetchAvailability } from "@/lib/inventory/availability";
  * this check is advisory; the atomic guard lives in create_order().
  *
  *   subtotal = Σ(unit_price × quantity)      (integer paise, ex-GST)
- *   tax      = GST engine over live product rates (paise-exact)
+ *   tax      = GST engine over live product rates + delivery GST 18%
  *   delivery = delivery_engine(pincode, subtotal)
  *   total    = subtotal + tax + delivery
  */
@@ -205,15 +207,6 @@ export async function quoteOrder(input: {
     state: input.billing?.state ?? null,
     pincode: input.billing?.pincode ?? null,
   };
-  const tax = computeOrderTax({
-    lines: lines.map((l) => ({
-      lineTotalPaise: l.lineTotalPaise,
-      gstRate: l.gstRate,
-    })),
-    gstin: billing.gstin,
-    customerStateCode: billing.stateCode,
-    businessStateCode: getBusinessStateCode(),
-  });
 
   // Lines travel too (IDs + quantities only): the engine re-fetches
   // weights, categories and prices live — client figures never qualify.
@@ -225,6 +218,23 @@ export async function quoteOrder(input: {
       422,
     );
   }
+
+  // B2C orders have no billing state — use the delivery pincode's
+  // state so intra-state customers get the CGST+SGST split.
+  const customerStateCode =
+    billing.stateCode ?? stateCodeFromName(delivery.coverage.state);
+
+  const tax = computeOrderTax({
+    lines: lines.map((l) => ({
+      lineTotalPaise: l.lineTotalPaise,
+      gstRate: l.gstRate,
+    })),
+    customerStateCode,
+    businessStateCode: getBusinessStateCode(),
+    deliveryChargePaise: delivery.selected.deliveryChargePaise,
+    deliveryGstRate: getDeliveryGstRate(),
+  });
+
   return {
     lines,
     subtotalPaise,

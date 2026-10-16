@@ -31,32 +31,68 @@ afterEach(() => {
 });
 
 describe("computeOrderTax (integer paise, per-line rounding)", () => {
-  it("returns zero tax but the full taxable base for non-GST orders", () => {
+  it("charges GST on every order — no GSTIN required (B2C)", () => {
     // taxablePaise always equals the goods value (it must match the
-    // order subtotal — invoice verification requires this identity for
-    // GST and non-GST orders alike). Only the tax components are zero.
-    expect(
-      computeOrderTax({
-        lines: lines(["18.00"]),
-        gstin: null,
-        customerStateCode: "27",
-        businessStateCode: "27",
-      }),
-    ).toEqual({
-      treatment: "non_gst",
-      type: "none",
-      taxablePaise: 10000,
-      cgstPaise: 0,
-      sgstPaise: 0,
-      igstPaise: 0,
-      totalGstPaise: 0,
+    // order subtotal — invoice verification requires this identity).
+    // Delivery GST is folded into the same split.
+    const tax = computeOrderTax({
+      lines: lines(["18.00"]),
+      customerStateCode: "27",
+      businessStateCode: "27",
+      deliveryChargePaise: 0,
+      deliveryGstRate: "18.00",
     });
+    expect(tax.treatment).toBe("gst");
+    expect(tax.type).toBe("cgst_sgst");
+    expect(tax.taxablePaise).toBe(10000);
+    expect(tax.totalGstPaise).toBe(1800);
+    expect(tax.cgstPaise + tax.sgstPaise).toBe(1800);
+  });
+
+  it("folds 18% delivery GST into the cgst/sgst split", () => {
+    const tax = computeOrderTax({
+      lines: lines(["18.00"], 100000),
+      customerStateCode: "27",
+      businessStateCode: "27",
+      deliveryChargePaise: 25469,
+      deliveryGstRate: "18.00",
+    });
+    // Goods GST: 18000; delivery GST: round(25469 × 18 / 100) = 4584.
+    expect(tax.taxablePaise).toBe(100000);
+    expect(tax.totalGstPaise).toBe(18000 + 4584);
+    expect(tax.cgstPaise + tax.sgstPaise).toBe(tax.totalGstPaise);
+    expect(tax.igstPaise).toBe(0);
+  });
+
+  it("folds delivery GST into IGST on inter-state sales", () => {
+    const tax = computeOrderTax({
+      lines: lines(["18.00"], 100000),
+      customerStateCode: "29",
+      businessStateCode: "27",
+      deliveryChargePaise: 25469,
+      deliveryGstRate: "18.00",
+    });
+    expect(tax.type).toBe("igst");
+    expect(tax.igstPaise).toBe(18000 + 4584);
+    expect(tax.cgstPaise).toBe(0);
+    expect(tax.sgstPaise).toBe(0);
+  });
+
+  it("keeps delivery GST out of the taxable base", () => {
+    const tax = computeOrderTax({
+      lines: lines(["18.00"], 10000),
+      customerStateCode: "27",
+      businessStateCode: "27",
+      deliveryChargePaise: 5000,
+      deliveryGstRate: "18.00",
+    });
+    expect(tax.taxablePaise).toBe(10000);
+    expect(tax.totalGstPaise).toBe(1800 + 900);
   });
 
   it("splits CGST+SGST on same-state sales", () => {
     const tax = computeOrderTax({
       lines: lines(["18.00"], 629900),
-      gstin: GSTIN,
       customerStateCode: "27",
       businessStateCode: "27",
     });
@@ -71,7 +107,6 @@ describe("computeOrderTax (integer paise, per-line rounding)", () => {
   it("charges IGST on inter-state sales", () => {
     const tax = computeOrderTax({
       lines: lines(["18.00"], 629900),
-      gstin: GSTIN,
       customerStateCode: "29",
       businessStateCode: "27",
     });
@@ -82,11 +117,9 @@ describe("computeOrderTax (integer paise, per-line rounding)", () => {
   });
 
   it("splits odd paise deterministically (floor/ceil, sum preserved)", () => {
-    // 1 paise base × 5% rounds to 0… use a total of 1 paise GST instead:
     // 11 paise × 9% = 0.99 → 1 paise total → cgst 0, sgst 1.
     const tax = computeOrderTax({
       lines: [{ lineTotalPaise: 11, gstRate: "9.00" }],
-      gstin: GSTIN,
       customerStateCode: "27",
       businessStateCode: "27",
     });
@@ -102,7 +135,6 @@ describe("computeOrderTax (integer paise, per-line rounding)", () => {
         { lineTotalPaise: 20000, gstRate: null },
         { lineTotalPaise: 10000, gstRate: "5.00" },
       ],
-      gstin: GSTIN,
       customerStateCode: "24",
       businessStateCode: "27",
     });
@@ -119,7 +151,6 @@ describe("computeOrderTax (integer paise, per-line rounding)", () => {
         { lineTotalPaise: 333, gstRate: "18.00" },
         { lineTotalPaise: 333, gstRate: "18.00" },
       ],
-      gstin: GSTIN,
       customerStateCode: "27",
       businessStateCode: "27",
     });
@@ -129,12 +160,22 @@ describe("computeOrderTax (integer paise, per-line rounding)", () => {
   it("falls back to IGST when the business state is unconfigured", () => {
     const tax = computeOrderTax({
       lines: lines(["18.00"], 10000),
-      gstin: GSTIN,
       customerStateCode: "27",
       businessStateCode: null,
     });
     expect(tax.type).toBe("igst");
     expect(tax.igstPaise).toBe(1800);
+  });
+
+  it("leaves delivery untaxed when the rate is null", () => {
+    const tax = computeOrderTax({
+      lines: lines(["18.00"], 10000),
+      customerStateCode: "27",
+      businessStateCode: "27",
+      deliveryChargePaise: 5000,
+      deliveryGstRate: null,
+    });
+    expect(tax.totalGstPaise).toBe(1800);
   });
 
   it("guards invalid rates to zero", () => {
@@ -315,7 +356,6 @@ describe("order request billing (server authority)", () => {
     const subtotal = priced.reduce((n, l) => n + l.lineTotalPaise, 0);
     const tax = computeOrderTax({
       lines: priced.map((l) => ({ lineTotalPaise: l.lineTotalPaise, gstRate: l.gstRate })),
-      gstin: GSTIN,
       customerStateCode: "27",
       businessStateCode: "27",
     });

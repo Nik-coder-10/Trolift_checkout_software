@@ -5,16 +5,24 @@
  * - Catalogue prices are GST-exclusive (taxable base).
  * - Each line carries its own GST rate from the live product row
  *   (NULL = no GST configured → 0%).
+ * - GST applies to every order (B2C and B2B alike). A GSTIN only
+ *   selects the invoice identity — it no longer gates the tax.
  * - Same-state sale  → CGST + SGST split of the total GST.
  * - Inter-state sale → IGST (full GST as one component).
- * - Delivery is added untaxed (freight via third-party partners).
+ * - Delivery (third-party freight) carries its own GST rate
+ *   (default 18%) folded into the same CGST/SGST or IGST split.
  *
  * ROUNDING (deterministic, exact integers throughout):
  *   line_gst_i   = round(line_taxable_i × rate_i / 100)
- *   total_gst    = Σ line_gst_i
+ *   delivery_gst = round(delivery × delivery_rate / 100)
+ *   total_gst    = Σ line_gst_i + delivery_gst
  *   same-state:  cgst = floor(total_gst / 2), sgst = total_gst − cgst
  *   inter-state: igst = total_gst
  * so cgst + sgst ≡ igst ≡ total_gst always, with no float anywhere.
+ *
+ * taxable_amount stays the goods subtotal (Σ line values) — the
+ * invoice builder requires that identity; delivery tax lives only in
+ * the cgst/sgst/igst split.
  */
 
 export type TaxType = "none" | "cgst_sgst" | "igst";
@@ -135,38 +143,50 @@ export function parseGstRate(value: string | number | null): number {
   return n;
 }
 
+/** Map a full state name (e.g. "Maharashtra") to its 2-digit GST code. */
+export function stateCodeFromName(name: string | null): string | null {
+  if (name === null) return null;
+  const needle = name.trim().toLowerCase();
+  if (needle === "") return null;
+  return INDIAN_STATES.find((s) => s.name.toLowerCase() === needle)?.code ?? null;
+}
+
 /**
- * Compute order tax from priced lines. GST applies only when a GSTIN
- * is present (gstin === null → non-GST order, zero tax components).
- * taxablePaise is ALWAYS the goods value (it must equal the order
- * subtotal — downstream invoice verification requires this identity
- * for every order, GST or not). State codes are 2-digit strings; same
- * code → CGST+SGST, otherwise IGST. An unconfigured business state
- * falls back to IGST (documented; needs Trolift's confirmation of its
- * home state).
+ * Compute order tax from priced lines plus the delivery charge.
+ * GST applies to every order — a GSTIN is not required. taxablePaise
+ * is ALWAYS the goods subtotal (it must equal the order subtotal —
+ * downstream invoice verification requires this identity). Delivery
+ * GST is folded into the cgst/sgst/igst split so the DB total check
+ * (total = subtotal + delivery + tax) still holds.
+ *
+ * customerStateCode drives the CGST+SGST vs IGST split; when null
+ * (B2C, no billing profile) the caller should pass the delivery
+ * pincode's state so intra-state orders still split correctly.
+ * An unconfigured business state falls back to IGST (documented).
  */
 export function computeOrderTax(input: {
   lines: TaxedLineInput[];
-  gstin: string | null;
   customerStateCode: string | null;
   businessStateCode: string | null;
+  /** Delivery charge in paise (0 when free). Taxed at deliveryGstRate. */
+  deliveryChargePaise?: number;
+  /** GST percent on delivery; null/undefined = untaxed delivery. */
+  deliveryGstRate?: string | number | null;
 }): OrderTax {
   const taxablePaise = input.lines.reduce((n, l) => n + l.lineTotalPaise, 0);
-  if (input.gstin === null) {
-    return {
-      treatment: "non_gst",
-      type: "none",
-      taxablePaise,
-      cgstPaise: 0,
-      sgstPaise: 0,
-      igstPaise: 0,
-      totalGstPaise: 0,
-    };
-  }
   const lineTaxes = input.lines.map((l) =>
     Math.round((l.lineTotalPaise * parseGstRate(l.gstRate)) / 100),
   );
-  const totalGstPaise = lineTaxes.reduce((n, t) => n + t, 0);
+  let totalGstPaise = lineTaxes.reduce((n, t) => n + t, 0);
+
+  const deliveryChargePaise = input.deliveryChargePaise ?? 0;
+  const deliveryGstRate = input.deliveryGstRate ?? null;
+  if (deliveryChargePaise > 0 && deliveryGstRate !== null) {
+    totalGstPaise += Math.round(
+      (deliveryChargePaise * parseGstRate(deliveryGstRate)) / 100,
+    );
+  }
+
   const sameState =
     input.customerStateCode !== null &&
     input.businessStateCode !== null &&

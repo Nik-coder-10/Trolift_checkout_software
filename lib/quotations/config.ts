@@ -30,11 +30,11 @@ export function getQuotationValidityDays(): number {
 }
 
 /**
- * GST percent applied to the cartage (delivery) line on quotations.
- * Quoted freight is a taxable service; the goods-delivery charge stored
- * on the order itself stays untaxed (third-party freight). Default
- * 18.00; an invalid value fails safe to 18.00 rather than silently
- * zero-rating quoted freight.
+ * GST percent applied to the cartage (delivery) line on quotations
+ * and to the delivery charge on live orders. Quoted freight is a
+ * taxable service; on orders the delivery GST is folded into the
+ * CGST/SGST or IGST split. Default 18.00; an invalid value fails
+ * safe to 18.00 rather than silently zero-rating freight.
  */
 export function getDeliveryGstRate(): string {
   const raw = (process.env.TROLIFT_DELIVERY_GST_RATE ?? "18.00").trim();

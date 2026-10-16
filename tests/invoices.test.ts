@@ -245,7 +245,7 @@ describe("invoice generation (snapshot-only)", () => {
           },
         }),
       ),
-    ).toThrow(/needs the customer GSTIN/);
+    ).not.toThrow(); // B2C GST invoices (no customer GSTIN) are valid.
     expect(() =>
       buildInvoiceData(gstInput({ paymentStatus: "pending" })),
     ).toThrow(/only for paid orders/);
