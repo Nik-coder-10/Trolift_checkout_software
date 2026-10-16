@@ -41,9 +41,9 @@ describe("groupByCategory", () => {
   });
 
   it("falls back to a generic blurb for unknown categories", () => {
-    const [only] = groupByCategory([{ category: "Ladders" }]);
-    expect(only?.slug).toBe("ladders");
-    expect(only?.blurb).toContain("ladders");
+    const [only] = groupByCategory([{ category: "Scaffolding" }]);
+    expect(only?.slug).toBe("scaffolding");
+    expect(only?.blurb).toContain("scaffolding");
   });
 
   it("slugifies safely", () => {
@@ -56,7 +56,7 @@ describe("groupByCategory", () => {
 describe("static fallback catalogue (mirrors seed.sql)", () => {
   it("covers every seed category", () => {
     const cats = new Set(ALL_PRODUCTS.map((p) => p.category));
-    expect(cats.size).toBeGreaterThanOrEqual(6);
+    expect(cats.size).toBeGreaterThanOrEqual(2);
   });
 
   it("featured is a subset of all", () => {
@@ -165,18 +165,18 @@ describe("buildCatalogueHref", () => {
 describe("getCataloguePage without Supabase (offline fallback)", () => {
   it("pages all products", async () => {
     const r = await getCataloguePage({ page: 1, pageSize: 12 });
-    expect(r.total).toBe(8);
-    expect(r.totalPages).toBe(1);
-    expect(r.products).toHaveLength(8);
+    expect(r.total).toBe(18);
+    expect(r.totalPages).toBe(2);
+    expect(r.products).toHaveLength(12);
     expect(r.unknownCategory).toBe(false);
     expect(r.live).toBe(false);
   });
 
   it("slices pages", async () => {
     const r = await getCataloguePage({ page: 3, pageSize: 3 });
-    expect(r.total).toBe(8);
-    expect(r.totalPages).toBe(3);
-    expect(r.products).toHaveLength(2);
+    expect(r.total).toBe(18);
+    expect(r.totalPages).toBe(6);
+    expect(r.products).toHaveLength(3);
   });
 
   it("filters by category slug", async () => {
@@ -185,7 +185,7 @@ describe("getCataloguePage without Supabase (offline fallback)", () => {
       page: 1,
       pageSize: 12,
     });
-    expect(r.total).toBe(1);
+    expect(r.total).toBe(7);
     expect(r.activeCategory?.name).toBe("Trolleys");
     expect(r.unknownCategory).toBe(false);
   });
@@ -204,8 +204,8 @@ describe("getCataloguePage without Supabase (offline fallback)", () => {
   it("returns an empty page past the end", async () => {
     const r = await getCataloguePage({ page: 99, pageSize: 12 });
     expect(r.products).toHaveLength(0);
-    expect(r.total).toBe(8);
-    expect(r.totalPages).toBe(1);
+    expect(r.total).toBe(18);
+    expect(r.totalPages).toBe(2);
   });
 
   it("searches names, categories and descriptions", async () => {
@@ -248,16 +248,16 @@ describe("getCataloguePage without Supabase (offline fallback)", () => {
 
   it("combines query, category and price", async () => {
     const r = await getCataloguePage({
-      q: "lift",
-      categorySlug: "lifting-and-stacking",
-      minPrice: 1000,
+      q: "telescopic",
+      categorySlug: "ladders",
+      minPrice: 5000,
       page: 1,
       pageSize: 12,
     });
     expect(r.unknownCategory).toBe(false);
     expect(
       r.products.every(
-        (p) => p.category === "Lifting & Stacking" && Number(p.price) >= 1000,
+        (p) => p.category === "Ladders" && Number(p.price) >= 5000,
       ),
     ).toBe(true);
   });
@@ -285,18 +285,18 @@ describe("formatSpecEntries", () => {
 
 describe("getRelatedProducts without Supabase (offline fallback)", () => {
   it("returns same-category products excluding self", async () => {
-    const id = "b1c2d3e4-0006-4000-8000-000000000006";
-    const related = await getRelatedProducts("Lifting & Stacking", id);
+    const id = "c7d8e9f0-0003-4000-8000-000000000003";
+    const related = await getRelatedProducts("Ladders", id);
     expect(related.length).toBeGreaterThan(0);
-    expect(related.every((p) => p.category === "Lifting & Stacking")).toBe(true);
+    expect(related.every((p) => p.category === "Ladders")).toBe(true);
     expect(related.some((p) => p.id === id)).toBe(false);
     expect(related.every((p) => p.is_active)).toBe(true);
   });
 
   it("returns [] when nothing else qualifies", async () => {
     const related = await getRelatedProducts(
-      "Trolleys",
-      "b1c2d3e4-0004-4000-8000-000000000004",
+      "Packaging",
+      "c7d8e9f0-000c-4000-8000-00000000000c",
     );
     expect(related).toEqual([]);
   });
@@ -317,15 +317,13 @@ describe("queries without Supabase configured (offline fallback)", () => {
 
   it("lists static slugs for prerendering", async () => {
     const slugs = await getProductSlugs();
-    expect(slugs).toContain("hydraulic-hand-pallet-truck-2500kg");
+    expect(slugs).toContain("talt-032");
     expect(slugs.length).toBe(ALL_PRODUCTS.length);
   });
 
   it("finds a known slug, misses unknown ones", async () => {
-    const found = await getProductBySlug(
-      "hydraulic-hand-pallet-truck-2500kg",
-    );
-    expect(found?.name).toContain("Pallet Truck");
+    const found = await getProductBySlug("talt-032");
+    expect(found?.name).toContain("TALT-032");
     expect(await getProductBySlug("no-such-product")).toBeNull();
   });
 });

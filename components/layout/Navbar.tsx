@@ -110,7 +110,7 @@ function HeaderSearch({ onNavigate }: { onNavigate?: () => void }) {
         id="header-search"
         type="search"
         autoComplete="off"
-        placeholder="Search pallet trucks, trolleys…"
+        placeholder="Search ladders, trolleys…"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         className="h-10 w-full rounded-md border border-brand-700 bg-brand-800 px-3 text-sm text-white outline-none placeholder:text-brand-300 focus:border-amber-400"

@@ -20,8 +20,8 @@ import {
  * authorization, and failure specs. Cleans up only its own records.
  */
 
-const PRODUCT_SLUG = "heavy-duty-platform-trolley-500kg";
-const PRODUCT_NAME = /heavy-duty platform trolley/i;
+const PRODUCT_SLUG = "tmst-300";
+const PRODUCT_NAME = /metal platform trolley tmst-300/i;
 
 /**
  * Below the `md` breakpoint the filter panel (including search) is

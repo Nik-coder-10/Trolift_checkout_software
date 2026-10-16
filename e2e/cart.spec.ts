@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const PRODUCT = /hydraulic hand pallet truck/i;
+const PRODUCT = /telescopic ladder talt-032/i;
 
 /**
  * Cart journey: the cart is browser-local (localStorage mirror), so
@@ -35,24 +35,24 @@ test.describe("cart", () => {
   test("quantity stepper changes the line and survives refresh", async ({
     page,
   }) => {
-    await page.goto("/products/hydraulic-hand-pallet-truck-2500kg");
+    await page.goto("/products/talt-032");
     await page
       .getByRole("button", { name: "Add to Cart" })
       .first()
       .click();
     await page.goto("/cart");
-    const qty = page.getByRole("spinbutton", { name: /quantity for .*pallet truck/i });
+    const qty = page.getByRole("spinbutton", { name: /quantity for .*talt-032/i });
     await expect(qty).toHaveValue("1");
     await page.getByRole("button", { name: "Increase quantity" }).click();
     await expect(qty).toHaveValue("2");
     await page.reload();
     await expect(
-      page.getByRole("spinbutton", { name: /quantity for .*pallet truck/i }),
+      page.getByRole("spinbutton", { name: /quantity for .*talt-032/i }),
     ).toHaveValue("2");
   });
 
   test("remove and clear restore the empty state", async ({ page }) => {
-    await page.goto("/products/hydraulic-hand-pallet-truck-2500kg");
+    await page.goto("/products/talt-032");
     await page
       .getByRole("button", { name: "Add to Cart" })
       .first()
@@ -79,7 +79,7 @@ test.describe("cart", () => {
   });
 
   test("cart links onward to checkout", async ({ page }) => {
-    await page.goto("/products/hydraulic-hand-pallet-truck-2500kg");
+    await page.goto("/products/talt-032");
     await page
       .getByRole("button", { name: "Add to Cart" })
       .first()

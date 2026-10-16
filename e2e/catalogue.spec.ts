@@ -36,13 +36,13 @@ test.describe("catalogue", () => {
       page.getByRole("heading", { name: /products|all products/i }).first(),
     ).toBeVisible();
     const firstCard = page
-      .getByRole("link", { name: /hydraulic hand pallet truck/i })
+      .getByRole("link", { name: /telescopic ladder talt-032/i })
       .first();
     await expect(firstCard).toBeVisible();
     await firstCard.click();
-    await expect(page).toHaveURL(/\/products\/hydraulic-hand-pallet-truck/);
+    await expect(page).toHaveURL(/\/products\/talt-032/);
     await expect(
-      page.getByRole("heading", { name: /hydraulic hand pallet truck/i }),
+      page.getByRole("heading", { name: /telescopic ladder talt-032/i }),
     ).toBeVisible();
   });
 
@@ -50,25 +50,25 @@ test.describe("catalogue", () => {
     await page.goto("/products");
     const inlineSearch = page.getByRole("search").first();
     if (await inlineSearch.getByPlaceholder(/search/i).isVisible()) {
-      await inlineSearch.getByPlaceholder(/search/i).fill("stacker");
+      await inlineSearch.getByPlaceholder(/search/i).fill("ladder");
       await inlineSearch.press("Enter");
     } else {
       await page.getByRole("button", { name: /open menu/i }).click();
       const menuSearch = page
         .getByRole("navigation", { name: "Mobile" })
         .getByRole("search");
-      await menuSearch.getByPlaceholder(/search/i).fill("stacker");
+      await menuSearch.getByPlaceholder(/search/i).fill("ladder");
       await menuSearch.press("Enter");
     }
-    await expect(page).toHaveURL(/q=stacker/);
+    await expect(page).toHaveURL(/q=ladder/);
   });
 
   test("product detail shows price, stock status and purchase actions", async ({
     page,
   }) => {
-    await page.goto("/products/hydraulic-hand-pallet-truck-2500kg");
+    await page.goto("/products/talt-032");
     await expect(
-      page.getByRole("heading", { name: /hydraulic hand pallet truck/i }),
+      page.getByRole("heading", { name: /telescopic ladder talt-032/i }),
     ).toBeVisible();
     // Stock badge: exactly one of the three honest states.
     const badge = page.getByText(/^(in stock|low stock|out of stock)$/i).first();

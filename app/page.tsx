@@ -9,7 +9,7 @@ import { ContactCTA } from "@/components/home/ContactCTA";
 export const metadata: Metadata = {
   title: "Trolift Solutions — Material-Handling Equipment, Ordered Simply",
   description:
-    "Pallet trucks, stackers, trolleys and dock equipment with transparent B2B pricing, GST invoicing and pan-India delivery.",
+    "Ladders, platform trolleys and material-handling equipment with transparent B2B pricing, GST invoicing and pan-India delivery.",
 };
 
 export default function HomePage() {

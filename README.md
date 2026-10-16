@@ -15,9 +15,9 @@ shipments.
 
 ## What is this?
 
-Trolift Solutions sells warehouses and workshops what they run on: hydraulic
-pallet trucks, stackers, scissor tables, trolleys, drum handlers, dock
-levelers and more. This platform lets B2B customers:
+Trolift Solutions sells warehouses and workshops what they run on: telescopic
+and A-type ladders, metal and HDPE platform trolleys and more. This platform
+lets B2B customers:
 
 - Browse equipment with transparent, ex-GST pricing
 - Search, filter and sort the catalogue to find the right machine

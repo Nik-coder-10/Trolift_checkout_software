@@ -16,7 +16,7 @@ export function Hero() {
             Material-handling equipment your shop floor can rely on.
           </h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-brand-100">
-            Pallet trucks, stackers, trolleys, dock equipment and more —
+            Telescopic and A-type ladders, platform trolleys and more —
             with transparent pricing, GST invoicing and delivery verified
             by pincode before you pay.
           </p>

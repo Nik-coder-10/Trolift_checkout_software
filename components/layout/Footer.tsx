@@ -32,12 +32,7 @@ export function Footer() {
         <nav aria-label="Products">
           <p className="text-sm font-bold tracking-wide text-white uppercase">Equipment</p>
           <ul className="mt-3 flex flex-col gap-2 text-sm">
-            {[
-              "Pallet Handling",
-              "Lifting & Stacking",
-              "Trolleys",
-              "Dock Equipment",
-            ].map((label) => (
+            {["Ladders", "Trolleys"].map((label) => (
               <li key={label}>
                 <Link
                   href={`/products?category=${slugifyCategory(label)}`}

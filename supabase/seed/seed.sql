@@ -4,9 +4,13 @@
 -- so it is safe to re-run. All people/companies are fictional; phone
 -- numbers and e-mails are obviously fake. No real customer PII.
 --
--- Covers: 5 delivery partners, 8 products, 7 pincodes, several partners
--- per pincode with different charges, and serviceable / non-serviceable
--- scenarios (600001/BlueDart, 799001 remote).
+-- Covers: 5 delivery partners, 18 products (live Trolift range — ladders
+-- + platform trolleys), 7 pincodes, several partners per pincode with
+-- different charges, and serviceable / non-serviceable scenarios
+-- (600001/BlueDart, 799001 remote).
+--
+-- Product prices are DEALER PRICE + ₹500 (price list effective
+-- 15/07/2026); GST: ladders 18%, platform trolleys 5%.
 
 begin;
 
@@ -21,97 +25,189 @@ values
   ('a1b2c3d4-0005-4000-8000-000000000005', 'GATI Freight', 'Ops Desk', '+911800567890', 'ops@example-gati.in', true)
 on conflict (id) do nothing;
 
--- ─── Products ─────────────────────────────────────────────────────────
+-- ─── Legacy demo products ─────────────────────────────────────────────
+-- The original eight demo rows are deactivated, never deleted:
+-- order history references them with ON DELETE RESTRICT. Fresh databases
+-- simply skip this (no rows to hide).
+update public.products
+   set is_active = false
+ where id in (
+   'b1c2d3e4-0001-4000-8000-000000000001',
+   'b1c2d3e4-0002-4000-8000-000000000002',
+   'b1c2d3e4-0003-4000-8000-000000000003',
+   'b1c2d3e4-0004-4000-8000-000000000004',
+   'b1c2d3e4-0005-4000-8000-000000000005',
+   'b1c2d3e4-0006-4000-8000-000000000006',
+   'b1c2d3e4-0007-4000-8000-000000000007',
+   'b1c2d3e4-0008-4000-8000-000000000008'
+ );
+
+-- ─── Products (live range) ────────────────────────────────────────────
 insert into public.products
-  (id, name, slug, description, category, specifications, price, stock_quantity, weight_kg, gst_rate, images, is_active)
+  (id, name, slug, description, category, specifications, price,
+   stock_quantity, weight_kg, gst_rate, images, is_active, created_at)
 values
   (
-    'b1c2d3e4-0001-4000-8000-000000000001',
-    'Hydraulic Hand Pallet Truck 2500 kg',
-    'hydraulic-hand-pallet-truck-2500kg',
-    'Heavy-duty hydraulic hand pallet truck for warehouses and loading bays. Sealed hydraulics, overload valve and 180-degree steering arc.',
-    'Pallet Handling',
-    '{"capacity_kg": 2500, "fork_length_mm": 1150, "fork_width_mm": 540, "min_height_mm": 85, "max_height_mm": 200, "wheel": "polyurethane"}',
-    24999.00, 42, 68.000, 18.00,
-    array['/images/products/hydraulic-hand-pallet-truck-2500kg-1.jpg'],
-    true
+    'c7d8e9f0-0001-4000-8000-000000000001',
+    'Telescopic Ladder TALT-032 (3.2 Mtr / 10.5 Ft)',
+    'talt-032',
+    'Telescopic ladder TALT-032 — extends to 3.2 m (10.5 ft) with 11 steps at 30 cm step distance, 9 kg. Collapses for compact carry and storage.',
+    'Ladders',
+    '{"model": "TALT-032", "ladder_type": "Telescopic", "steps": 11, "step_distance_cm": 30, "extended_height": "3.2 Mtr (10.5 Ft)", "weight_kg": 9}',
+    5164.00, 50, 9.000, 18.00, '{}', true, now()
   ),
   (
-    'b1c2d3e4-0002-4000-8000-000000000002',
-    'Electric Pallet Stacker 1500 kg',
-    'electric-pallet-stacker-1500kg',
-    'Battery-operated pallet stacker with 3 m lift height for racking and truck loading. Includes charger and hour meter.',
-    'Lifting & Stacking',
-    '{"capacity_kg": 1500, "lift_height_m": 3.0, "battery": "24V 210Ah", "charger": "inbuilt", "aisle_width_mm": 2200}',
-    285000.00, 8, 890.000, 18.00,
-    array['/images/products/electric-pallet-stacker-1500kg-1.jpg'],
-    true
+    'c7d8e9f0-0002-4000-8000-000000000002',
+    'Telescopic Ladder TALT-038 (3.8 Mtr / 12.5 Ft)',
+    'talt-038',
+    'Telescopic ladder TALT-038 — extends to 3.8 m (12.5 ft) with 13 steps at 30 cm step distance, 11 kg. Collapses for compact carry and storage.',
+    'Ladders',
+    '{"model": "TALT-038", "ladder_type": "Telescopic", "steps": 13, "step_distance_cm": 30, "extended_height": "3.8 Mtr (12.5 Ft)", "weight_kg": 11}',
+    6051.00, 50, 11.000, 18.00, '{}', true, now() - interval '1 minute'
   ),
   (
-    'b1c2d3e4-0003-4000-8000-000000000003',
-    'Hydraulic Scissor Lift Table 1000 kg',
-    'hydraulic-scissor-lift-table-1000kg',
-    'Mobile scissor lift table for ergonomic loading at assembly lines. Foot-operated hydraulics with safety locking.',
-    'Lifting & Stacking',
-    '{"capacity_kg": 1000, "table_size_mm": "1300x800", "lift_height_mm": 1000, "operation": "foot pedal hydraulic"}',
-    78500.00, 15, 210.000, 18.00,
-    array['/images/products/hydraulic-scissor-lift-table-1000kg-1.jpg'],
-    true
+    'c7d8e9f0-0003-4000-8000-000000000003',
+    'Telescopic Ladder TALT-044 (4.4 Mtr / 15 Ft)',
+    'talt-044',
+    'Telescopic ladder TALT-044 — extends to 4.4 m (15 ft) with 15 steps at 30 cm step distance, 12.6 kg. Collapses for compact carry and storage.',
+    'Ladders',
+    '{"model": "TALT-044", "ladder_type": "Telescopic", "steps": 15, "step_distance_cm": 30, "extended_height": "4.4 Mtr (15 Ft)", "weight_kg": 12.6}',
+    6966.00, 50, 12.600, 18.00, '{}', true, now() - interval '2 minutes'
   ),
   (
-    'b1c2d3e4-0004-4000-8000-000000000004',
-    'Heavy-Duty Platform Trolley 500 kg',
-    'heavy-duty-platform-trolley-500kg',
-    'Steel-deck platform trolley with foldable handle and puncture-proof wheels for shop floors and godowns.',
+    'c7d8e9f0-0004-4000-8000-000000000004',
+    'Telescopic Ladder TALT-055 (5.5 Mtr / 18 Ft)',
+    'talt-055',
+    'Telescopic ladder TALT-055 — extends to 5.5 m (18 ft) with 14 steps at 40 cm step distance, 14 kg. Collapses for compact carry and storage.',
+    'Ladders',
+    '{"model": "TALT-055", "ladder_type": "Telescopic", "steps": 14, "step_distance_cm": 40, "extended_height": "5.5 Mtr (18 Ft)", "weight_kg": 14}',
+    8000.00, 50, 14.000, 18.00, '{}', true, now() - interval '3 minutes'
+  ),
+  (
+    'c7d8e9f0-0005-4000-8000-000000000005',
+    'Telescopic Ladder TALT-060 (6 Mtr / 20 Ft)',
+    'talt-060',
+    'Telescopic ladder TALT-060 — extends to 6 m (20 ft) with 15 steps at 40 cm step distance, 15.5 kg. Collapses for compact carry and storage.',
+    'Ladders',
+    '{"model": "TALT-060", "ladder_type": "Telescopic", "steps": 15, "step_distance_cm": 40, "extended_height": "6 Mtr (20 Ft)", "weight_kg": 15.5}',
+    8676.00, 50, 15.500, 18.00, '{}', true, now() - interval '4 minutes'
+  ),
+  (
+    'c7d8e9f0-0006-4000-8000-000000000006',
+    'Telescopic Ladder TALT-072 (7.2 Mtr / 23.6 Ft)',
+    'talt-072',
+    'Telescopic ladder TALT-072 — extends to 7.2 m (23.6 ft) with 16 steps at 45 cm step distance, 18.2 kg. Collapses for compact carry and storage.',
+    'Ladders',
+    '{"model": "TALT-072", "ladder_type": "Telescopic", "steps": 16, "step_distance_cm": 45, "extended_height": "7.2 Mtr (23.6 Ft)", "weight_kg": 18.2}',
+    10135.00, 50, 18.200, 18.00, '{}', true, now() - interval '5 minutes'
+  ),
+  (
+    'c7d8e9f0-0007-4000-8000-000000000007',
+    'Finger-Protect Telescopic Ladder TALT-F44 (4.4 Mtr / 15 Ft)',
+    'talt-f44',
+    'Finger-protect telescopic ladder TALT-F44 — extends to 4.4 m (15 ft) with 15 steps at 30 cm step distance, 13.8 kg. Anti-pinch finger guards on every step.',
+    'Ladders',
+    '{"model": "TALT-F44", "ladder_type": "Telescopic (Finger protect)", "steps": 15, "step_distance_cm": 30, "extended_height": "4.4 Mtr (15 Ft)", "weight_kg": 13.8}',
+    6851.00, 50, 13.800, 18.00, '{}', true, now() - interval '6 minutes'
+  ),
+  (
+    'c7d8e9f0-0008-4000-8000-000000000008',
+    'Finger-Protect Telescopic Ladder TALT-F55 (5.5 Mtr / 18 Ft)',
+    'talt-f55',
+    'Finger-protect telescopic ladder TALT-F55 — extends to 5.5 m (18 ft) with 15 steps at 37 cm step distance, 14.9 kg. Anti-pinch finger guards on every step.',
+    'Ladders',
+    '{"model": "TALT-F55", "ladder_type": "Telescopic (Finger protect)", "steps": 15, "step_distance_cm": 37, "extended_height": "5.5 Mtr (18 Ft)", "weight_kg": 14.9}',
+    7306.00, 50, 14.900, 18.00, '{}', true, now() - interval '7 minutes'
+  ),
+  (
+    'c7d8e9f0-0009-4000-8000-000000000009',
+    'A-Type Ladder TALT-D44 (4.4 Mtr / 15 Ft)',
+    'talt-d44',
+    'Double-sided A-type ladder TALT-D44 — 4.4 m (15 ft) working height, 7+7 steps at 30 cm step distance, 16 kg. Self-standing step ladder for two-sided access.',
+    'Ladders',
+    '{"model": "TALT-D44", "ladder_type": "A-Type", "steps": "7+7", "step_distance_cm": 30, "extended_height": "4.4 Mtr (15 Ft)", "weight_kg": 16}',
+    7379.00, 50, 16.000, 18.00, '{}', true, now() - interval '8 minutes'
+  ),
+  (
+    'c7d8e9f0-000a-4000-8000-00000000000a',
+    'A-Type Ladder TALT-D56 (5.6 Mtr / 18.5 Ft)',
+    'talt-d56',
+    'Double-sided A-type ladder TALT-D56 — 5.6 m (18.5 ft) working height, 9+9 steps at 30 cm step distance, 20.7 kg. Self-standing step ladder for two-sided access.',
+    'Ladders',
+    '{"model": "TALT-D56", "ladder_type": "A-Type", "steps": "9+9", "step_distance_cm": 30, "extended_height": "5.6 Mtr (18.5 Ft)", "weight_kg": 20.7}',
+    10134.00, 50, 20.700, 18.00, '{}', true, now() - interval '9 minutes'
+  ),
+  (
+    'c7d8e9f0-000b-4000-8000-00000000000b',
+    'A-Type Ladder TALT-D66 (6.6 Mtr / 22 Ft)',
+    'talt-d66',
+    'Double-sided A-type ladder TALT-D66 — 6.6 m (22 ft) working height, 8+8 steps at 40 cm step distance, 21.2 kg. Self-standing step ladder for two-sided access.',
+    'Ladders',
+    '{"model": "TALT-D66", "ladder_type": "A-Type", "steps": "8+8", "step_distance_cm": 40, "extended_height": "6.6 Mtr (22 Ft)", "weight_kg": 21.2}',
+    10748.00, 50, 21.200, 18.00, '{}', true, now() - interval '10 minutes'
+  ),
+  (
+    'c7d8e9f0-000c-4000-8000-00000000000c',
+    'Metal Platform Trolley TMST-150 (150 Kg)',
+    'tmst-150',
+    'Metal platform trolley TMST-150 — 150 kg capacity, 48*72 platform, 8.0 kg net weight. MS platform with TPR wheels.',
     'Trolleys',
-    '{"capacity_kg": 500, "deck_size_mm": "1200x700", "wheels": "puncture-proof rubber", "handle": "foldable"}',
-    6299.00, 120, 32.000, 18.00,
-    array['/images/products/heavy-duty-platform-trolley-500kg-1.jpg'],
-    true
+    '{"model": "TMST-150", "capacity_kg": 150, "platform_size": "48*72", "net_weight_kg": 8.0, "material": "MS Platform with TPR"}',
+    2358.00, 50, 8.000, 5.00, '{}', true, now() - interval '11 minutes'
   ),
   (
-    'b1c2d3e4-0005-4000-8000-000000000005',
-    'Oil Drum Handler Trolley',
-    'oil-drum-handler-trolley',
-    'Four-wheel drum handler for 210-litre MS and plastic drums. Grips, lifts and transports without spillage.',
-    'Drum Handling',
-    '{"drum_litres": 210, "capacity_kg": 350, "wheels": 4, "finish": "powder-coated"}',
-    12750.00, 30, 41.500, 18.00,
-    array['/images/products/oil-drum-handler-trolley-1.jpg'],
-    true
+    'c7d8e9f0-000d-4000-8000-00000000000d',
+    'Metal Platform Trolley TMST-300 (300 Kg)',
+    'tmst-300',
+    'Metal platform trolley TMST-300 — 300 kg capacity, 61*91 platform, 13.0 kg net weight. MS platform with TPR wheels.',
+    'Trolleys',
+    '{"model": "TMST-300", "capacity_kg": 300, "platform_size": "61*91", "net_weight_kg": 13.0, "material": "MS Platform with TPR"}',
+    3250.00, 50, 13.000, 5.00, '{}', true, now() - interval '12 minutes'
   ),
   (
-    'b1c2d3e4-0006-4000-8000-000000000006',
-    'Manual Chain Pulley Block 2 Tonne',
-    'manual-chain-pulley-block-2t',
-    '2-tonne chain pulley block with 3 m standard lift for workshops and site erection work. Tested with certificate.',
-    'Lifting & Stacking',
-    '{"capacity_t": 2, "lift_height_m": 3, "standard": "IS 3832", "test_certificate": true}',
-    8999.00, 55, 18.250, 18.00,
-    array['/images/products/manual-chain-pulley-block-2t-1.jpg'],
-    true
+    'c7d8e9f0-000e-4000-8000-00000000000e',
+    'Metal Platform Trolley TMST-400 (400 Kg)',
+    'tmst-400',
+    'Metal platform trolley TMST-400 — 400 kg capacity, 60*90 platform, 14.7 kg net weight. MS checkered platform with rubber wheels.',
+    'Trolleys',
+    '{"model": "TMST-400", "capacity_kg": 400, "platform_size": "60*90", "net_weight_kg": 14.7, "material": "MS checkered With Rubber Wheel"}',
+    4564.00, 50, 14.700, 5.00, '{}', true, now() - interval '13 minutes'
   ),
   (
-    'b1c2d3e4-0007-4000-8000-000000000007',
-    'Hydraulic Dock Leveler 6 Tonne',
-    'hydraulic-dock-leveler-6t',
-    'Pit-mounted hydraulic dock leveler bridging dock and truck bed. Push-button operation with lip extension.',
-    'Dock Equipment',
-    '{"capacity_t": 6, "platform_mm": "2000x2500", "operation": "electro-hydraulic", "lip_mm": 400}',
-    145000.00, 5, 1250.000, 18.00,
-    array['/images/products/hydraulic-dock-leveler-6t-1.jpg'],
-    true
+    'c7d8e9f0-000f-4000-8000-00000000000f',
+    'Metal Platform Trolley TMST-600 (600 Kg)',
+    'tmst-600',
+    'Metal platform trolley TMST-600 — 600 kg capacity, 65*110 platform, 21 kg net weight. MS checkered platform with rubber wheels.',
+    'Trolleys',
+    '{"model": "TMST-600", "capacity_kg": 600, "platform_size": "65*110", "net_weight_kg": 21, "material": "MS checkered With Rubber Wheel"}',
+    5332.00, 50, 21.000, 5.00, '{}', true, now() - interval '14 minutes'
   ),
   (
-    'b1c2d3e4-0008-4000-8000-000000000008',
-    'Electric Tow Tractor 3 Tonne',
-    'electric-tow-tractor-3t',
-    'Ride-on electric tow tractor for moving multi-trailer trains across large plants. Opportunity charging.',
-    'Material Movement',
-    '{"towing_capacity_t": 3, "battery": "48V", "drive": "AC motor", "max_speed_kmh": 12}',
-    325000.00, 4, 1480.000, 18.00,
-    array['/images/products/electric-tow-tractor-3t-1.jpg'],
-    true
+    'c7d8e9f0-0010-4000-8000-000000000010',
+    'Plastic Platform Trolley TPT-200 (200 Kg)',
+    'tpt-200',
+    'Plastic platform trolley TPT-200 — 200 kg capacity, 48*72 platform, 10.2 kg net weight. High-grade HDPE platform trolley.',
+    'Trolleys',
+    '{"model": "TPT-200", "capacity_kg": 200, "platform_size": "48*72", "net_weight_kg": 10.2, "material": "High-grade HDPE Platform trolley"}',
+    2752.00, 50, 10.200, 5.00, '{}', true, now() - interval '15 minutes'
+  ),
+  (
+    'c7d8e9f0-0011-4000-8000-000000000011',
+    'Plastic Platform Trolley TPT-400 (400 Kg)',
+    'tpt-400',
+    'Plastic platform trolley TPT-400 — 400 kg capacity, 60*90 platform, 13.2 kg net weight. High-grade HDPE platform trolley.',
+    'Trolleys',
+    '{"model": "TPT-400", "capacity_kg": 400, "platform_size": "60*90", "net_weight_kg": 13.2, "material": "High-grade HDPE Platform trolley"}',
+    3388.00, 50, 13.200, 5.00, '{}', true, now() - interval '16 minutes'
+  ),
+  (
+    'c7d8e9f0-0012-4000-8000-000000000012',
+    'Plastic Platform Trolley TPT-600 (600 Kg)',
+    'tpt-600',
+    'Plastic platform trolley TPT-600 — 600 kg capacity, 63*105 platform, 16.1 kg net weight. High-grade HDPE platform trolley.',
+    'Trolleys',
+    '{"model": "TPT-600", "capacity_kg": 600, "platform_size": "63*105", "net_weight_kg": 16.1, "material": "High-grade HDPE Platform trolley"}',
+    4647.00, 50, 16.100, 5.00, '{}', true, now() - interval '17 minutes'
   )
 on conflict (id) do nothing;
 
@@ -138,7 +234,7 @@ values
   ('600001', 'a1b2c3d4-0004-4000-8000-000000000004', true, 420.00, null, null, 2, 5),
   ('600001', 'a1b2c3d4-0003-4000-8000-000000000003', false, 0.00, null, null, null, null),
   -- Pune 411001: two partners.
-  ('411001', 'a1b2c3d4-0002-4000-8000-000000000002', true, 380.00, null, null, 2, 4),
+  ('411001', 'a1b2c3d4-0002-4000-8000-000000000002', true, 380.00, null, null, 2, 5),
   ('411001', 'a1b2c3d4-0001-4000-8000-000000000001', true, 410.00, null, null, 2, 4),
   -- Hyderabad 500001: two partners.
   ('500001', 'a1b2c3d4-0001-4000-8000-000000000001', true, 460.00, null, null, 2, 5),

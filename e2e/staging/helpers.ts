@@ -125,7 +125,7 @@ export async function createFixtureOrder(
 
 export async function seedProductId(): Promise<string> {
   const res = await fetch(
-    `${supabaseRest()}/products?slug=eq.heavy-duty-platform-trolley-500kg&select=id`,
+    `${supabaseRest()}/products?slug=eq.tmst-300&select=id`,
     { headers: serviceHeaders() },
   );
   const rows = (await res.json()) as Array<{ id: string }>;

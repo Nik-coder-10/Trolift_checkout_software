@@ -168,8 +168,29 @@ describe("placeholder asset (aspect ratio + real file)", () => {
 describe("seed image paths (V1 verification: missing assets, not typos)", () => {
   const paths = seedImagePaths();
 
-  it("references at least one asset path", () => {
-    expect(paths.length).toBeGreaterThan(0);
+  it("supplies an images value for every product row (paths arrive with the photo drop)", () => {
+    // The live-range catalogue replaces the demo seed before product
+    // photos land, so empty arrays are expected today — but the column
+    // must stay in the insert and every row must carry a value (either
+    // '{}' or at least one path, which the tests below then validate).
+    const sql = readFileSync(
+      join(REPO, "supabase", "seed", "seed.sql"),
+      "utf8",
+    );
+    const start = sql.indexOf("insert into public.products");
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = sql.indexOf(";", start);
+    expect(end).toBeGreaterThan(start);
+    const block = sql.slice(start, end);
+    expect(block).toMatch(/\(\s*id,\s*name,[\s\S]*\bimages\b/);
+    const rows = block
+      .slice(block.indexOf("values"))
+      .split(/^\s*\(\s*$/m)
+      .slice(1);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row).toMatch(/'{}'|\/images\/products\//);
+    }
   });
 
   it("is well-formed for every referenced path (no typos, no traversal)", () => {

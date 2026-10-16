@@ -13,7 +13,7 @@ test.describe("checkout", () => {
   });
 
   async function seedCart(page: Page) {
-    await page.goto("/products/hydraulic-hand-pallet-truck-2500kg");
+    await page.goto("/products/talt-032");
     await page.getByRole("button", { name: "Add to Cart" }).click();
     await page.goto("/checkout");
   }
@@ -79,7 +79,7 @@ test.describe("checkout", () => {
     await page.reload();
     await expect(page.getByRole("heading", { name: /checkout/i })).toBeVisible();
     await page.goBack();
-    await expect(page).toHaveURL(/products\/hydraulic/);
+    await expect(page).toHaveURL(/products\/talt-032/);
   });
 });
 

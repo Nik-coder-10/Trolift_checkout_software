@@ -113,7 +113,7 @@ export function FilterBar({ initial }: { initial: FilterBarState }) {
           id="catalogue-search"
           type="search"
           autoComplete="off"
-          placeholder="Try “pallet truck” or “2500kg”"
+          placeholder="Try “ladder” or “300kg”"
           value={q}
           onChange={(e) => onSearch(e.target.value)}
           className="h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-brand-700"

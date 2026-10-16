@@ -59,7 +59,7 @@ test.describe("staging failure journeys", () => {
 
   test("duplicate rapid submissions create exactly one order", async ({ page }) => {
     const phone = trackPhone(uniquePhone());
-    await page.goto("/products/heavy-duty-platform-trolley-500kg");
+    await page.goto("/products/tmst-300");
     await page.getByRole("button", { name: "Add to Cart" }).first().click();
     await page.goto("/checkout");
     await fillCheckout(page, phone, "400001");
@@ -73,7 +73,7 @@ test.describe("staging failure journeys", () => {
     // The checkout confirmation is client state (correctly ephemeral);
     // the ORDER session (HttpOnly cookie) is what must survive refresh.
     const phone = trackPhone(uniquePhone());
-    await page.goto("/products/heavy-duty-platform-trolley-500kg");
+    await page.goto("/products/tmst-300");
     await page.getByRole("button", { name: "Add to Cart" }).first().click();
     await page.goto("/checkout");
     await fillCheckout(page, phone, "400001");
@@ -93,7 +93,7 @@ test.describe("staging failure journeys", () => {
 
   test("stale cart (over-stock quantity) names the item, creates nothing", async ({ page }) => {
     const phone = trackPhone(uniquePhone());
-    await page.goto("/products/heavy-duty-platform-trolley-500kg");
+    await page.goto("/products/tmst-300");
     await page.getByRole("button", { name: "Add to Cart" }).first().click();
     await page.goto("/cart");
     // Seed stock is 120: requesting 999 must fail safe server-side.
@@ -158,7 +158,7 @@ test.describe("staging failure journeys", () => {
 
   test("unserviceable pincode blocks before any order", async ({ page }) => {
     const phone = trackPhone(uniquePhone());
-    await page.goto("/products/heavy-duty-platform-trolley-500kg");
+    await page.goto("/products/tmst-300");
     await page.getByRole("button", { name: "Add to Cart" }).first().click();
     await page.goto("/checkout");
     await fillCheckout(page, phone, "799001");
