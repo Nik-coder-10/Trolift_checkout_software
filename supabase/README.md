@@ -64,9 +64,10 @@ policies — the `customer_id` FKs are already in place for that.
 - `stock_quantity` is on-hand units (admin-managed, never negative).
   Sellable units = on-hand minus live `stock_reservations` holds.
 - RESERVE at order creation (atomic, inside `create_order()`): holds
-  expire after the payment window (`p_reservation_hours`, default 48);
-  every order attempt sweeps expired holds first — no scheduler, and
-  abandoned carts never strand stock.
+  expire after the payment window (`p_reservation_hours`, passed by the
+  app from `PAYMENT_WINDOW_HOURS`, default 24); every order attempt
+  sweeps expired holds first — no scheduler, and abandoned carts never
+  strand stock.
 - CONSUME at payment verification (`consume_reservation()`): holds turn
   into real decrements only when money is verified. Idempotent.
 - RESTORE on cancellation (`restore_reservation()`): held units are

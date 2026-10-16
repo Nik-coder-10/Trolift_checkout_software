@@ -26,10 +26,20 @@ import { logWarn } from "@/lib/observability/logger";
 
 export type EmailProvider = "smtp" | "off";
 
+export interface EmailAttachment {
+  filename: string;
+  /** Raw bytes of the attachment (e.g. a PNG QR code). */
+  content: Buffer;
+  contentType: string;
+  /** Optional CID for inline embedding in HTML bodies. */
+  cid?: string;
+}
+
 export interface EmailMessage {
   to: string;
   subject: string;
   body: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailSendOutcome {
@@ -91,8 +101,21 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+interface SendMailPayload {
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+    cid?: string;
+  }>;
+}
+
 interface SendDeps {
-  sendMail?: (msg: { from: string; to: string; subject: string; text: string }) => Promise<unknown>;
+  sendMail?: (msg: SendMailPayload) => Promise<unknown>;
   timeoutMs?: number;
 }
 
@@ -120,7 +143,7 @@ export async function sendEmailMessages(
   }
 
   const from = emailFrom();
-  const sendMail = deps?.sendMail ?? ((msg) => {
+  const sendMail = deps?.sendMail ?? ((msg: SendMailPayload) => {
     const transporter = nodemailer.createTransport({
       host: smtpHost(),
       port: smtpPort(),
@@ -137,12 +160,21 @@ export async function sendEmailMessages(
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
-          await sendMail({
+          const payload: SendMailPayload = {
             from,
             to: message.to,
             subject: message.subject,
             text: message.body,
-          });
+          };
+          if (message.attachments && message.attachments.length > 0) {
+            payload.attachments = message.attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content,
+              contentType: a.contentType,
+              ...(a.cid ? { cid: a.cid } : {}),
+            }));
+          }
+          await sendMail(payload);
           return { to: message.to, status: "sent", detail: "delivered" };
         } catch (error) {
           lastError =

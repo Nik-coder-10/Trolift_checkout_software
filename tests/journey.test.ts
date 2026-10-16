@@ -528,7 +528,7 @@ function emulateCreateOrder(args: Record<string, unknown>): {
       updated_at: "2026-10-05T10:00:00.000Z",
     },
   ]);
-  const hours = Number(args["p_reservation_hours"] ?? 48);
+  const hours = Number(args["p_reservation_hours"] ?? 24);
   for (const item of items) {
     db.reservations.push({
       product_id: item["product_id"],

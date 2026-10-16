@@ -9,12 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PriceDisplay } from "@/components/ui/PriceDisplay";
 import { EmptyState } from "@/components/ui/States";
-import { WhatsAppShare } from "@/components/checkout/WhatsAppShare";
 import { formatMoney } from "@/lib/orders/pricing";
-import {
-  businessWhatsAppNumber,
-  type OrderMessageInput,
-} from "@/lib/whatsapp/order-message";
 import {
   EMPTY_BILLING_FORM,
   EMPTY_CHECKOUT_FORM,
@@ -71,37 +66,6 @@ interface PlacedOrder {
   orderNumber: string;
   totalPaise: number;
   duplicate: boolean;
-  /** Snapshot for the post-order WhatsApp share (cart is cleared). */
-  message: OrderMessageInput;
-}
-
-/** Human delivery verdict + detail line for the WhatsApp summary. */
-function describeDelivery(state: DeliveryState): {
-  status: string;
-  details: string | null;
-} {
-  if (state.status === "ok" && state.result.selected) {
-    const selected = state.result.selected;
-    const parts = [`Partner: ${selected.partner.name}`];
-    parts.push(
-      `Charge: ${formatMoney({ amountPaise: selected.deliveryChargePaise, currency: "INR" })}`,
-    );
-    if (selected.etaDays) parts.push(`ETA: ${selected.etaDays.min}-${selected.etaDays.max} days`);
-    if (state.result.totalWeightKg !== null) {
-      parts.push(`Weight: ~${state.result.totalWeightKg} kg`);
-    }
-    return { status: "Serviceable", details: parts.join(" | ") };
-  }
-  if (state.status === "unavailable") {
-    return {
-      status: "Not serviceable",
-      details: state.result.reason ?? null,
-    };
-  }
-  if (state.status === "error") {
-    return { status: "Unknown (check failed)", details: state.message };
-  }
-  return { status: "Not checked", details: null };
 }
 
 export function CheckoutForm() {
@@ -299,7 +263,6 @@ export function CheckoutForm() {
         orderNumber: json.data.orderNumber,
         totalPaise: json.data.totalPaise,
         duplicate: json.data.duplicate,
-        message: buildShareMessage(json.data),
       });
       clearCart();
     } catch {
@@ -307,48 +270,6 @@ export function CheckoutForm() {
     } finally {
       setPlacing(false);
     }
-  };
-
-  /** Snapshot the checkout state for the post-order WhatsApp share. */
-  const buildShareMessage = (placedOrder: {
-    orderNumber: string;
-    totalPaise: number;
-  }): OrderMessageInput => {
-    const summary = describeDelivery(delivery);
-    const isBusiness = form.customerType === "business";
-    const stateName = isBusiness
-      ? INDIAN_STATES.find((s) => s.code === form.billing.stateCode)?.name ?? ""
-      : "";
-    const address = isBusiness
-      ? [form.billing.addressLine, form.billing.city, stateName, form.billing.pincode]
-          .map((part) => part.trim())
-          .filter((part) => part !== "")
-          .join(", ")
-      : null;
-    return {
-      orderNumber: placedOrder.orderNumber,
-      customerName: form.name,
-      customerPhone: form.phone,
-      customerEmail: form.email,
-      gstin: form.gstin,
-      businessName: isBusiness ? form.billing.name : null,
-      address,
-      pincode: form.pincode,
-      deliveryStatus: summary.status,
-      deliveryDetails: summary.details,
-      items: items.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        lineTotalPaise: item.pricePaise * item.quantity,
-      })),
-      subtotalPaise,
-      deliveryChargePaise:
-        delivery.status === "ok" && delivery.result.selected
-          ? delivery.result.selected.deliveryChargePaise
-          : null,
-      totalPaise: placedOrder.totalPaise,
-      siteUrl: typeof window !== "undefined" ? window.location.origin : null,
-    };
   };
 
   if (placed) {
@@ -392,10 +313,6 @@ export function CheckoutForm() {
             Back to cart
           </Link>
         </div>
-        <WhatsAppShare
-          message={placed.message}
-          businessNumber={businessWhatsAppNumber()}
-        />
       </div>
     );
   }

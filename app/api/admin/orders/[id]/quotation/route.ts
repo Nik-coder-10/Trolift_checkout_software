@@ -14,7 +14,7 @@ export const runtime = "nodejs";
  * requireAdmin() first (401/403 before any order lookup, so anonymous
  * callers learn nothing). Same provisional-only rule as the customer
  * route: admins never receive a quotation for a non-provisional order.
- * The admin forwards this document (e.g. over WhatsApp) manually —
+ * The admin forwards this document (e.g. over email) manually —
  * nothing here sends it anywhere.
  */
 export const GET = withErrorHandling(async (

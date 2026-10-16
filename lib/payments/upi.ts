@@ -59,5 +59,5 @@ export function buildUpiIntent(
 /** Payment window: how long an order stays payable (informational). */
 export function getPaymentWindowHours(): number {
   const raw = Number(process.env.PAYMENT_WINDOW_HOURS ?? "");
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 48;
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 24;
 }

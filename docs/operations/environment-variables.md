@@ -11,13 +11,13 @@ Legend for the environment matrix: **R** = required, **O** = optional,
 | --- | --- | --- | --- | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Public | R | R | R | R | Supabase project URL (anon-scoped client). |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | R | R | R | R | Anon key; RLS is the real boundary. |
-| `NEXT_PUBLIC_WHATSAPP_NUMBER` | Public | O | O | O | O | Trolift's WhatsApp number (international, digits only) for the post-order click-to-chat link. Public by design; blank hides automatic addressing. |
 | `NEXT_PUBLIC_SITE_URL` | Public | O | O | R | R | Canonical origin for absolute URLs (metadata, robots). Default `http://localhost:3000`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Secret** | R | R | R | R | Server-only bypass of RLS. `server-only` import guards bundling. |
 | `SUPABASE_DB_URL` | **Secret** | O | — | O | O | Direct Postgres URL for `supabase db push` / migration CLI only. Never read by app code. |
 | `OWNER_UPI_ID` | **Secret-ish** | R | R | R | **R** | Payee VPA (`user@bank` shape) for payment instructions + QR. Server-only. Presence **and** VPA shape are **readiness-critical in production** — a malformed VPA prints an unpayable QR, so config and `getOwnerUpi()` both fail closed (see below). |
 | `OWNER_UPI_PAYEE_NAME` | Public-ish | O | O | O | O | Payee display name in the UPI intent. |
-| `PAYMENT_WINDOW_HOURS` | — | O | O | O | O | Displayed "payable within N hours" window. Default 48. Informational only (no auto-cancel). |
+| `PAYMENT_WINDOW_HOURS` | — | O | O | O | O | Displayed "payable within N hours" window. Default 24. Informational only (no auto-cancel). |
+| `PAYMENT_QR_PATH` | — | O | O | O | O | Path (relative to `public/`) of the payment QR image attached to order emails. Default `images/payment-qr.png`. |
 | `TROLIFT_STATE_CODE` | — | O | O | R | R* | 2-digit GST home-state code (CBIC list incl. 37 Andhra Pradesh, 38 Ladakh; 97/99 never select a CGST split — IGST by construction). Unset/invalid ⇒ every GST order is IGST (documented, tested fallback — surfaced as a readiness **warning**, never silently defaulted). |
 | `TROLIFT_BUSINESS_NAME` | — | R | R | R | **R** | Seller name printed on every tax invoice. **Readiness-critical in production.** |
 | `TROLIFT_BUSINESS_ADDRESS` | — | R | R | R | **R** | Seller address on invoices. **Readiness-critical in production.** |

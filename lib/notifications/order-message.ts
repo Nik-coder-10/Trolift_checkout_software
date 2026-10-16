@@ -2,12 +2,8 @@
  * Order-notification copy (pure, unit-tested).
  *
  * One order in, two plain-text messages out: the customer's copy and
- * the owner's copy. Text is deliberately plain (no markdown): WhatsApp
- * renders `*bold*` only in some clients and an approved utility
- * template needs stable, variable-free wording — so sentences stay
- * fixed and the values live in the variable list
- * (`orderMessageTemplateVariables`), which operators map to their
- * template's {{1}}, {{2}}, … placeholders.
+ * the owner's copy. Text is deliberately plain so every email client
+ * renders it identically — no markdown, no HTML.
  *
  * Nothing here talks to a network or a database: delivery status comes
  * from the shipped Delhivery coverage list, money from the caller's
@@ -27,6 +23,8 @@ export interface OrderMessageInput {
   customerName: string;
   /** E.164 as stored by checkout, e.g. "+919876543210". */
   customerPhone: string;
+  /** Customer email as collected at checkout; null when not provided. */
+  customerEmail: string | null;
   businessName: string | null;
   /** Composed billing address line, or null for individual orders. */
   billingAddress: string | null;
@@ -41,6 +39,8 @@ export interface OrderMessageInput {
   pincode: string;
   paymentWindowHours: number;
   siteUrl: string;
+  /** True when a UPI QR image is attached to the email. */
+  hasPaymentQr: boolean;
 }
 
 /** Indian-grouped rupees with paise, e.g. 316298000 → "31,62,980.00". */
@@ -83,21 +83,25 @@ function itemLines(lines: NotificationLine[]): string[] {
   );
 }
 
-function identityLines(input: OrderMessageInput, phone: string | null): string[] {
+function identityLines(
+  input: OrderMessageInput,
+  opts: { phone?: boolean; email?: boolean } = {},
+): string[] {
   const lines = [`Name: ${input.customerName}`];
-  if (phone !== null) lines.push(`Mobile: ${phone}`);
+  if (opts.phone) lines.push(`Mobile: ${input.customerPhone}`);
+  if (opts.email && input.customerEmail) lines.push(`Email: ${input.customerEmail}`);
   if (input.businessName) lines.push(`Business: ${input.businessName}`);
   if (input.billingAddress) lines.push(`Address: ${input.billingAddress}`);
   if (input.gstin) lines.push(`GSTIN: ${input.gstin}`);
   return lines;
 }
 
-/** Customer-facing confirmation. */
+/** Customer-facing confirmation with payment QR instructions. */
 export function buildCustomerOrderMessage(input: OrderMessageInput): string {
   const parts: string[] = [
     `Thanks ${input.customerName} — we received your order ${input.orderNumber}.`,
     "",
-    ...identityLines(input, null),
+    ...identityLines(input, { phone: true, email: true }),
     "",
     "Order:",
     ...itemLines(input.lines),
@@ -108,13 +112,18 @@ export function buildCustomerOrderMessage(input: OrderMessageInput): string {
   if (input.deliveryChargePaise > 0) {
     parts.push(`Delivery: ₹${rupees(input.deliveryChargePaise)}`);
   }
+  const payVia = input.hasPaymentQr
+    ? "using the UPI QR attached to this email (or the payment link on the order status page)"
+    : "using the payment link on the order status page";
   parts.push(
     `Total: ₹${rupees(input.totalPaise)}`,
     "",
     `Delivery status — ${deliveryStatusLine(input)}`,
     "",
-    `Please complete the payment within ${input.paymentWindowHours} hours to confirm the order.`,
+    `To confirm this order, please pay ₹${rupees(input.totalPaise)} within ${input.paymentWindowHours} hours ${payVia}.`,
     `Order status: ${input.siteUrl}`,
+    "",
+    "After paying, reply to this email with the payment screenshot (or the UTR/reference number) so we can verify and confirm your order.",
     "",
     "Reply STOP to opt out of order updates.",
   );
@@ -126,7 +135,7 @@ export function buildOwnerOrderMessage(input: OrderMessageInput): string {
   return [
     `New order ${input.orderNumber} — ₹${rupees(input.totalPaise)} (payment pending)`,
     "",
-    ...identityLines(input, input.customerPhone),
+    ...identityLines(input, { phone: true, email: true }),
     "",
     "Order:",
     ...itemLines(input.lines),
@@ -139,23 +148,6 @@ export function buildOwnerOrderMessage(input: OrderMessageInput): string {
     `Delivery status — ${deliveryStatusLine(input)}`,
     "",
     `Payable within ${input.paymentWindowHours} hours.`,
+    "Customer has been asked to reply with the payment screenshot/UTR.",
   ].join("\n");
-}
-
-/**
- * Ordered values for an approved WhatsApp utility template
- * ({{1}} … {{6}} in the order below). Kept in one place so the template
- * and the code cannot drift apart silently.
- */
-export function orderMessageTemplateVariables(input: OrderMessageInput): string[] {
-  return [
-    input.customerName,
-    input.orderNumber,
-    input.lines
-      .map((line) => `${line.productName} x${line.quantity}`)
-      .join(", "),
-    `₹${rupees(input.totalPaise)}`,
-    deliveryStatusLine(input),
-    `${input.paymentWindowHours} hours`,
-  ];
 }

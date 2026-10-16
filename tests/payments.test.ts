@@ -61,11 +61,11 @@ describe("UPI configuration", () => {
   });
 
   it("configures the payment window with a safe default", () => {
-    expect(getPaymentWindowHours()).toBe(48);
+    expect(getPaymentWindowHours()).toBe(24);
     process.env[WINDOW] = "72";
     expect(getPaymentWindowHours()).toBe(72);
     process.env[WINDOW] = "nonsense";
-    expect(getPaymentWindowHours()).toBe(48);
+    expect(getPaymentWindowHours()).toBe(24);
   });
 });
 

@@ -14,7 +14,7 @@ import {
   emailProvider,
   getOrderNotificationRecipient,
   sendEmailMessages,
-} from "@/lib/notifications/whatsapp";
+} from "@/lib/notifications/email";
 import { notifyOrderPlaced } from "@/lib/notifications/order-notifications";
 
 const KEYS = [
@@ -26,6 +26,7 @@ const KEYS = [
   "EMAIL_FROM",
   "ORDER_NOTIFICATION_EMAIL",
   "PAYMENT_WINDOW_HOURS",
+  "PAYMENT_QR_PATH",
 ] as const;
 
 const ORIGINALS = new Map<string, string | undefined>(
@@ -57,6 +58,7 @@ const INPUT: OrderMessageInput = {
   orderNumber: "TS-000123",
   customerName: "Rahul Sharma",
   customerPhone: "+919876543210",
+  customerEmail: "rahul@example.com",
   businessName: "Sharma Traders",
   billingAddress: "12 MG Road, Pune, Maharashtra 411001",
   gstin: "27ABCDE1234F1Z0",
@@ -71,8 +73,9 @@ const INPUT: OrderMessageInput = {
   etaDays: { min: 2, max: 4 },
   totalPaise: 4481446,
   pincode: "411001",
-  paymentWindowHours: 48,
+  paymentWindowHours: 24,
   siteUrl: "https://trolift.example",
+  hasPaymentQr: true,
 };
 
 describe("notification copy", () => {
@@ -82,10 +85,12 @@ describe("notification copy", () => {
     expect(rupees(0)).toBe("0.00");
   });
 
-  it("gives the customer their order, identity and delivery status", () => {
+  it("gives the customer their order, identity, contact and delivery status", () => {
     const text = buildCustomerOrderMessage(INPUT);
     expect(text).toContain("TS-000123");
     expect(text).toContain("Rahul Sharma");
+    expect(text).toContain("Mobile: +919876543210");
+    expect(text).toContain("Email: rahul@example.com");
     expect(text).toContain("Business: Sharma Traders");
     expect(text).toContain("Address: 12 MG Road, Pune, Maharashtra 411001");
     expect(text).toContain("GSTIN: 27ABCDE1234F1Z0");
@@ -97,7 +102,20 @@ describe("notification copy", () => {
     );
   });
 
-  it("omits business fields for individual orders and keeps the phone out of the customer copy", () => {
+  it("asks for payment within the window and a screenshot reply", () => {
+    const text = buildCustomerOrderMessage(INPUT);
+    expect(text).toContain("please pay ₹44,814.46 within 24 hours");
+    expect(text).toContain("UPI QR attached to this email");
+    expect(text).toContain("reply to this email with the payment screenshot");
+  });
+
+  it("falls back to the payment link when no QR is attached", () => {
+    const text = buildCustomerOrderMessage({ ...INPUT, hasPaymentQr: false });
+    expect(text).toContain("payment link on the order status page");
+    expect(text).not.toContain("UPI QR attached");
+  });
+
+  it("omits business fields for individual orders", () => {
     const text = buildCustomerOrderMessage({
       ...INPUT,
       businessName: null,
@@ -107,16 +125,22 @@ describe("notification copy", () => {
     expect(text).not.toContain("Business:");
     expect(text).not.toContain("Address:");
     expect(text).not.toContain("GSTIN:");
-    expect(text).not.toContain("+919876543210");
+  });
+
+  it("omits the email line when the customer gave no email", () => {
+    const text = buildCustomerOrderMessage({ ...INPUT, customerEmail: null });
+    expect(text).not.toContain("Email:");
   });
 
   it("gives the owner the customer's contact details too", () => {
     const text = buildOwnerOrderMessage(INPUT);
     expect(text).toContain("New order TS-000123 — ₹44,814.46 (payment pending)");
     expect(text).toContain("Mobile: +919876543210");
+    expect(text).toContain("Email: rahul@example.com");
     expect(text).toContain("Business: Sharma Traders");
     expect(text).toContain("Pincode 411001 (Maharashtra)");
-    expect(text).toContain("Payable within 48 hours.");
+    expect(text).toContain("Payable within 24 hours.");
+    expect(text).toContain("payment screenshot");
   });
 
   it("names a not-deliverable pincode instead of inventing a status", () => {
@@ -299,7 +323,11 @@ describe("sending", () => {
 describe("order notification orchestration", () => {
   const ORDER = {
     orderNumber: "TS-000123",
-    customer: { name: "Rahul Sharma", phone: "+919876543210" },
+    customer: {
+      name: "Rahul Sharma",
+      phone: "+919876543210",
+      email: "rahul@example.com" as string | null,
+    },
     billing: {
       gstin: "27ABCDE1234F1Z0",
       name: "Sharma Traders",
@@ -344,6 +372,32 @@ describe("order notification orchestration", () => {
     expect(recipients).toEqual(["bizwise.ops@gmail.com", "bizwise.ops@gmail.com"]);
     expect(subjects[0]).toContain("Order Confirmation");
     expect(subjects[1]).toContain("New Order");
+  });
+
+  it("attaches the payment QR image when the file exists", async () => {
+    setEnv({ ...EMAIL_ENV, PAYMENT_QR_PATH: "images/logo.png" });
+    const attachments: Array<{ filename: string; contentType: string }> = [];
+    await notifyOrderPlaced(ORDER, {
+      sendMail: (async (msg: { attachments?: Array<{ filename: string; contentType: string }> }) => {
+        if (msg.attachments) attachments.push(...msg.attachments);
+      }) as never,
+    });
+    expect(attachments).toHaveLength(2);
+    expect(attachments[0]!.filename).toBe("trolift-payment-qr.png");
+    expect(attachments[0]!.contentType).toBe("image/png");
+  });
+
+  it("still sends when the QR image is missing", async () => {
+    setEnv({ ...EMAIL_ENV, PAYMENT_QR_PATH: "images/does-not-exist.png" });
+    let calls = 0;
+    const result = await notifyOrderPlaced(ORDER, {
+      sendMail: (async (msg: { attachments?: unknown }) => {
+        calls += 1;
+        expect(msg.attachments).toBeUndefined();
+      }) as never,
+    });
+    expect(calls).toBe(2);
+    expect(result).toEqual({ sent: 2, failed: 0, skipped: 0 });
   });
 
   it("still sends the customer copy when the notification email is missing", async () => {

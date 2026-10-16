@@ -1,4 +1,6 @@
 import "server-only";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { siteConfig } from "@/config/site";
 import { logInfo, logWarn } from "@/lib/observability/logger";
 import { getPaymentWindowHours } from "@/lib/payments/upi";
@@ -12,8 +14,9 @@ import {
   emailConfigured,
   getOrderNotificationRecipient,
   sendEmailMessages,
+  type EmailAttachment,
   type EmailMessage,
-} from "@/lib/notifications/whatsapp";
+} from "@/lib/notifications/email";
 
 /**
  * "An order was placed" notifications: the customer's own copy plus the
@@ -27,7 +30,7 @@ import {
 
 export interface OrderNotificationInput {
   orderNumber: string;
-  customer: { name: string; phone: string };
+  customer: { name: string; phone: string; email: string | null };
   billing: {
     gstin: string | null;
     name: string | null;
@@ -57,14 +60,55 @@ function composeAddress(billing: OrderNotificationInput["billing"]): string | nu
   return parts.length === 0 ? null : parts.join(", ");
 }
 
+/**
+ * Load the shop's static UPI QR (PayZapp/HDFC) for email attachment.
+ * The path can be overridden with PAYMENT_QR_PATH; the default is
+ * public/images/payment-qr.png. Missing file → null (email still sent).
+ */
+async function loadPaymentQrAttachment(): Promise<EmailAttachment | null> {
+  const relPath = (process.env.PAYMENT_QR_PATH ?? "").trim() || "images/payment-qr.png";
+  const absPath = path.join(process.cwd(), "public", relPath);
+  try {
+    const content = await readFile(absPath);
+    return {
+      filename: "trolift-payment-qr.png",
+      content,
+      contentType: "image/png",
+      cid: "payment-qr@trolift",
+    };
+  } catch {
+    logWarn("Payment QR image not found — email sent without attachment.", {
+      category: "email",
+      operation: "order-notification",
+      path: absPath,
+      hint: "Place the QR at public/images/payment-qr.png or set PAYMENT_QR_PATH.",
+    });
+    return null;
+  }
+}
+
+interface NotifyDeps {
+  sendMail?: (msg: {
+    from: string;
+    to: string;
+    subject: string;
+    text: string;
+    attachments?: Array<{ filename: string; content: Buffer; contentType: string; cid?: string }>;
+  }) => Promise<unknown>;
+}
+
 export async function notifyOrderPlaced(
   input: OrderNotificationInput,
-  deps?: { sendMail?: (msg: { from: string; to: string; subject: string; text: string }) => Promise<unknown> },
+  deps?: NotifyDeps,
 ): Promise<{ sent: number; failed: number; skipped: number }> {
+  const qrAttachment = await loadPaymentQrAttachment();
+  const attachments = qrAttachment ? [qrAttachment] : undefined;
+
   const messageInput: OrderMessageInput = {
     orderNumber: input.orderNumber,
     customerName: input.customer.name,
     customerPhone: input.customer.phone,
+    customerEmail: input.customer.email,
     businessName: input.billing?.name ?? null,
     billingAddress: composeAddress(input.billing),
     gstin: input.billing?.gstin ?? null,
@@ -78,6 +122,7 @@ export async function notifyOrderPlaced(
     pincode: input.pincode,
     paymentWindowHours: getPaymentWindowHours(),
     siteUrl: siteConfig.url,
+    hasPaymentQr: qrAttachment !== null,
   };
 
   const recipient = getOrderNotificationRecipient();
@@ -88,6 +133,7 @@ export async function notifyOrderPlaced(
         to: recipient ?? "",
         subject: `Order Confirmation — ${input.orderNumber}`,
         body: buildCustomerOrderMessage(messageInput),
+        attachments,
       },
     },
     ...(recipient === null
@@ -99,6 +145,7 @@ export async function notifyOrderPlaced(
               to: recipient,
               subject: `New Order — ${input.orderNumber}`,
               body: buildOwnerOrderMessage(messageInput),
+              attachments,
             },
           },
         ]),

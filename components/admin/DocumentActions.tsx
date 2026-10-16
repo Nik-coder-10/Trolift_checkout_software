@@ -39,7 +39,7 @@ function quotationNote(orderStatus: string): string {
  * server re-checks authorization and eligibility on every request — this
  * panel only avoids offering actions the route would refuse and explains
  * why an action is absent. Sharing stays manual: the quotation is
- * forwarded to the customer (e.g. over WhatsApp) by staff.
+ * forwarded to the customer (e.g. over email) by staff.
  */
 export function DocumentActions({
   invoice,
@@ -70,7 +70,7 @@ export function DocumentActions({
       <h2 className="text-base font-bold text-zinc-900">Documents</h2>
       <p className="mt-1 text-xs leading-5 text-zinc-500">
         PDFs are generated from frozen order snapshots. Send them to the
-        customer yourself (e.g. over WhatsApp) — nothing is sent
+        customer yourself (e.g. over email) — nothing is sent
         automatically.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">

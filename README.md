@@ -95,7 +95,7 @@ components/layout     Navbar, Footer, SiteShell + admin shell
 components/products   ProductCard, ProductGrid, CategoryFilter, FilterBar,
                       Pagination, ProductGallery, RelatedProducts
 components/cart       CartView, CartProvider, AddToCartButton
-components/checkout   CheckoutForm, WhatsAppShare (post-order click-to-chat)
+components/checkout   CheckoutForm
 components/payments   ClaimForm, payment provider
 components/orders      OrderActions, GuestKeyExchange
 components/admin      DocumentActions, PaymentActions, StatusActions,
@@ -112,7 +112,7 @@ lib/quotations       quotation data, PDF, numbering, config
 lib/documents         document availability rules
 lib/shipments         shipment service + types
 lib/rate-limit        in-memory + Upstash distributed rate limiting
-lib/whatsapp          order-summary text + wa.me click-to-chat links
+lib/notifications     email transport (Gmail SMTP) + order notification copy
 lib/observability     correlation IDs, structured logging, reference
 lib/admin             orders, products, customers, delivery, import/export,
                       dashboard, audit, notes, order-documents

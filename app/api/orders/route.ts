@@ -32,7 +32,7 @@ import { notifyOrderPlaced } from "@/lib/notifications/order-notifications";
  * localStorage — the cookie is the session.
  *
  * Notifications: after the response goes out, `after()` sends the
- * customer and owner WhatsApp copies of the order details. A messaging
+ * customer and owner email copies of the order details. An email
  * outage is logged and can never fail or delay a committed order, and
  * a replayed idempotency key (duplicate) does not ring twice.
  */
@@ -71,7 +71,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     guestExpiresAt: issued?.expiresAt ?? null,
   });
   if (issued) res.headers.append("Set-Cookie", issued.cookie);
-  // Owner + customer WhatsApp copies, after the response is on the wire.
+  // Owner + customer email copies, after the response is on the wire.
   // A duplicate submit (same idempotency key) is the same order, so it
   // must not message anyone a second time.
   if (!persisted.duplicate) {
@@ -81,6 +81,7 @@ export const POST = withErrorHandling(async (req: Request) => {
         customer: {
           name: parsed.customer.name,
           phone: parsed.customer.phone,
+          email: parsed.customer.email,
         },
         billing: parsed.billing,
         lines: quote.lines.map((line) => ({
