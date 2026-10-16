@@ -78,8 +78,10 @@ export async function persistOrder(input: {
       product_id: l.productId,
       product_name: l.productName,
       quantity: l.quantity,
-      unit_price: toRupees(l.unitPricePaise),
-      line_total: toRupees(l.lineTotalPaise),
+      // Taxable values persist (invoice/DB identities); the inclusive
+      // amount is recovered as line_total + line_tax_amount.
+      unit_price: toRupees(l.unitTaxablePaise),
+      line_total: toRupees(l.taxablePaise),
       gst_rate_percent: l.gstRate,
       line_tax_amount: toRupees(l.lineTaxPaise),
       hsn_snapshot: l.hsn,

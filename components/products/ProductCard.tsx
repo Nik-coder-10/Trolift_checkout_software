@@ -56,7 +56,7 @@ export function ProductCard({
         </h3>
         <p className="line-clamp-2 text-sm text-zinc-600">{product.description}</p>
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
-          <PriceDisplay amountPaise={priceToPaise(product.price)} unitNote="excl. GST" />
+          <PriceDisplay amountPaise={priceToPaise(product.price)} unitNote="incl. GST" />
           {actions ?? (
             <span className="flex shrink-0 items-center gap-2">
               {product.availability === "out_of_stock" ? (

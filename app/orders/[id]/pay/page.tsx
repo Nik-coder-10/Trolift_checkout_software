@@ -152,15 +152,41 @@ export default async function OrderPayPage({
             </ul>
             <dl className="mt-3 flex flex-col gap-1.5 text-sm">
               <div className="flex justify-between">
-                <dt className="text-zinc-600">Subtotal</dt>
+                <dt className="text-zinc-600">
+                  {order.tax.treatment === "gst"
+                    ? "Subtotal (excl. GST)"
+                    : "Subtotal"}
+                </dt>
                 <dd className="font-semibold text-zinc-900">
                   <PriceDisplay amountPaise={order.subtotalPaise} size="sm" />
                 </dd>
               </div>
+              {order.tax.treatment === "gst" ? (
+                <div className="flex justify-between">
+                  <dt className="text-zinc-600">
+                    GST included{" "}
+                    {order.tax.igstPaise > 0 ? "(IGST)" : "(CGST + SGST)"}
+                  </dt>
+                  <dd className="font-semibold text-zinc-900">
+                    <PriceDisplay
+                      amountPaise={
+                        order.tax.cgstPaise +
+                        order.tax.sgstPaise +
+                        order.tax.igstPaise
+                      }
+                      size="sm"
+                    />
+                  </dd>
+                </div>
+              ) : null}
               <div className="flex justify-between">
                 <dt className="text-zinc-600">Delivery</dt>
                 <dd className="font-semibold text-zinc-900">
-                  <PriceDisplay amountPaise={order.deliveryChargePaise} size="sm" />
+                  {order.deliveryChargePaise > 0 ? (
+                    <PriceDisplay amountPaise={order.deliveryChargePaise} size="sm" />
+                  ) : (
+                    <span>Included</span>
+                  )}
                 </dd>
               </div>
               <div className="flex justify-between border-t border-zinc-100 pt-2 text-base">

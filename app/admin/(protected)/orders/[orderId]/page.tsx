@@ -254,9 +254,18 @@ export default async function AdminOrderPage({
                 </>
               ) : null}
               <div className="flex justify-between">
-                <dt className="text-zinc-600">Delivery ({order.deliveryPartnerName})</dt>
+                <dt className="text-zinc-600">
+                  Delivery
+                  {order.deliveryPartnerName
+                    ? ` (${order.deliveryPartnerName})`
+                    : ""}
+                </dt>
                 <dd className="font-semibold text-zinc-900">
-                  <PriceDisplay amountPaise={order.deliveryChargePaise} size="sm" />
+                  {order.deliveryChargePaise > 0 ? (
+                    <PriceDisplay amountPaise={order.deliveryChargePaise} size="sm" />
+                  ) : (
+                    <span>Included</span>
+                  )}
                 </dd>
               </div>
               <div className="flex justify-between">

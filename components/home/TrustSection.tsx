@@ -5,7 +5,7 @@ const PILLARS = [
   },
   {
     title: "Honest B2B pricing",
-    desc: "Published ex-GST prices, volume pricing on request, and freight disclosed up front by pincode.",
+    desc: "Published prices incl. GST & delivery, volume pricing on request, and a serviceability check up front by pincode.",
   },
   {
     title: "Delivery you can plan around",

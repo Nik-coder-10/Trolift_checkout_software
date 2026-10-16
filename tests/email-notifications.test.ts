@@ -66,12 +66,11 @@ const INPUT: OrderMessageInput = {
     { productName: "Hydraulic Hand Pallet Truck 2500 kg", quantity: 1, lineTotalPaise: 2499900 },
     { productName: "Heavy-Duty Platform Trolley 500 kg", quantity: 2, lineTotalPaise: 1259800 },
   ],
-  subtotalPaise: 3759700,
-  taxPaise: 676746,
-  deliveryChargePaise: 45000,
+  taxPaise: 573513,
+  taxType: "cgst_sgst",
   deliveryPartnerName: "Delhivery",
   etaDays: { min: 2, max: 4 },
-  totalPaise: 4481446,
+  totalPaise: 3759700,
   pincode: "411001",
   paymentWindowHours: 24,
   siteUrl: "https://trolift.example",
@@ -94,17 +93,29 @@ describe("notification copy", () => {
     expect(text).toContain("Business: Sharma Traders");
     expect(text).toContain("Address: 12 MG Road, Pune, Maharashtra 411001");
     expect(text).toContain("GSTIN: 27ABCDE1234F1Z0");
-    expect(text).toContain("Hydraulic Hand Pallet Truck 2500 kg x1 - ₹24,999.00");
-    expect(text).toContain("Heavy-Duty Platform Trolley 500 kg x2 - ₹12,598.00");
-    expect(text).toContain("Total: ₹44,814.46");
     expect(text).toContain(
-      "Pincode 411001 (Maharashtra): serviceable on the Delhivery list — Delhivery at ₹450.00, ETA 2–4 days.",
+      "Hydraulic Hand Pallet Truck 2500 kg x1 - ₹24,999.00 (incl. GST & delivery)",
     );
+    expect(text).toContain(
+      "Heavy-Duty Platform Trolley 500 kg x2 - ₹12,598.00 (incl. GST & delivery)",
+    );
+    expect(text).toContain("GST included: ₹5,735.13 (CGST + SGST)");
+    expect(text).toContain("Delivery: Included");
+    expect(text).toContain("Total: ₹37,597.00");
+    expect(text).not.toContain("Subtotal:");
+    expect(text).toContain(
+      "Pincode 411001 (Maharashtra): serviceable — Delhivery, ETA 2–4 days, delivery included.",
+    );
+  });
+
+  it("names the IGST component for inter-state orders", () => {
+    const text = buildCustomerOrderMessage({ ...INPUT, taxType: "igst" });
+    expect(text).toContain("GST included: ₹5,735.13 (IGST)");
   });
 
   it("asks for payment within the window and a screenshot reply", () => {
     const text = buildCustomerOrderMessage(INPUT);
-    expect(text).toContain("please pay ₹44,814.46 within 24 hours");
+    expect(text).toContain("please pay ₹37,597.00 within 24 hours");
     expect(text).toContain("UPI QR attached to this email");
     expect(text).toContain("reply to this email with the payment screenshot");
   });
@@ -134,10 +145,12 @@ describe("notification copy", () => {
 
   it("gives the owner the customer's contact details too", () => {
     const text = buildOwnerOrderMessage(INPUT);
-    expect(text).toContain("New order TS-000123 — ₹44,814.46 (payment pending)");
+    expect(text).toContain("New order TS-000123 — ₹37,597.00 (payment pending)");
     expect(text).toContain("Mobile: +919876543210");
     expect(text).toContain("Email: rahul@example.com");
     expect(text).toContain("Business: Sharma Traders");
+    expect(text).toContain("GST included: ₹5,735.13 (CGST + SGST)");
+    expect(text).toContain("Delivery: Included");
     expect(text).toContain("Pincode 411001 (Maharashtra)");
     expect(text).toContain("Payable within 24 hours.");
     expect(text).toContain("payment screenshot");
@@ -339,12 +352,11 @@ describe("order notification orchestration", () => {
     lines: [
       { productName: "Heavy-Duty Platform Trolley 500 kg", quantity: 1, lineTotalPaise: 629900 },
     ],
-    subtotalPaise: 629900,
-    taxPaise: 113382,
-    deliveryChargePaise: 45000,
+    taxPaise: 96086,
+    taxType: "cgst_sgst" as const,
     deliveryPartnerName: "Delhivery",
     etaDays: null,
-    totalPaise: 788282,
+    totalPaise: 629900,
     pincode: "411001",
   };
 

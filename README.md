@@ -19,10 +19,10 @@ Trolift Solutions sells warehouses and workshops what they run on: telescopic
 and A-type ladders, metal and HDPE platform trolleys and more. This platform
 lets B2B customers:
 
-- Browse equipment with transparent, ex-GST pricing
+- Browse equipment with transparent, all-inclusive pricing (GST & delivery included)
 - Search, filter and sort the catalogue to find the right machine
 - Check delivery serviceability by pincode *before* paying
-- See automated delivery charges per partner
+- See delivery included in every catalogue price
 - Pay the owner directly over UPI, then submit the UTR reference — the
   claim is validated server-side (authoritative total, VPA shape) and an
   admin manually verifies it before the order is marked paid. There is no

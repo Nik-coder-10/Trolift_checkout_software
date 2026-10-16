@@ -48,6 +48,16 @@ import {
 const UNPRICED_REASON =
   "Delivery is available for this pincode, but the delivery charge isn't configured yet. Please contact us to confirm it.";
 
+/**
+ * Customer-facing verdict for an unserviceable pincode. Delivery
+ * charges are included in catalogue prices, so the check only answers
+ * serviceable-or-not — and points the customer to a nearby pincode
+ * when this one is out of reach. Shared by the order API and the
+ * /api/delivery/check endpoint so the wording never diverges.
+ */
+export const NOT_SERVICEABLE_MESSAGE =
+  "Please give us a nearby pincode that could be serviceable and please try again.";
+
 export interface DeliveryLineInput {
   productId: string;
   quantity: number;

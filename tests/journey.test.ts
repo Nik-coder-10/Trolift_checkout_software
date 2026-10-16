@@ -619,15 +619,20 @@ async function placeOrder(keySuffix: string, over: Record<string, unknown> = {})
 
 describe("customer journey: catalogue to delivered invoice", () => {
   it("walks catalogue → order → claim → verify → delivered → invoice", async () => {
-    // 1. Delivery quote (public, no session needed).
+    // 1. Delivery verdict (public, no session needed).
     const check = await post(deliveryPost, { pincode: "400001" });
     const checkJson = (await check.json()) as {
       ok: boolean;
-      data: { serviceable: boolean; deliveryChargePaise: number };
+      data: {
+        serviceable: boolean;
+        message: string;
+        partner: { name: string } | null;
+      };
     };
     expect(checkJson.ok).toBe(true);
     expect(checkJson.data.serviceable).toBe(true);
-    expect(checkJson.data.deliveryChargePaise).toBe(45000);
+    expect(checkJson.data.partner?.name).toBe("Delhivery");
+    expect(checkJson.data.message).toContain("included");
 
     // 2. Server-side order creation (totals recomputed, never trusted).
     const { res, json } = await placeOrder("01");
@@ -635,11 +640,11 @@ describe("customer journey: catalogue to delivered invoice", () => {
     expect(json.ok).toBe(true);
     expect(json.data).toMatchObject({
       orderNumber: "TS-261005-0001",
+      // Product gst_rate is null → 0% goods GST, and delivery sits
+      // inside the catalogue price — no delivery line, no delivery GST.
       subtotalPaise: 1259800,
-      deliveryChargePaise: 45000,
-      // Goods GST is 0 (product rate null) but delivery carries 18%
-      // GST: round(45000 × 18/100) = 8100 folded into the tax split.
-      totalPaise: 1312900,
+      deliveryChargePaise: 0,
+      totalPaise: 1259800,
       paymentStatus: "pending",
       duplicate: false,
     });
@@ -732,7 +737,7 @@ describe("customer journey: catalogue to delivered invoice", () => {
       quantity: 2,
       unitPricePaise: 629900,
     });
-    expect(detail?.totalPaise).toBe(1312900);
+    expect(detail?.totalPaise).toBe(1259800);
     expect(detail?.paymentReference).toBe(UTR);
     expect(detail?.events.map((e) => e.action)).toContain("payment_verified");
     // Canonical audit trail so far: creation (customer actor) then
@@ -827,9 +832,9 @@ describe("customer journey: catalogue to delivered invoice", () => {
       },
     });
     expect(res.status).toBe(200);
-    // 2 × 629900 taxable; product gst_rate is null → 0 goods GST, but
-    // delivery still carries 18% GST (round(45000 × 18/100) = 8100).
-    expect(json.data).toMatchObject({ taxTreatment: "gst", totalPaise: 1312900 });
+    // 2 × 629900 inclusive; product gst_rate is null → 0% GST, and
+    // delivery rides inside the price — total equals the item sum.
+    expect(json.data).toMatchObject({ taxTreatment: "gst", totalPaise: 1259800 });
   });
 });
 
@@ -883,17 +888,19 @@ describe("failure flows fail safe with the item named", () => {
 
   it("reprices when catalogue or rates move mid-checkout", async () => {
     const first = await placeOrder("30");
-    expect(first.json.data.totalPaise).toBe(1312900);
+    expect(first.json.data.totalPaise).toBe(1259800);
     const p = db.products.get(P1);
     if (p) p["price"] = "7000.00";
+    // Rate-table charge moves too — and is ignored entirely: delivery
+    // is included in the catalogue price.
     charge = "700.00";
     const second = await placeOrder("31");
-    // New price (2 × 700000) + new charge (70000) + 18% delivery GST
-    // (round(70000 × 18/100) = 12600): browser figures ignored.
+    // New price (2 × 700000) only; browser figures and the moved rate
+    // both stay out of the totals.
     expect(second.json.data).toMatchObject({
       subtotalPaise: 1400000,
-      deliveryChargePaise: 70000,
-      totalPaise: 1482600,
+      deliveryChargePaise: 0,
+      totalPaise: 1400000,
     });
   });
 

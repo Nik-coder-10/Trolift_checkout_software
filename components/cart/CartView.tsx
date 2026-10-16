@@ -96,11 +96,11 @@ export function CartView() {
       <aside aria-label="Order summary" className="h-fit rounded-lg border border-zinc-200 bg-white p-5 lg:sticky lg:top-20">
         <h2 className="text-base font-bold text-zinc-900">Summary</h2>
         <div className="mt-3">
-          <PriceDisplay amountPaise={subtotalPaise} unitNote="estimated ex-GST" size="md" />
+          <PriceDisplay amountPaise={subtotalPaise} unitNote="incl. GST & delivery" size="md" />
         </div>
         <p className="mt-2 text-xs leading-5 text-zinc-500">
-          Estimate only. Delivery charges and the final total are calculated
-          server-side at checkout.
+          All prices include GST and delivery — the final total is
+          verified server-side at checkout.
         </p>
         <div className="mt-4 flex flex-col gap-2">
           <Link

@@ -55,7 +55,7 @@ const rateRow = (charge: string, priority = 100) => ({
 });
 
 describe("POST /api/delivery/check", () => {
-  it("returns the selected partner and charge, options included", async () => {
+  it("returns a serviceable verdict with the serving partner — no charges", async () => {
     serverHandler = (op) => {
       if (op.table === "delivery_pincode_rates") {
         return { rows: [rateRow("450.00")], error: null };
@@ -77,24 +77,26 @@ describe("POST /api/delivery/check", () => {
       data: Record<string, unknown>;
     };
     expect(json.ok).toBe(true);
+    // All-inclusive pricing: the verdict is serviceability + partner +
+    // the included-delivery message. Charges, options, weight and
+    // rule figures are structurally absent.
     expect(json.data).toMatchObject({
       serviceable: true,
       pincode: "400001",
-      deliveryChargePaise: 45000,
-    });
-    // CheckoutForm reads the canonical DeliveryQuote.selected object —
-    // a flattened-only response renders no quote (live staging caught).
-    const selected = (json.data as Record<string, unknown>)["selected"] as Record<string, unknown>;
-    expect(selected).toMatchObject({
+      message: "Delivery is included in the product price.",
       partner: { name: "Delhivery" },
-      deliveryChargePaise: 45000,
     });
+    expect(json.data).not.toHaveProperty("selected");
+    expect(json.data).not.toHaveProperty("deliveryChargePaise");
+    expect(json.data).not.toHaveProperty("totalWeightKg");
+    expect(json.data).not.toHaveProperty("subtotalPaise");
   });
 
-  it("reports null (never zero) shipment weight for weightless products", async () => {
+  it("keeps shipment weight out of the verdict for weightless products", async () => {
     // Live staging proved 0 kg violates orders_delivery_weight_kg_check
     // (> 0 when present) and 500s order placement. Unknown weights must
-    // stay null end to end.
+    // stay null end to end — and the check response never carries
+    // weight at all.
     serverHandler = (op) => {
       if (op.table === "delivery_pincode_rates") {
         return { rows: [rateRow("450.00")], error: null };
@@ -123,7 +125,8 @@ describe("POST /api/delivery/check", () => {
       data: Record<string, unknown>;
     };
     expect(json.ok).toBe(true);
-    expect(json.data["totalWeightKg"]).toBeNull();
+    expect(json.data.serviceable).toBe(true);
+    expect(json.data).not.toHaveProperty("totalWeightKg");
   });
 
   it("reports out-of-area pincodes as unserviceable, not errors", async () => {
@@ -144,10 +147,13 @@ describe("POST /api/delivery/check", () => {
       oda: true,
       deliverable: false,
     });
-    expect(String(json.data.reason)).toContain("outside our delivery area");
+    expect(json.data.partner).toBeNull();
+    expect(String(json.data.message)).toContain("nearby pincode");
   });
 
-  it("reports a covered pincode with no configured rate as deliverable but unpriced", async () => {
+  it("treats a covered pincode with no configured rate as not orderable", async () => {
+    // Orders require a priced partner row — same gate as quoteOrder —
+    // so covered-but-unpriced answers with the nearby-pincode message.
     serverHandler = (op) => {
       if (op.table === "delivery_pincode_rates") {
         return { rows: [], error: null };
@@ -166,10 +172,10 @@ describe("POST /api/delivery/check", () => {
       data: Record<string, unknown>;
     };
     expect(json.ok).toBe(true);
-    expect(json.data.serviceable).toBe(true);
-    expect(json.data.selected).toBeNull();
+    expect(json.data.serviceable).toBe(false);
+    expect(json.data.partner).toBeNull();
+    expect(String(json.data.message)).toContain("nearby pincode");
     expect(json.data.coverage).toMatchObject({ listed: true, oda: false });
-    expect(String(json.data.reason)).toContain("charge");
   });
 
   it("rejects malformed input", async () => {

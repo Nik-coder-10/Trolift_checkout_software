@@ -22,13 +22,25 @@ import {
 import { INDIAN_STATES } from "@/lib/tax/india";
 import { isValidPincode, normalizePincode } from "@/lib/validations/common";
 import type { ApiResponse } from "@/types/api";
-import type { DeliveryQuote } from "@/lib/delivery/engine";
+
+/**
+ * Response of POST /api/delivery/check — all-inclusive pricing: a
+ * serviceable verdict plus partner/ETA, never a charge.
+ */
+interface DeliveryCheckResult {
+  serviceable: boolean;
+  pincode: string;
+  coverage: { state: string | null };
+  message: string;
+  partner: { name: string } | null;
+  etaDays: { min: number; max: number } | null;
+}
 
 type DeliveryState =
   | { status: "idle" }
   | { status: "checking" }
-  | { status: "ok"; result: DeliveryQuote }
-  | { status: "unavailable"; result: DeliveryQuote }
+  | { status: "ok"; result: DeliveryCheckResult }
+  | { status: "unavailable"; result: DeliveryCheckResult }
   | { status: "error"; message: string };
 
 function Section({
@@ -155,7 +167,7 @@ export function CheckoutForm() {
           })),
         }),
       });
-      const json = (await res.json()) as ApiResponse<DeliveryQuote>;
+      const json = (await res.json()) as ApiResponse<DeliveryCheckResult>;
       if (!json.ok) {
         if (json.error.code === "VALIDATION_ERROR") {
           setErrors((e) => ({ ...e, pincode: json.error.message }));
@@ -326,22 +338,11 @@ export function CheckoutForm() {
     );
   }
 
-  // null when no charge is known: either the pincode is unchecked, or
-  // it is covered by the list but has no configured rate yet ("to be
-  // confirmed") — never render ₹0.00, which would read as free freight.
-  const deliveryPaise =
-    delivery.status === "ok"
-      ? (delivery.result.selected?.deliveryChargePaise ?? null)
-      : null;
-  const deliveryPending = delivery.status === "ok" && !delivery.result.selected;
-  const totalPaise = deliveryPaise !== null ? subtotalPaise + deliveryPaise : null;
-  const deliverySummary = deliveryPending ? (
-    <span className="text-amber-700">To be confirmed</span>
-  ) : delivery.status === "unavailable" ? (
-    <span className="text-amber-700">Unavailable</span>
-  ) : (
-    <span className="text-zinc-400">Check pincode</span>
-  );
+  // All-inclusive pricing: the summary total is the item sum — prices
+  // already contain GST and delivery. Serviceability is the only thing
+  // the pincode check adds.
+  const totalPaise = subtotalPaise;
+  const deliverySummary = <span className="text-zinc-700">Included</span>;
 
   return (
     <form noValidate onSubmit={submit} className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
@@ -519,59 +520,17 @@ export function CheckoutForm() {
               </Button>
             </div>
             <div aria-live="polite">
-              {delivery.status === "ok" && delivery.result.selected ? (
+              {delivery.status === "ok" ? (
                 <Alert tone="success" title="Delivery available">
                   <p>
-                    Partner: <strong>{delivery.result.selected.partner.name}</strong>
-                  </p>
-                  <p>
-                    Delivery:{" "}
-                    <strong>
-                      {formatMoney({
-                        amountPaise: delivery.result.selected.deliveryChargePaise,
-                        currency: "INR",
-                      })}
-                    </strong>
-                    {delivery.result.selected.etaDays
-                      ? ` · ${delivery.result.selected.etaDays.min}–${delivery.result.selected.etaDays.max} days`
+                    Partner:{" "}
+                    <strong>{delivery.result.partner?.name ?? "Our delivery team"}</strong>
+                    {delivery.result.etaDays
+                      ? ` · ${delivery.result.etaDays.min}–${delivery.result.etaDays.max} days`
                       : null}
                   </p>
-                  {delivery.result.coverage.state ? (
-                    <p className="mt-1 text-xs">
-                      Serviceable area: {delivery.result.coverage.state}
-                    </p>
-                  ) : null}
-                  {delivery.result.options.length > 1 ? (
-                    <p className="mt-1 text-xs">
-                      {delivery.result.options.length} partner options — best
-                      value selected for this order.
-                    </p>
-                  ) : null}
-                  {delivery.result.totalWeightKg !== null ||
-                  delivery.result.appliedRules.length > 0 ? (
-                    <p className="mt-1 text-xs">
-                      {delivery.result.totalWeightKg !== null
-                        ? `Shipment ~${delivery.result.totalWeightKg.toLocaleString("en-IN", { maximumFractionDigits: 3 })} kg`
-                        : null}
-                      {delivery.result.totalWeightKg !== null &&
-                      delivery.result.appliedRules.length > 0
-                        ? " · "
-                        : null}
-                      {delivery.result.appliedRules.length > 0
-                        ? delivery.result.appliedRules.join(" + ")
-                        : null}
-                    </p>
-                  ) : null}
-                </Alert>
-              ) : null}
-              {delivery.status === "ok" && !delivery.result.selected ? (
-                <Alert
-                  tone="warning"
-                  title="Delivery available — charge to be confirmed"
-                >
                   <p>
-                    {delivery.result.reason ??
-                      "Our team will confirm the delivery charge for this pincode."}
+                    Delivery: <strong>Included in the price</strong>
                   </p>
                   {delivery.result.coverage.state ? (
                     <p className="mt-1 text-xs">
@@ -582,8 +541,7 @@ export function CheckoutForm() {
               ) : null}
               {delivery.status === "unavailable" ? (
                 <Alert tone="warning" title="Delivery unavailable for this pincode.">
-                  {delivery.result.reason ??
-                    "Our delivery partners do not serve this pincode yet."}
+                  {delivery.result.message}
                 </Alert>
               ) : null}
               {delivery.status === "error" ? (
@@ -621,33 +579,23 @@ export function CheckoutForm() {
           </div>
           <div className="flex justify-between">
             <dt className="text-zinc-600">Delivery</dt>
-            <dd className="font-semibold text-zinc-900">
-              {deliveryPaise !== null ? (
-                <PriceDisplay amountPaise={deliveryPaise} size="sm" />
-              ) : (
-                deliverySummary
-              )}
-            </dd>
+            <dd className="font-semibold text-zinc-900">{deliverySummary}</dd>
           </div>
           <div className="flex justify-between border-t border-zinc-100 pt-2 text-base">
             <dt className="font-bold text-zinc-900">Total</dt>
             <dd className="font-bold text-zinc-900">
-              {totalPaise !== null ? (
-                <PriceDisplay amountPaise={totalPaise} size="md" />
-              ) : (
-                <span className="text-zinc-400">—</span>
-              )}
+              <PriceDisplay amountPaise={totalPaise} size="md" />
             </dd>
           </div>
         </dl>
         <p className="mt-2 text-xs leading-5 text-zinc-500">
-          Informational only — GST, delivery and the final total are
-          confirmed server-side when you place the order.
+          All prices include GST and delivery — this total is what you pay.
+          Delivery availability is confirmed by the pincode check.
         </p>
         {form.gstin.trim() !== "" ? (
           <p className="mt-1 text-xs leading-5 text-zinc-500">
-            GST invoice requested — tax is calculated from live product
-            rates at order time.
+            GST invoice requested — the tax breakup is shown on your invoice
+            after payment.
           </p>
         ) : null}
         {reviewed ? (

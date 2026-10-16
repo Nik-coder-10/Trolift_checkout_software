@@ -17,8 +17,8 @@ export function ContactCTA() {
           </h2>
           <p className="mt-2 max-w-xl text-sm leading-6 text-brand-100">
             Share the equipment, quantity and delivery pincode — add your
-            GSTIN if you need a GST invoice. We reply with price, freight
-            and delivery time.
+            GSTIN if you need a GST invoice. We reply with price and
+            delivery time.
           </p>
           <ul className="mt-4 grid gap-2 text-sm text-brand-100 sm:grid-cols-3">
             <li className="rounded-md bg-brand-900 px-3 py-2">1. Equipment + quantity</li>

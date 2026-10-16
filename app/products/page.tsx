@@ -36,7 +36,7 @@ export async function generateMetadata({
     title: `Products${bits}`,
     description:
       `Browse Trolift industrial equipment${active ? ` — ${active}` : ""}` +
-      `${params.q ? ` matching “${params.q}”` : ""} with transparent ex-GST ` +
+      `${params.q ? ` matching “${params.q}”` : ""} with transparent, all-inclusive ` +
       `pricing, stock availability and GST invoicing.`,
     // Canonical drops the page cursor (page 1 is the canonical view);
     // filter combinations keep their own canonical for shareability.
@@ -103,7 +103,7 @@ export default async function ProductsPage({
               ? "Unknown category."
               : result.total === 0
                 ? "No products match these filters."
-                : `${result.total} ${result.total === 1 ? "product" : "products"} · prices excl. GST`}
+                : `${result.total} ${result.total === 1 ? "product" : "products"} · prices incl. GST & delivery`}
           </p>
         </div>
       </div>

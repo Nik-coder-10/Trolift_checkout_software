@@ -30,9 +30,9 @@ export interface OrderMessageInput {
   billingAddress: string | null;
   gstin: string | null;
   lines: NotificationLine[];
-  subtotalPaise: number;
   taxPaise: number;
-  deliveryChargePaise: number;
+  /** Which GST split the order carries — names the component in the copy. */
+  taxType: "igst" | "cgst_sgst";
   deliveryPartnerName: string | null;
   etaDays: { min: number; max: number } | null;
   totalPaise: number;
@@ -54,9 +54,9 @@ export function rupees(paise: number): string {
 
 /**
  * Delivery status for the order's pincode: the Delhivery list verdict
- * plus the frozen partner/charge the order was placed with. Orders are
- * only accepted for a priced, serviceable pincode, so the "to be
- * confirmed" branch is a safety net rather than the normal path.
+ * plus the frozen partner the order was placed with. Delivery is
+ * included in every catalogue price, so the line reports the partner
+ * and ETA when known — never a charge.
  */
 export function deliveryStatusLine(input: OrderMessageInput): string {
   const coverage = lookupDelhiveryPincode(input.pincode);
@@ -64,22 +64,34 @@ export function deliveryStatusLine(input: OrderMessageInput): string {
   if (!coverage.deliverable) {
     return `Pincode ${input.pincode}${where}: not deliverable — ${coverage.reason ?? "outside our delivery area."}`;
   }
-  if (input.deliveryPartnerName === null || input.deliveryChargePaise <= 0) {
-    return `Pincode ${input.pincode}${where}: serviceable on the Delhivery list — delivery charge to be confirmed.`;
-  }
   const eta = input.etaDays
     ? `, ETA ${input.etaDays.min}–${input.etaDays.max} days`
     : "";
+  if (input.deliveryPartnerName === null) {
+    return `Pincode ${input.pincode}${where}: serviceable on the Delhivery list — delivery included.`;
+  }
   return (
-    `Pincode ${input.pincode}${where}: serviceable on the Delhivery list — ` +
-    `${input.deliveryPartnerName} at ₹${rupees(input.deliveryChargePaise)}${eta}.`
+    `Pincode ${input.pincode}${where}: serviceable — ` +
+    `${input.deliveryPartnerName}${eta}, delivery included.`
   );
+}
+
+/** Money summary block shared by the customer and owner copies. */
+function summaryLines(input: OrderMessageInput): string[] {
+  const lines: string[] = [];
+  if (input.taxPaise > 0) {
+    const component = input.taxType === "cgst_sgst" ? "CGST + SGST" : "IGST";
+    lines.push(`GST included: ₹${rupees(input.taxPaise)} (${component})`);
+  }
+  lines.push("Delivery: Included");
+  lines.push(`Total: ₹${rupees(input.totalPaise)}`);
+  return lines;
 }
 
 function itemLines(lines: NotificationLine[]): string[] {
   return lines.map(
     (line) =>
-      `${line.productName} x${line.quantity} - ₹${rupees(line.lineTotalPaise)}`,
+      `${line.productName} x${line.quantity} - ₹${rupees(line.lineTotalPaise)} (incl. GST & delivery)`,
   );
 }
 
@@ -106,28 +118,24 @@ export function buildCustomerOrderMessage(input: OrderMessageInput): string {
     "Order:",
     ...itemLines(input.lines),
     "",
-  ];
-  parts.push(`Subtotal: ₹${rupees(input.subtotalPaise)}`);
-  if (input.taxPaise > 0) parts.push(`GST: ₹${rupees(input.taxPaise)}`);
-  if (input.deliveryChargePaise > 0) {
-    parts.push(`Delivery: ₹${rupees(input.deliveryChargePaise)}`);
-  }
-  const payVia = input.hasPaymentQr
-    ? "using the UPI QR attached to this email (or the payment link on the order status page)"
-    : "using the payment link on the order status page";
-  parts.push(
-    `Total: ₹${rupees(input.totalPaise)}`,
+    ...summaryLines(input),
     "",
     `Delivery status — ${deliveryStatusLine(input)}`,
     "",
-    `To confirm this order, please pay ₹${rupees(input.totalPaise)} within ${input.paymentWindowHours} hours ${payVia}.`,
+    `To confirm this order, please pay ₹${rupees(input.totalPaise)} within ${input.paymentWindowHours} hours ${payVia(input)}.`,
     `Order status: ${input.siteUrl}`,
     "",
     "After paying, reply to this email with the payment screenshot (or the UTR/reference number) so we can verify and confirm your order.",
     "",
     "Reply STOP to opt out of order updates.",
-  );
+  ];
   return parts.join("\n");
+}
+
+function payVia(input: OrderMessageInput): string {
+  return input.hasPaymentQr
+    ? "using the UPI QR attached to this email (or the payment link on the order status page)"
+    : "using the payment link on the order status page";
 }
 
 /** Owner-facing alert with the customer's contact and the order facts. */
@@ -140,10 +148,7 @@ export function buildOwnerOrderMessage(input: OrderMessageInput): string {
     "Order:",
     ...itemLines(input.lines),
     "",
-    `Subtotal: ₹${rupees(input.subtotalPaise)}`,
-    `GST: ₹${rupees(input.taxPaise)}`,
-    `Delivery: ₹${rupees(input.deliveryChargePaise)}`,
-    `Total: ₹${rupees(input.totalPaise)}`,
+    ...summaryLines(input),
     "",
     `Delivery status — ${deliveryStatusLine(input)}`,
     "",

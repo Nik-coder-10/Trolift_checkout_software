@@ -92,10 +92,14 @@ describe("priceOrderLines (server authority: ids + quantities only)", () => {
         productId: "p1",
         productName: "Trolley",
         quantity: 2,
+        // Inclusive catalogue price / charge…
         unitPricePaise: 629900,
         lineTotalPaise: 1259800,
+        // …and the reverse-computed taxable + embedded GST the DB stores.
+        unitTaxablePaise: 533814,
+        taxablePaise: 1067628,
         gstRate: "18.00",
-        lineTaxPaise: 226764,
+        lineTaxPaise: 192172,
         hsn: "87168010",
       },
       {
@@ -104,15 +108,22 @@ describe("priceOrderLines (server authority: ids + quantities only)", () => {
         quantity: 1,
         unitPricePaise: 28500000,
         lineTotalPaise: 28500000,
+        unitTaxablePaise: 28500000,
+        taxablePaise: 28500000,
         gstRate: null,
         lineTaxPaise: 0,
         hsn: null,
       },
     ]);
-    // subtotal + delivery = total holds in integers (delivery e.g. 45000).
-    const subtotal = lines.reduce((n, l) => n + l.lineTotalPaise, 0);
-    expect(subtotal).toBe(29759800);
-    expect(subtotal + 45000).toBe(29804800);
+    // Money identity: taxable + embedded GST reconstructs the inclusive
+    // charge exactly — there is no separate delivery amount to add.
+    const taxable = lines.reduce((n, l) => n + l.taxablePaise, 0);
+    const gst = lines.reduce((n, l) => n + l.lineTaxPaise, 0);
+    const chargeable = lines.reduce((n, l) => n + l.lineTotalPaise, 0);
+    expect(taxable).toBe(29567628);
+    expect(gst).toBe(192172);
+    expect(taxable + gst).toBe(chargeable);
+    expect(chargeable).toBe(29759800);
   });
 
   it("rejects unknown and inactive products", () => {

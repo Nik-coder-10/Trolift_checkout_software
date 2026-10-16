@@ -243,10 +243,16 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
     if (item.lineTotalPaise !== item.unitPricePaise * item.quantity) {
       fail(`${label} line total does not equal unit price × quantity.`);
     }
-    const expectedTax = Math.round(
-      (item.lineTotalPaise * parseGstRate(item.gstRate)) / 100,
-    );
-    if (item.lineTaxPaise !== expectedTax) {
+    // Two accepted storage shapes (see invoices/data.ts): legacy add-on
+    // `round(total × r/100)` or all-inclusive embedded
+    // `total − round(total × 100/(100 + r))` — both derive fully from
+    // the snapshotted rate.
+    const lineRate = parseGstRate(item.gstRate);
+    const addOnTax = Math.round((item.lineTotalPaise * lineRate) / 100);
+    const inclusiveTax =
+      item.lineTotalPaise -
+      Math.round((item.lineTotalPaise * 100) / (100 + lineRate));
+    if (item.lineTaxPaise !== addOnTax && item.lineTaxPaise !== inclusiveTax) {
       fail(`${label} tax does not match its snapshotted rate.`);
     }
     if (item.hsn !== null && !/^[0-9]{4}([0-9]{2}([0-9]{2})?)?$/.test(item.hsn)) {

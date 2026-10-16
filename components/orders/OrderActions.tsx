@@ -15,17 +15,28 @@ export function OrderActions({ order }: { order: PayableOrder }) {
   const [rotateError, setRotateError] = useState<string | null>(null);
 
   const download = () => {
+    const gstPaise =
+      order.tax.cgstPaise + order.tax.sgstPaise + order.tax.igstPaise;
     const lines = [
       `Trolift Solutions — Order ${order.orderNumber}`,
       `Status: ${order.orderStatus} | Payment: ${order.paymentStatus}`,
       "",
       ...order.items.map(
         (i) =>
-          `${i.name} x ${i.quantity} — ${(i.lineTotalPaise / 100).toFixed(2)} INR`,
+          `${i.name} x ${i.quantity} — ${(i.lineTotalPaise / 100).toFixed(2)} INR (incl. GST & delivery)`,
       ),
       "",
-      `Subtotal: ${(order.subtotalPaise / 100).toFixed(2)} INR`,
-      `Delivery (${order.deliveryPartnerName}): ${(order.deliveryChargePaise / 100).toFixed(2)} INR`,
+      `Subtotal${
+        order.tax.treatment === "gst" ? " (excl. GST)" : ""
+      }: ${(order.subtotalPaise / 100).toFixed(2)} INR`,
+      ...(gstPaise > 0
+        ? [`GST included: ${(gstPaise / 100).toFixed(2)} INR`]
+        : []),
+      `Delivery: ${
+        order.deliveryChargePaise > 0
+          ? `${(order.deliveryChargePaise / 100).toFixed(2)} INR`
+          : "Included"
+      }`,
       `Total: ${(order.totalPaise / 100).toFixed(2)} INR`,
       `Pincode: ${order.deliveryPincode}`,
     ];

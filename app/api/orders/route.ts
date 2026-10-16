@@ -87,13 +87,13 @@ export const POST = withErrorHandling(async (req: Request) => {
         lines: quote.lines.map((line) => ({
           productName: line.productName,
           quantity: line.quantity,
+          // Inclusive line amount — what the customer actually pays.
           lineTotalPaise: line.lineTotalPaise,
         })),
-        subtotalPaise: summary.subtotalPaise,
         taxPaise: summary.cgstPaise + summary.sgstPaise + summary.igstPaise,
-        deliveryChargePaise: summary.deliveryChargePaise,
+        taxType: summary.igstPaise > 0 ? "igst" : "cgst_sgst",
         deliveryPartnerName: quote.deliveryPartnerName,
-        etaDays: null,
+        etaDays: quote.etaDays,
         totalPaise: summary.totalPaise,
         pincode: quote.pincode,
       });

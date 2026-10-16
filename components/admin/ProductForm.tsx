@@ -161,7 +161,7 @@ export function ProductForm({
           value={form.gstRate}
           onChange={(e) => set("gstRate", e.target.value)}
           error={errors.gstRate}
-          hint="Blank = GST not configured (0% on GST orders). Catalogue prices are GST-exclusive."
+          hint="Blank = GST not configured (0% on GST orders). Catalogue prices are GST-inclusive (GST & delivery absorbed)."
         />
         <Input
           label="Shipping weight kg (optional)"

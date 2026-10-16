@@ -57,7 +57,9 @@ policies — the `customer_id` FKs are already in place for that.
 - DB CHECKs enforce `total_amount = subtotal + delivery_charge + cgst + sgst + igst`
   (zeros for pre-GST/non-GST rows) and `line_total = quantity * unit_price`,
   so history cannot drift when catalogue prices or rates change.
-- Catalogue prices are GST-exclusive; `products.gst_rate` NULL means 0%.
+- Catalogue prices are GST-INCLUSIVE; checkout reverse-computes the
+  taxable `unit_price` / `line_total` and stores the complement in
+  `line_tax_amount`. `products.gst_rate` NULL means 0%.
 
 ## Inventory policy (enforced in 0018, not just app code)
 

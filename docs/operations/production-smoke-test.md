@@ -35,7 +35,7 @@ it is not optional because staging passed.
 
 - [ ] `/products` lists the seeded products with images and prices.
 - [ ] Product search + price filter return correct results.
-- [ ] `/products/[slug]` renders price ex-GST, availability, GSTIN
+- [ ] `/products/[slug]` renders price incl. GST & delivery, availability, GSTIN
       field.
 - [ ] **Customer data protection**: anonymous browser sees no admin
       UI; calling an admin API without a session returns 401/403;

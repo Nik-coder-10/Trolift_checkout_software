@@ -148,7 +148,7 @@ export async function getPayableOrderForAdmin(
         .maybeSingle(),
       admin
         .from("order_items")
-        .select("product_name,quantity,line_total")
+        .select("product_name,quantity,line_total,line_tax_amount")
         .eq("order_id", o.id)
         .order("product_name"),
       admin
@@ -170,6 +170,7 @@ export async function getPayableOrderForAdmin(
     product_name: string;
     quantity: number;
     line_total: string;
+    line_tax_amount: string;
   }>;
   const p = payment as unknown as {
     transaction_reference: string | null;
@@ -204,7 +205,9 @@ export async function getPayableOrderForAdmin(
     items: rows.map((r) => ({
       name: r.product_name,
       quantity: r.quantity,
-      lineTotalPaise: toPaise(r.line_total),
+      // Customer-facing line amount is the INCLUSIVE total:
+      // line_total (taxable) + line_tax_amount (embedded GST).
+      lineTotalPaise: toPaise(r.line_total) + toPaise(r.line_tax_amount),
     })),
     paymentReferenceMasked: maskReference(p?.transaction_reference ?? null),
     createdAt: o.created_at,

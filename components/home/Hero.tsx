@@ -56,8 +56,8 @@ export function Hero() {
           <ol className="mt-3 flex flex-col gap-3">
             {(
               [
-                ["Pick equipment", "Browse the catalogue with clear, GST-exclusive pricing."],
-                ["Enter delivery pincode", "We check serviceability and freight before you pay."],
+                ["Pick equipment", "Browse the catalogue with clear, all-inclusive pricing."],
+                ["Enter delivery pincode", "We confirm serviceability before you pay."],
               ["Pay on UPI", "Pay the owner directly; every payment is verified."],
               ["Get GST invoice", "Proper billing with your GSTIN on every order."],
               ] as [string, string][]

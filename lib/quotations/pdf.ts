@@ -297,7 +297,9 @@ function totalsAndTerms(ctx: Ctx, quote: QuotationData): void {
   const { doc } = ctx;
   const t = quote.totals;
   const rows: Array<[string, number, boolean]> = [
-    ["Sub Total", t.subtotalPaise, false],
+    // Same ex-GST labelling as the tax invoice: the items column sums
+    // inclusive amounts, this subtotal is the taxable base.
+    [quote.treatment === "gst" ? "Sub Total (ex-GST)" : "Sub Total", t.subtotalPaise, false],
   ];
   if (quote.treatment === "gst") {
     if (t.cgstPaise + t.sgstPaise > 0) {

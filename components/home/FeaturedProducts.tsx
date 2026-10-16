@@ -16,8 +16,8 @@ export async function FeaturedProducts() {
             Featured equipment
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-zinc-600">
-            Prices exclusive of GST. Final freight is confirmed against your
-            delivery pincode before payment.
+            All prices include GST and delivery. Serviceability is
+            confirmed against your delivery pincode before payment.
           </p>
         </div>
       </div>

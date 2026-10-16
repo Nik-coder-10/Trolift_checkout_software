@@ -238,19 +238,17 @@ export default async function OrderPage({
             </ul>
             <dl className="mt-3 flex flex-col gap-1.5 border-t border-zinc-100 pt-3 text-sm">
               <div className="flex justify-between">
-                <dt className="text-zinc-600">Subtotal</dt>
+                <dt className="text-zinc-600">
+                  {order.tax.treatment === "gst"
+                    ? "Subtotal (excl. GST)"
+                    : "Subtotal"}
+                </dt>
                 <dd className="font-semibold text-zinc-900">
                   <PriceDisplay amountPaise={order.subtotalPaise} size="sm" />
                 </dd>
               </div>
               {order.tax.treatment === "gst" ? (
                 <>
-                  <div className="flex justify-between">
-                    <dt className="text-zinc-600">Taxable amount</dt>
-                    <dd className="font-semibold text-zinc-900">
-                      <PriceDisplay amountPaise={order.tax.taxablePaise} size="sm" />
-                    </dd>
-                  </div>
                   {order.tax.cgstPaise > 0 || order.tax.sgstPaise > 0 ? (
                     <>
                       <div className="flex justify-between">
@@ -277,9 +275,18 @@ export default async function OrderPage({
                 </>
               ) : null}
               <div className="flex justify-between">
-                <dt className="text-zinc-600">Delivery ({order.deliveryPartnerName})</dt>
+                <dt className="text-zinc-600">
+                  Delivery
+                  {order.deliveryPartnerName
+                    ? ` (${order.deliveryPartnerName})`
+                    : ""}
+                </dt>
                 <dd className="font-semibold text-zinc-900">
-                  <PriceDisplay amountPaise={order.deliveryChargePaise} size="sm" />
+                  {order.deliveryChargePaise > 0 ? (
+                    <PriceDisplay amountPaise={order.deliveryChargePaise} size="sm" />
+                  ) : (
+                    <span>Included</span>
+                  )}
                 </dd>
               </div>
               <div className="flex justify-between border-t border-zinc-100 pt-2 text-base">

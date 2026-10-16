@@ -347,7 +347,7 @@ describe("check API (forged figures are structurally ignored)", () => {
     wireEngine({ rates: [rate()], products: [product()] });
   });
 
-  it("derives weight and value from live rows, not the body", async () => {
+  it("answers from live rows without echoing any figures from the body", async () => {
     const res = await postCheck({
       pincode: "400001",
       subtotalPaise: 1,
@@ -367,10 +367,15 @@ describe("check API (forged figures are structurally ignored)", () => {
       data: Record<string, unknown>;
     };
     expect(json.ok).toBe(true);
-    // Live: 2 × 32 kg and 2 × ₹6299 — forged 0.001 kg / ₹1 ignored.
-    expect(json.data.totalWeightKg).toBe(64);
-    expect(json.data.subtotalPaise).toBe(1259800);
-    expect(json.data.deliveryChargePaise).toBe(45000);
+    // The verdict carries serviceability + coverage + partner only —
+    // forged subtotal/weight/charge (and real ones too) are never
+    // echoed back; the engine derived weight/value from live rows.
+    expect(json.data.serviceable).toBe(true);
+    expect(json.data).not.toHaveProperty("subtotalPaise");
+    expect(json.data).not.toHaveProperty("totalWeightKg");
+    expect(json.data).not.toHaveProperty("deliveryChargePaise");
+    expect(json.data.partner).toMatchObject({ name: "Delhivery" });
+    expect(json.data.message).toContain("included");
     expect(json.data.coverage).toMatchObject({
       pincode: "400001",
       listed: true,
@@ -392,7 +397,8 @@ describe("check API (forged figures are structurally ignored)", () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.data.serviceable).toBe(false);
-    expect(json.data.selected).toBeNull();
+    expect(json.data.partner).toBeNull();
+    expect(String(json.data.message)).toContain("nearby pincode");
     expect(json.data.coverage).toMatchObject({
       listed: true,
       oda: true,
@@ -470,6 +476,7 @@ describe("snapshots + live configuration", () => {
         deliveryChargePaise: 77000,
         deliveryWeightKg: 64,
         deliveryRuleSummary: "Weight 25–50 kg + Remote-area surcharge",
+        etaDays: null,
         totalPaise: 1336800,
         pincode: "400001",
       },

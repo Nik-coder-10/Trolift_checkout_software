@@ -191,6 +191,8 @@ describe("atomic order path (race loser fails safe)", () => {
         quantity: qty,
         unitPricePaise: 629900,
         lineTotalPaise: 629900 * qty,
+        unitTaxablePaise: 629900,
+        taxablePaise: 629900 * qty,
         gstRate: null as string | null,
         lineTaxPaise: 0,
         hsn: null,
@@ -220,6 +222,7 @@ describe("atomic order path (race loser fails safe)", () => {
     deliveryChargePaise: 45000,
     deliveryWeightKg: null,
     deliveryRuleSummary: null,
+    etaDays: null,
     totalPaise: 629900 * qty + 45000,
     pincode: "400001",
   });

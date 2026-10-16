@@ -194,10 +194,18 @@ export function buildInvoiceData(input: BuildInvoiceInput): InvoiceData {
     if (item.lineTotalPaise !== item.unitPricePaise * item.quantity) {
       fail(`${label} line total does not equal unit price × quantity.`);
     }
-    const expectedTax = Math.round(
-      (item.lineTotalPaise * parseGstRate(item.gstRate)) / 100,
-    );
-    if (item.lineTaxPaise !== expectedTax) {
+    // Two accepted storage shapes, both fully determined by the
+    // snapshotted rate: legacy add-on rows embed `round(total × r/100)`
+    // on top of an exclusive line total, while all-inclusive catalogue
+    // rows reverse-compute `total − round(total × 100/(100 + r))` into
+    // line tax. Either is a valid tax invoice breakdown; anything else
+    // means the snapshot was tampered with.
+    const lineRate = parseGstRate(item.gstRate);
+    const addOnTax = Math.round((item.lineTotalPaise * lineRate) / 100);
+    const inclusiveTax =
+      item.lineTotalPaise -
+      Math.round((item.lineTotalPaise * 100) / (100 + lineRate));
+    if (item.lineTaxPaise !== addOnTax && item.lineTaxPaise !== inclusiveTax) {
       fail(`${label} tax does not match its snapshotted rate.`);
     }
     return {

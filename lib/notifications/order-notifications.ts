@@ -40,9 +40,9 @@ export interface OrderNotificationInput {
     pincode: string | null;
   } | null;
   lines: NotificationLine[];
-  subtotalPaise: number;
   taxPaise: number;
-  deliveryChargePaise: number;
+  /** GST split carried by the order — names the component in the email. */
+  taxType: "igst" | "cgst_sgst";
   deliveryPartnerName: string | null;
   etaDays: { min: number; max: number } | null;
   totalPaise: number;
@@ -113,9 +113,8 @@ export async function notifyOrderPlaced(
     billingAddress: composeAddress(input.billing),
     gstin: input.billing?.gstin ?? null,
     lines: input.lines,
-    subtotalPaise: input.subtotalPaise,
     taxPaise: input.taxPaise,
-    deliveryChargePaise: input.deliveryChargePaise,
+    taxType: input.taxType,
     deliveryPartnerName: input.deliveryPartnerName,
     etaDays: input.etaDays,
     totalPaise: input.totalPaise,

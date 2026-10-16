@@ -135,11 +135,11 @@ export default async function ProductPage({
           <div className="mt-4 border-y border-zinc-200 py-4">
             <PriceDisplay
               amountPaise={priceToPaise(product.price)}
-              unitNote="excl. GST · GST invoice included"
+              unitNote="incl. GST & delivery · GST invoice included"
               size="lg"
             />
             <p className="mt-1 text-xs text-zinc-500">
-              Final freight is confirmed against your delivery pincode before payment.
+              Serviceability is confirmed against your delivery pincode before payment.
             </p>
           </div>
           <div className="mt-4">

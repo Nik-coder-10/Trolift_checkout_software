@@ -96,8 +96,8 @@ export function getSignatory(): Signatory | null {
  * rates or policy change — they are frozen into each document.
  */
 const DEFAULT_TERMS = [
-  "Above quoted prices are Exclusive of GST @18% on Ladder and 5 % On Trolley",
-  "Freight Charges Shall be Extra as Actual",
+  "Above quoted prices are Inclusive of GST @18% on Ladder and 5 % On Trolley",
+  "Freight and Delivery Charges are Included in the Quoted Prices",
   "Payment Terms:- 100% Advance along with the Order Confirmation",
   "Delivery Terms:- 2-5 days after confirmation of payment in bank account",
   "Quotation is valid only for 7 Days from the date.",

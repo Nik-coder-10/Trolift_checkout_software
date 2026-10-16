@@ -1,15 +1,17 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { AppError } from "@/lib/api/errors";
-import { quoteDelivery } from "@/lib/delivery/engine";
+import {
+  quoteDelivery,
+  NOT_SERVICEABLE_MESSAGE,
+} from "@/lib/delivery/engine";
 import {
   computeOrderTax,
   getBusinessStateCode,
-  lineTaxPaise,
+  splitInclusiveLine,
   stateCodeFromName,
   type OrderTax,
 } from "@/lib/tax/india";
-import { getDeliveryGstRate } from "@/lib/quotations/config";
 import { fetchAvailability } from "@/lib/inventory/availability";
 
 /**
@@ -24,10 +26,13 @@ import { fetchAvailability } from "@/lib/inventory/availability";
  * (stale carts and forged counts are rejected with the item named) —
  * this check is advisory; the atomic guard lives in create_order().
  *
- *   subtotal = Σ(unit_price × quantity)      (integer paise, ex-GST)
- *   tax      = GST engine over live product rates + delivery GST 18%
- *   delivery = delivery_engine(pincode, subtotal)
- *   total    = subtotal + tax + delivery
+ * All-inclusive pricing (0035): product prices already contain GST
+ * and delivery, so
+ *   unit/line splits  = reverse-computed taxable + embedded GST
+ *   subtotal          = Σ line taxable values   (invoice identity)
+ *   delivery          = 0 on every serviceable pincode
+ *                       (the engine still decides partner/ETA/state)
+ *   total             = subtotal + extracted GST = Σ inclusive lines
  */
 
 export interface OrderLineInput {
@@ -39,12 +44,17 @@ export interface PricedOrderLine {
   productId: string;
   productName: string;
   quantity: number;
-  /** Integer paise snapshot from the live product row. */
+  /** Inclusive unit price (paise) — the catalogue price the customer sees. */
   unitPricePaise: number;
+  /** Inclusive line total = unit × quantity (paise) — what the customer pays. */
   lineTotalPaise: number;
+  /** Reverse-computed taxable unit price (paise) — persisted as unit_price. */
+  unitTaxablePaise: number;
+  /** Reverse-computed taxable line total (paise) — persisted as line_total. */
+  taxablePaise: number;
   /** GST percent snapshot (decimal string) for the invoice. */
   gstRate: string | null;
-  /** Integer paise line GST (same rounding as the order engine). */
+  /** Embedded line GST = lineTotal − taxable (paise) — line_tax_amount. */
   lineTaxPaise: number;
   /** HSN snapshot for quotations (null = blank cell). */
   hsn: string | null;
@@ -62,16 +72,21 @@ export interface BillingInput {
 
 export interface OrderQuote {
   lines: PricedOrderLine[];
+  /** Sum of reverse-computed line taxable values (invoice identity). */
   subtotalPaise: number;
   tax: OrderTax;
   billing: BillingInput;
   deliveryPartnerId: string;
   deliveryPartnerName: string;
+  /** Always 0 — delivery is included in the catalogue price. */
   deliveryChargePaise: number;
   /** Shipment weight in kg (3dp) when all line weights are known. */
   deliveryWeightKg: number | null;
-  /** Frozen human-readable freight rules (no internal IDs). */
+  /** Frozen human-readable delivery note (charges never apply). */
   deliveryRuleSummary: string | null;
+  /** Partner ETA window when the rate row carries one (for emails). */
+  etaDays: { min: number; max: number } | null;
+  /** Inclusive grand total = subtotal + extracted GST = Σ inclusive lines. */
   totalPaise: number;
   pincode: string;
 }
@@ -143,15 +158,17 @@ export function priceOrderLines(
     if (!Number.isFinite(unitPricePaise) || unitPricePaise < 0) {
       throw new AppError("INTERNAL_ERROR", "Invalid product price.", 500);
     }
-    const lineTotalPaise = unitPricePaise * item.quantity;
+    const split = splitInclusiveLine(unitPricePaise, item.quantity, product.gst_rate);
     return {
       productId: product.id,
       productName: product.name,
       quantity: item.quantity,
-      unitPricePaise,
-      lineTotalPaise,
+      unitPricePaise: split.unitPricePaise,
+      lineTotalPaise: split.lineTotalPaise,
+      unitTaxablePaise: split.unitTaxablePaise,
+      taxablePaise: split.taxablePaise,
       gstRate: product.gst_rate,
-      lineTaxPaise: lineTaxPaise(lineTotalPaise, product.gst_rate),
+      lineTaxPaise: split.gstPaise,
       hsn: product.hsn_code,
     };
   });
@@ -196,7 +213,10 @@ export async function quoteOrder(input: {
     }),
   );
   const lines = priceOrderLines(rows, input.items);
-  const subtotalPaise = lines.reduce((n, l) => n + l.lineTotalPaise, 0);
+  // Money identity: subtotal = Σ taxable values; order value (used for
+  // partner order windows) = Σ inclusive line totals.
+  const subtotalPaise = lines.reduce((n, l) => n + l.taxablePaise, 0);
+  const orderValuePaise = lines.reduce((n, l) => n + l.lineTotalPaise, 0);
 
   const billing: BillingInput = {
     gstin: input.billing?.gstin ?? null,
@@ -210,13 +230,11 @@ export async function quoteOrder(input: {
 
   // Lines travel too (IDs + quantities only): the engine re-fetches
   // weights, categories and prices live — client figures never qualify.
-  const delivery = await quoteDelivery(input.pincode, subtotalPaise, input.items);
+  // The engine decides coverage, partner, ETA and state only; its
+  // charge is ignored — delivery is included in the catalogue price.
+  const delivery = await quoteDelivery(input.pincode, orderValuePaise, input.items);
   if (!delivery.serviceable || !delivery.selected) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      delivery.reason ?? "This pincode is not serviceable.",
-      422,
-    );
+    throw new AppError("VALIDATION_ERROR", NOT_SERVICEABLE_MESSAGE, 422);
   }
 
   // B2C orders have no billing state — use the delivery pincode's
@@ -226,13 +244,11 @@ export async function quoteOrder(input: {
 
   const tax = computeOrderTax({
     lines: lines.map((l) => ({
-      lineTotalPaise: l.lineTotalPaise,
-      gstRate: l.gstRate,
+      taxablePaise: l.taxablePaise,
+      gstPaise: l.lineTaxPaise,
     })),
     customerStateCode,
     businessStateCode: getBusinessStateCode(),
-    deliveryChargePaise: delivery.selected.deliveryChargePaise,
-    deliveryGstRate: getDeliveryGstRate(),
   });
 
   return {
@@ -242,12 +258,11 @@ export async function quoteOrder(input: {
     billing,
     deliveryPartnerId: delivery.selected.partner.id,
     deliveryPartnerName: delivery.selected.partner.name,
-    deliveryChargePaise: delivery.selected.deliveryChargePaise,
+    deliveryChargePaise: 0,
     deliveryWeightKg: delivery.totalWeightKg,
-    deliveryRuleSummary:
-      delivery.appliedRules.length > 0 ? delivery.appliedRules.join(" + ") : null,
-    totalPaise:
-      subtotalPaise + tax.totalGstPaise + delivery.selected.deliveryChargePaise,
+    deliveryRuleSummary: "Delivery included in product price",
+    etaDays: delivery.selected.etaDays ?? null,
+    totalPaise: subtotalPaise + tax.totalGstPaise,
     pincode: delivery.pincode,
   };
 }

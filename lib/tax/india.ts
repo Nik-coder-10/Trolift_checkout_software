@@ -1,36 +1,43 @@
 /**
  * Indian GST calculation (pure, integer paise only, unit-tested).
  *
- * Model:
- * - Catalogue prices are GST-exclusive (taxable base).
+ * Model (all-inclusive pricing, 0035):
+ * - Catalogue prices are GST-INCLUSIVE MRPs — they already contain
+ *   the product's GST AND the absorbed delivery cost.
  * - Each line carries its own GST rate from the live product row
  *   (NULL = no GST configured → 0%).
- * - GST applies to every order (B2C and B2B alike). A GSTIN only
- *   selects the invoice identity — it no longer gates the tax.
+ * - The taxable value and GST are REVERSE-COMPUTED from the inclusive
+ *   price: taxable = round(inclusive × 100/(100+rate)), GST = the
+ *   complement — so taxable + GST reconstructs the charged amount
+ *   exactly (no paisa is created or lost).
+ * - Per-line taxable values are extracted per UNIT first and multiplied
+ *   by quantity, keeping line_total = unit_price × quantity exact in
+ *   the database.
  * - Same-state sale  → CGST + SGST split of the total GST.
  * - Inter-state sale → IGST (full GST as one component).
- * - Delivery (third-party freight) carries its own GST rate
- *   (default 18%) folded into the same CGST/SGST or IGST split.
+ * - Delivery is included in the catalogue price; orders carry no
+ *   separate delivery charge (serviceability only).
  *
  * ROUNDING (deterministic, exact integers throughout):
- *   line_gst_i   = round(line_taxable_i × rate_i / 100)
- *   delivery_gst = round(delivery × delivery_rate / 100)
- *   total_gst    = Σ line_gst_i + delivery_gst
+ *   unit_taxable_i = round(unit_incl_i × 100 / (100 + rate_i))
+ *   line_taxable_i = unit_taxable_i × qty_i
+ *   line_gst_i     = line_incl_i − line_taxable_i
+ *   total_gst      = Σ line_gst_i
  *   same-state:  cgst = floor(total_gst / 2), sgst = total_gst − cgst
  *   inter-state: igst = total_gst
  * so cgst + sgst ≡ igst ≡ total_gst always, with no float anywhere.
  *
- * taxable_amount stays the goods subtotal (Σ line values) — the
- * invoice builder requires that identity; delivery tax lives only in
- * the cgst/sgst/igst split.
+ * taxable_amount stays the sum of line taxable values — the invoice
+ * builder requires that identity (subtotal === taxable === Σ lines).
  */
 
 export type TaxType = "none" | "cgst_sgst" | "igst";
 
 export interface TaxedLineInput {
-  lineTotalPaise: number;
-  /** GST percent as a decimal string (NUMERIC), or null when unset. A JSON number from PostgREST is accepted too. */
-  gstRate: string | number | null;
+  /** Taxable (pre-GST) value of the line, integer paise. */
+  taxablePaise: number;
+  /** GST embedded in the line's inclusive total, integer paise. */
+  gstPaise: number;
 }
 
 export interface OrderTax {
@@ -152,12 +159,64 @@ export function stateCodeFromName(name: string | null): string | null {
 }
 
 /**
- * Compute order tax from priced lines plus the delivery charge.
+ * Taxable value extracted from a GST-INCLUSIVE amount. Exact inverse
+ * of the embedded-GST complement: round(P × 100/(100+rate)).
+ */
+export function inclusiveTaxablePaise(
+  inclusivePaise: number,
+  gstRate: string | number | null,
+): number {
+  return Math.round((inclusivePaise * 100) / (100 + parseGstRate(gstRate)));
+}
+
+/** GST embedded in a GST-INCLUSIVE amount (complement — never rounds away). */
+export function inclusiveGstPaise(
+  inclusivePaise: number,
+  gstRate: string | number | null,
+): number {
+  return inclusivePaise - inclusiveTaxablePaise(inclusivePaise, gstRate);
+}
+
+export interface SplitLine {
+  /** Inclusive unit price (paise) — what the customer sees. */
+  unitPricePaise: number;
+  /** Inclusive line total = unit × qty (paise). */
+  lineTotalPaise: number;
+  /** Taxable unit price (paise) — persisted as unit_price. */
+  unitTaxablePaise: number;
+  /** Taxable line total = unitTaxable × qty (paise) — persisted as line_total. */
+  taxablePaise: number;
+  /** Embedded line GST = lineTotal − taxable (paise) — line_tax_amount. */
+  gstPaise: number;
+}
+
+/**
+ * Split one order line from its inclusive unit price. Unit-first
+ * rounding keeps line_total = unit_price × quantity exact in the DB
+ * and taxable + gst reconstructs the charged line total exactly.
+ */
+export function splitInclusiveLine(
+  unitInclusivePaise: number,
+  quantity: number,
+  gstRate: string | number | null,
+): SplitLine {
+  const unitTaxablePaise = inclusiveTaxablePaise(unitInclusivePaise, gstRate);
+  const lineTotalPaise = unitInclusivePaise * quantity;
+  const taxablePaise = unitTaxablePaise * quantity;
+  return {
+    unitPricePaise: unitInclusivePaise,
+    lineTotalPaise,
+    unitTaxablePaise,
+    taxablePaise,
+    gstPaise: lineTotalPaise - taxablePaise,
+  };
+}
+
+/**
+ * Compute order tax from pre-split lines (taxable + embedded GST).
  * GST applies to every order — a GSTIN is not required. taxablePaise
- * is ALWAYS the goods subtotal (it must equal the order subtotal —
- * downstream invoice verification requires this identity). Delivery
- * GST is folded into the cgst/sgst/igst split so the DB total check
- * (total = subtotal + delivery + tax) still holds.
+ * is ALWAYS the sum of line taxable values (it must equal the order
+ * subtotal — downstream invoice verification requires this identity).
  *
  * customerStateCode drives the CGST+SGST vs IGST split; when null
  * (B2C, no billing profile) the caller should pass the delivery
@@ -168,24 +227,9 @@ export function computeOrderTax(input: {
   lines: TaxedLineInput[];
   customerStateCode: string | null;
   businessStateCode: string | null;
-  /** Delivery charge in paise (0 when free). Taxed at deliveryGstRate. */
-  deliveryChargePaise?: number;
-  /** GST percent on delivery; null/undefined = untaxed delivery. */
-  deliveryGstRate?: string | number | null;
 }): OrderTax {
-  const taxablePaise = input.lines.reduce((n, l) => n + l.lineTotalPaise, 0);
-  const lineTaxes = input.lines.map((l) =>
-    Math.round((l.lineTotalPaise * parseGstRate(l.gstRate)) / 100),
-  );
-  let totalGstPaise = lineTaxes.reduce((n, t) => n + t, 0);
-
-  const deliveryChargePaise = input.deliveryChargePaise ?? 0;
-  const deliveryGstRate = input.deliveryGstRate ?? null;
-  if (deliveryChargePaise > 0 && deliveryGstRate !== null) {
-    totalGstPaise += Math.round(
-      (deliveryChargePaise * parseGstRate(deliveryGstRate)) / 100,
-    );
-  }
+  const taxablePaise = input.lines.reduce((n, l) => n + l.taxablePaise, 0);
+  const totalGstPaise = input.lines.reduce((n, l) => n + l.gstPaise, 0);
 
   const sameState =
     input.customerStateCode !== null &&
@@ -213,9 +257,4 @@ export function computeOrderTax(input: {
     igstPaise: totalGstPaise,
     totalGstPaise,
   };
-}
-
-/** Per-line GST for snapshots/invoices (same rounding as the order). */
-export function lineTaxPaise(lineTotalPaise: number, gstRate: string | number | null): number {
-  return Math.round((lineTotalPaise * parseGstRate(gstRate)) / 100);
 }
