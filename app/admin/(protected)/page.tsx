@@ -160,7 +160,7 @@ export default async function AdminDashboardPage({
   const attentionTotal = queues.reduce((n, item) => n + item.count, 0);
 
   const quickActions: Array<{ label: string; href: string; external?: boolean }> = [
-    { label: "View pending payments", href: "/admin/orders?payment=submitted" },
+    { label: "View pending payments", href: "/admin/payments" },
     { label: "View new orders", href: "/admin/orders?status=confirmed" },
     { label: "View dispatch queue", href: "/admin/orders?status=ready_for_dispatch" },
     { label: "Add product", href: "/admin/products/new" },
