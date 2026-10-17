@@ -51,8 +51,16 @@ export function isValidGstin(value: string): boolean {
 
 /** 10-digit Indian mobile (allows +91 / leading 0 for UX). */
 export function isValidIndianPhone(value: string): boolean {
-  const digits = value.replace(/[^\d]/g, "").replace(/^(91|0)/, "");
-  return /^[6-9]\d{9}$/.test(digits);
+  const digits = value.replace(/[^\d]/g, "");
+  // Strip a prefix only when the length proves it is one: a bare
+  // 10-digit national number may itself start with "91" (9119185993).
+  let national = digits;
+  if (digits.length === 12 && digits.startsWith("91")) {
+    national = digits.slice(2);
+  } else if (digits.length === 11 && digits.startsWith("0")) {
+    national = digits.slice(1);
+  }
+  return /^[6-9]\d{9}$/.test(national);
 }
 
 export function isValidEmail(value: string): boolean {

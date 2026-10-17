@@ -59,13 +59,23 @@ describe("GSTIN validation (optional; format + checksum)", () => {
 });
 
 describe("phone + email", () => {
-  it.each(["+919876543210", "9876543210", "09876543210"])(
-    "accepts %s",
-    (p) => {
-      expect(isValidIndianPhone(p)).toBe(true);
-    },
-  );
-  it.each(["123", "+9118001234567890123", "abcdefghij"])("rejects %s", (p) => {
+  it.each([
+    "+919876543210",
+    "9876543210",
+    "09876543210",
+    // National part starts with 91 — must not be mistaken for +91.
+    "9119185993",
+    "+919119185993",
+    "09119185993",
+  ])("accepts %s", (p) => {
+    expect(isValidIndianPhone(p)).toBe(true);
+  });
+  it.each([
+    "123",
+    "+9118001234567890123",
+    "abcdefghij",
+    "91191859931",
+  ])("rejects %s", (p) => {
     expect(isValidIndianPhone(p)).toBe(false);
   });
   it("accepts valid email, rejects junk", () => {
