@@ -6,6 +6,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PriceDisplay } from "@/components/ui/PriceDisplay";
+import { DELIVERY_TIMEFRAME } from "@/lib/delivery/timeframe";
 import { formatMoney } from "@/lib/orders/pricing";
 import type { ApiResponse } from "@/types/api";
 
@@ -204,7 +205,7 @@ export function PreviewTool({ products }: { products: PreviewProduct[] }) {
               <strong>
                 {formatMoney({ amountPaise: result.deliveryChargePaise ?? 0, currency: "INR" })}
               </strong>
-              {result.etaDays ? ` · ETA ${result.etaDays.min}–${result.etaDays.max} days` : null}
+              {` · ETA ${DELIVERY_TIMEFRAME}`}
             </p>
             <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
               {result.subtotalPaise !== null ? (

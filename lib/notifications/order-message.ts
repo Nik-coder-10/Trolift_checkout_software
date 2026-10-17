@@ -11,6 +11,7 @@
  */
 
 import { lookupDelhiveryPincode } from "@/lib/delivery/delhivery-pincodes";
+import { DELIVERY_TIMEFRAME } from "@/lib/delivery/timeframe";
 
 export interface NotificationLine {
   productName: string;
@@ -66,9 +67,7 @@ export function deliveryStatusLine(input: OrderMessageInput): string {
   if (!coverage.deliverable) {
     return `Pincode ${input.pincode}${where}: not deliverable — ${coverage.reason ?? "outside our delivery area."}`;
   }
-  const eta = input.etaDays
-    ? `, ETA ${input.etaDays.min}–${input.etaDays.max} days`
-    : "";
+  const eta = `, ETA ${DELIVERY_TIMEFRAME}`;
   if (input.deliveryPartnerName === null) {
     return `Pincode ${input.pincode}${where}: serviceable on the Delhivery list — delivery included.`;
   }

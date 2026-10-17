@@ -19,6 +19,7 @@ import {
   type CheckoutField,
   type CheckoutFormData,
 } from "@/lib/checkout/validation";
+import { DELIVERY_TIMEFRAME } from "@/lib/delivery/timeframe";
 import { INDIAN_STATES } from "@/lib/tax/india";
 import { isValidPincode, normalizePincode } from "@/lib/validations/common";
 import type { ApiResponse } from "@/types/api";
@@ -538,7 +539,7 @@ export function CheckoutForm() {
                   <p>
                     Partner:{" "}
                     <strong>{delivery.result.partner?.name ?? "Our delivery team"}</strong>
-                    {" · 5-6 business days"}
+                    {` · ${DELIVERY_TIMEFRAME}`}
                   </p>
                   <p>
                     Delivery: <strong>Included in the price</strong>

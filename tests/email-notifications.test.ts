@@ -106,7 +106,7 @@ describe("notification copy", () => {
     expect(text).toContain("Total: ₹37,597.00");
     expect(text).not.toContain("Subtotal:");
     expect(text).toContain(
-      "Pincode 411001 (Maharashtra): serviceable — Delhivery, ETA 2–4 days, delivery included.",
+      "Pincode 411001 (Maharashtra): serviceable — Delhivery, ETA 5-6 business days, delivery included.",
     );
   });
 
@@ -163,6 +163,12 @@ describe("notification copy", () => {
     const status = deliveryStatusLine({ ...INPUT, pincode: "680522" });
     expect(status).toContain("Pincode 680522 (Kerala): not deliverable");
     expect(status).toContain("outside our delivery area");
+  });
+
+  it("promises the same 5-6 business days even when the rule carries no ETA", () => {
+    const status = deliveryStatusLine({ ...INPUT, etaDays: null });
+    expect(status).toContain("ETA 5-6 business days");
+    expect(status).not.toMatch(/\d–\d days/);
   });
 
   it("uses the pincode the order was placed with, not the billing pincode", () => {
