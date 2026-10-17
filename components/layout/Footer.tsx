@@ -6,7 +6,7 @@ import { slugifyCategory } from "@/lib/catalog/products";
 /**
  * Public footer: brand + catalogue + company + buying-info columns,
  * collapsing to one column on mobile. No hard-coded contact details —
- * buying flows route through the contact section.
+ * buying flows route through the contact page.
  */
 export function Footer() {
   const year = new Date().getFullYear();
@@ -56,7 +56,7 @@ export function Footer() {
               [
                 ["Featured products", "/#featured"],
                 ["Why Trolift", "/#trust"],
-                ["Contact sales", "/#contact"],
+                ["Contact sales", "/contact"],
                 ["API health", "/api/health"],
               ] as [string, string][]
             ).map(([label, href]) => (
@@ -75,7 +75,7 @@ export function Footer() {
             <li>Volume pricing on request</li>
             <li>Delivery across India by pincode</li>
             <li>
-              <Link href="/#contact" className="font-semibold text-amber-400 hover:text-amber-300 hover:underline">
+              <Link href="/contact" className="font-semibold text-amber-400 hover:text-amber-300 hover:underline">
                 Request a callback →
               </Link>
             </li>

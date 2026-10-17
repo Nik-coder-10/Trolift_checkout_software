@@ -205,7 +205,7 @@ export default async function ProductsPage({
 
       <p className="mt-6 text-sm text-zinc-500">
         Need something specific?{" "}
-        <Link href="/#contact" className="font-semibold text-brand-700 hover:underline">
+        <Link href="/contact" className="font-semibold text-brand-700 hover:underline">
           Ask sales for a quote
         </Link>
         .

@@ -158,7 +158,7 @@ export default async function ProductPage({
           </div>
           <div className="mt-3">
             <Link
-              href="/#contact"
+              href="/contact"
               className="inline-flex h-12 w-full items-center justify-center rounded-md bg-brand-800 px-6 text-base font-bold text-white hover:bg-brand-700"
             >
               Enquire about this product

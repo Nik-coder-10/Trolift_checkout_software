@@ -37,7 +37,7 @@ Legend for the environment matrix: **R** = required, **O** = optional,
 | `UPSTASH_REDIS_REST_URL` | **Secret** | — | — | O | **R** | Shared sliding-window store so all instances enforce one budget. |
 | `UPSTASH_REDIS_REST_TOKEN` | **Secret** | — | — | O | **R** | Paired token for the Upstash REST API. |
 | `RATE_LIMIT_UPSTREAM_TIMEOUT_MS` | — | O | O | O | O | Shared-store call timeout. Default 1500. |
-| `RATE_LIMIT_*_PER_MIN`, `RATE_LIMIT_WINDOW_MS` | — | O | O | O | O | Per-category budgets (orders, claim, session, recover, delivery, import, export, invoice, admin, auth, ready). Defaults live in `lib/rate-limit/index.ts`. |
+| `RATE_LIMIT_*_PER_MIN`, `RATE_LIMIT_WINDOW_MS` | — | O | O | O | O | Per-category budgets (orders, claim, session, recover, delivery, contact, import, export, invoice, admin, auth, ready). Defaults live in `lib/rate-limit/index.ts`. |
 | `TRUST_PROXY_HEADERS` | — | — | — | O | O | `true` **only** behind a proxy that overwrites `X-Forwarded-For`/`X-Real-IP`. On Vercel, `x-vercel-forwarded-for` is always trusted and this is unnecessary. |
 
 \* Production can run with `TROLIFT_STATE_CODE` unset (IGST for all GST

@@ -91,6 +91,7 @@ export type RateLimitCategory =
   | "session"
   | "recover"
   | "delivery"
+  | "contact"
   | "invoice"
   | "import"
   | "export"
@@ -129,6 +130,11 @@ export function routeLimit(route: RateLimitCategory | RateLimitRoute): CategoryP
     case "delivery":
       // Public quote: high enough for offices behind one NAT egress.
       return { limit: readEnvInt("RATE_LIMIT_DELIVERY_PER_MIN", 60), windowMs, onBackendError: "open" };
+    case "contact":
+      // Public query that triggers an outbound email: tight, and fails
+      // closed — a store outage must never open an unbounded channel
+      // to the inbox. The page shows phone numbers as the fallback.
+      return { limit: readEnvInt("RATE_LIMIT_CONTACT_PER_MIN", 5), windowMs, onBackendError: "closed" };
     case "import":
       return { limit: readEnvInt("RATE_LIMIT_IMPORT_PER_MIN", 10), windowMs, onBackendError: "closed" };
     case "export":

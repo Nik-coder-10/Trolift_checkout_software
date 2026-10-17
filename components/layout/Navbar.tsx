@@ -12,7 +12,7 @@ const LINKS = [
   { label: "Home", href: "/" },
   { label: "Products", href: "/products" },
   { label: "Why Trolift", href: "/#trust" },
-  { label: "Contact", href: "/#contact" },
+  { label: "Contact", href: "/contact" },
 ] as const;
 
 function BrandMark() {
@@ -38,7 +38,7 @@ function QuoteCta({ mobile = false }: { mobile?: boolean }) {
     ? "flex h-11 items-center justify-center rounded-md px-4 text-sm font-bold"
     : "inline-flex h-10 items-center rounded-md px-4 text-sm font-bold";
   return (
-    <Link href="/#contact" className={`${cls} bg-amber-400 text-brand-950 hover:bg-amber-300`}>
+    <Link href="/contact" className={`${cls} bg-amber-400 text-brand-950 hover:bg-amber-300`}>
       Get a Quote
     </Link>
   );
