@@ -538,9 +538,7 @@ export function CheckoutForm() {
                   <p>
                     Partner:{" "}
                     <strong>{delivery.result.partner?.name ?? "Our delivery team"}</strong>
-                    {delivery.result.etaDays
-                      ? ` · ${delivery.result.etaDays.min}–${delivery.result.etaDays.max} days`
-                      : null}
+                    {" · 5-6 business days"}
                   </p>
                   <p>
                     Delivery: <strong>Included in the price</strong>
