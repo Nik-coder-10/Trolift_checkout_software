@@ -95,7 +95,7 @@ export default async function AdminDashboardPage({
       key: "claims",
       label: "Payment claims to verify",
       count: claims.count,
-      href: "/admin/orders?payment=submitted",
+      href: "/admin/payments",
       tone: "warning",
       empty: "All caught up — no payment claims require review.",
     },
@@ -270,7 +270,7 @@ export default async function AdminDashboardPage({
                 </span>
               </h2>
               <Link
-                href="/admin/orders?payment=submitted"
+                href="/admin/payments"
                 className="text-sm font-bold text-brand-800 hover:text-brand-600 hover:underline"
               >
                 View all →

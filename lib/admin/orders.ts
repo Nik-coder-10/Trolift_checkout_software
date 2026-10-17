@@ -220,6 +220,103 @@ export async function listAdminOrders(
   };
 }
 
+export interface PaymentClaimRow {
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  totalPaise: number;
+  createdAt: string;
+  /** Full UTR (admin-only surface; never rendered customer-side). */
+  reference: string | null;
+  paymentUpdatedAt: string | null;
+  /** Object path in the private payment-proofs bucket, or null. */
+  proofPath: string | null;
+}
+
+/**
+ * The verification inbox: every order whose UTR claim is still
+ * `submitted`, newest first. The latest payment row per order carries
+ * the reference / proof path; a payments error degrades those fields
+ * to null (the order itself still renders) rather than failing the page.
+ */
+export async function listPaymentClaims(
+  page = 1,
+  pageSize = 20,
+): Promise<{
+  claims: PaymentClaimRow[];
+  total: number;
+  page: number;
+  totalPages: number;
+}> {
+  await requireAdmin();
+  const client = await createClient();
+  const from = (page - 1) * pageSize;
+  const { data, error, count } = await client
+    .from("orders")
+    .select(
+      "id,order_number,created_at,total_amount," +
+        "customers!inner(name,phone)",
+      { count: "exact" },
+    )
+    .eq("payment_status", "submitted")
+    .order("created_at", { ascending: false })
+    .range(from, from + pageSize - 1);
+  if (error) {
+    throw new AppError("INTERNAL_ERROR", "Could not load payment claims.", 500);
+  }
+  const rows = (data ?? []) as unknown as Array<{
+    id: string;
+    order_number: string;
+    created_at: string;
+    total_amount: string;
+    customers: { name: string; phone: string } | null;
+  }>;
+  const payments = new Map<
+    string,
+    {
+      transaction_reference: string | null;
+      updated_at: string | null;
+      proof_path: string | null;
+    }
+  >();
+  if (rows.length > 0) {
+    const { data: payRows } = await client
+      .from("payments")
+      .select("order_id,transaction_reference,updated_at,proof_path")
+      .in("order_id", rows.map((r) => r.id))
+      .order("created_at", { ascending: false });
+    for (const p of (payRows ?? []) as unknown as Array<{
+      order_id: string;
+      transaction_reference: string | null;
+      updated_at: string | null;
+      proof_path: string | null;
+    }>) {
+      if (!payments.has(p.order_id)) payments.set(p.order_id, p);
+    }
+  }
+  const total = count ?? 0;
+  return {
+    claims: rows.map((r) => {
+      const pay = payments.get(r.id) ?? null;
+      return {
+        orderId: r.id,
+        orderNumber: r.order_number,
+        customerName: r.customers?.name ?? "—",
+        customerPhone: r.customers?.phone ?? "—",
+        totalPaise: toPaise(r.total_amount),
+        createdAt: r.created_at,
+        reference: pay?.transaction_reference ?? null,
+        paymentUpdatedAt: pay?.updated_at ?? null,
+        proofPath: pay?.proof_path ?? null,
+      };
+    }),
+    total,
+    page,
+    totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+  };
+}
+
 export interface AdminOrderBilling {
   name: string | null;
   addressLine: string | null;

@@ -24,6 +24,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 import {
   escapeLikeWildcards,
   listAdminOrders,
+  listPaymentClaims,
   parseAdminOrderQuery,
   transitionOrderStatus,
   verifyPaymentClaim,
@@ -31,6 +32,19 @@ import {
 import { POST as statusPost } from "@/app/api/admin/orders/status/route";
 import { POST as verifyPost } from "@/app/api/admin/payments/verify/route";
 import { GET as listGet } from "@/app/api/admin/orders/route";
+import { GET as proofGet } from "@/app/api/admin/payments/proof/route";
+
+let proofBytes: Uint8Array | null = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+vi.mock("@/lib/storage/payment-proofs", () => ({
+  PAYMENT_PROOF_BUCKET: "payment-proofs",
+  downloadPaymentProof: (path: string) =>
+    proofBytes === null || path.includes("missing")
+      ? Promise.resolve(null)
+      : Promise.resolve({
+          bytes: Buffer.from(proofBytes),
+          contentType: "image/png" as const,
+        }),
+}));
 
 beforeEach(() => {
   resetRateLimits();
@@ -386,5 +400,138 @@ describe("admin order search LIKE escaping", () => {
       .find((op) => op.table === "orders")
       ?.filters.find((f) => f.op === "ilike");
     expect(ilike?.val).toBe("%TS-261001%");
+  });
+});
+
+describe("payment claims inbox", () => {
+  function wireClaims(): { seen: MockOp[] } {
+    const seen: MockOp[] = [];
+    handler = (op) => {
+      seen.push(op);
+      if (op.table === "profiles") return { rows: [{ is_admin: true }], error: null };
+      if (op.table === "orders") {
+        return {
+          rows: [
+            {
+              id: "o1",
+              order_number: "TS-1",
+              created_at: "2026-10-05T00:00:00Z",
+              total_amount: "110.00",
+              customers: { name: "A", phone: "+911111111111" },
+            },
+          ],
+          error: null,
+          count: 1,
+        };
+      }
+      if (op.table === "payments") {
+        return {
+          rows: [
+            {
+              order_id: "o1",
+              transaction_reference: "123456789012",
+              updated_at: "2026-10-05T01:00:00Z",
+              proof_path: "o1/abc.png",
+            },
+          ],
+          error: null,
+        };
+      }
+      throw new Error(`unexpected ${op.table}`);
+    };
+    return { seen };
+  }
+
+  it("lists submitted claims with reference, proof path and totals", async () => {
+    const { seen } = wireClaims();
+    const result = await listPaymentClaims(1);
+    expect(result.total).toBe(1);
+    expect(result.claims[0]).toMatchObject({
+      orderId: "o1",
+      orderNumber: "TS-1",
+      customerName: "A",
+      totalPaise: 11000,
+      reference: "123456789012",
+      proofPath: "o1/abc.png",
+    });
+    const ordersOp = seen.find((op) => op.table === "orders");
+    expect(ordersOp?.filters).toContainEqual({
+      col: "payment_status",
+      op: "eq",
+      val: "submitted",
+    });
+  });
+
+  it("degrades to null reference/proof when the payments query fails", async () => {
+    handler = (op) => {
+      if (op.table === "profiles") return { rows: [{ is_admin: true }], error: null };
+      if (op.table === "orders") {
+        return {
+          rows: [
+            {
+              id: "o1",
+              order_number: "TS-1",
+              created_at: "2026-10-05T00:00:00Z",
+              total_amount: "110.00",
+              customers: { name: "A", phone: "+911111111111" },
+            },
+          ],
+          error: null,
+          count: 1,
+        };
+      }
+      if (op.table === "payments") return { rows: [], error: { message: "boom" } };
+      throw new Error(`unexpected ${op.table}`);
+    };
+    const result = await listPaymentClaims(1);
+    expect(result.claims[0]).toMatchObject({
+      reference: null,
+      proofPath: null,
+    });
+  });
+
+  it("throws for non-admins", async () => {
+    adminFlag = false;
+    handler = profileResponder();
+    await expect(listPaymentClaims(1)).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("payment proof streaming route", () => {
+  beforeEach(() => {
+    proofBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+  });
+
+  it("rejects unauthenticated callers with 401", async () => {
+    authUser = null;
+    handler = profileResponder();
+    const res = await proofGet(
+      new Request("http://localhost/api/admin/payments/proof?path=o1/abc.png"),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("streams the screenshot for admins", async () => {
+    handler = profileResponder();
+    const res = await proofGet(
+      new Request("http://localhost/api/admin/payments/proof?path=o1/abc.png"),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/png");
+    expect(res.headers.get("Cache-Control")).toContain("no-store");
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(Array.from(bytes)).toEqual([0x89, 0x50, 0x4e, 0x47]);
+  });
+
+  it("rejects malformed paths and maps missing objects to 404", async () => {
+    handler = profileResponder();
+    const traversal = await proofGet(
+      new Request("http://localhost/api/admin/payments/proof?path=../secret.png"),
+    );
+    expect(traversal.status).toBe(400);
+    const missing = await proofGet(
+      new Request("http://localhost/api/admin/payments/proof?path=o1/missing.png"),
+    );
+    expect(missing.status).toBe(404);
   });
 });
