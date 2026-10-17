@@ -13,6 +13,7 @@ const LINKS = [
   { label: "Products", href: "/products" },
   { label: "Why Trolift", href: "/#trust" },
   { label: "Contact", href: "/contact" },
+  { label: "Admin", href: "/admin/login" },
 ] as const;
 
 function BrandMark() {
