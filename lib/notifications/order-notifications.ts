@@ -128,7 +128,7 @@ export async function notifyOrderPlaced(
     couponCode: input.couponCode,
     pincode: input.pincode,
     shippingAddress: input.shippingAddress,
-    paymentWindowHours: getPaymentWindowHours(),
+    paymentWindowHours: await getPaymentWindowHours(),
     siteUrl: siteConfig.url,
     hasPaymentQr: qrAttachment !== null,
   };

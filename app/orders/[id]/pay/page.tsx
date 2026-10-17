@@ -55,6 +55,7 @@ export default async function OrderPayPage({
   const { id } = await params;
   const order = await loadOrder(id);
   if (!order) notFound();
+  const paymentWindowHours = await getPaymentWindowHours();
 
   const canClaim =
     (order.paymentStatus === "pending" || order.paymentStatus === "failed") &&
@@ -93,7 +94,7 @@ export default async function OrderPayPage({
       </div>
       <p className="mt-1 text-sm text-zinc-600">
         Hi {order.customerName} — please complete payment within{" "}
-        {getPaymentWindowHours()} hours so your equipment ships on time.
+        {paymentWindowHours} hours so your equipment ships on time.
       </p>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">

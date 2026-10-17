@@ -1,9 +1,13 @@
+import { getSetting } from "@/lib/settings/server";
+
 /**
- * Trolift business identity for invoices (server configuration, not DB).
+ * Trolift business identity for invoices (server configuration).
  *
- * The seller block on every invoice comes from THESE environment values
- * — never from product/customer rows — so catalogue edits cannot alter
- * who issued a historical invoice. Optional fields are omitted from the
+ * The seller block on every invoice comes from THESE values — never
+ * from product/customer rows — so catalogue edits cannot alter who
+ * issued a historical invoice. Phone/email accept an admin Settings
+ * override; name, address and GSTIN stay environment-only (they bind
+ * the registered identity). Optional fields are omitted from the
  * document when unconfigured rather than rendered as blanks.
  */
 
@@ -17,8 +21,9 @@ export interface BusinessDetails {
 }
 
 /** Uppercase-letter prefix for invoice numbers (default INV). */
-export function getInvoicePrefix(): string {
-  const raw = (process.env.TROLIFT_INVOICE_PREFIX ?? "INV").trim().toUpperCase();
+export async function getInvoicePrefix(): Promise<string> {
+  const raw = ((await getSetting("invoice_prefix")) ??
+    (process.env.TROLIFT_INVOICE_PREFIX ?? "INV")).trim().toUpperCase();
   if (!/^[A-Z]{2,10}$/.test(raw)) {
     throw new Error(
       "[invoices] TROLIFT_INVOICE_PREFIX must be 2–10 uppercase letters.",
@@ -32,7 +37,7 @@ export function getInvoicePrefix(): string {
  * invoicing without them is a configuration error (500, never a
  * half-headed PDF). GSTIN here is display-only.
  */
-export function getBusinessDetails(): BusinessDetails {
+export async function getBusinessDetails(): Promise<BusinessDetails> {
   const name = (process.env.TROLIFT_BUSINESS_NAME ?? "").trim();
   const address = (process.env.TROLIFT_BUSINESS_ADDRESS ?? "").trim();
   if (name === "" || address === "") {
@@ -40,8 +45,10 @@ export function getBusinessDetails(): BusinessDetails {
       "[invoices] TROLIFT_BUSINESS_NAME and TROLIFT_BUSINESS_ADDRESS are required.",
     );
   }
-  const phone = (process.env.TROLIFT_BUSINESS_PHONE ?? "").trim();
-  const email = (process.env.TROLIFT_BUSINESS_EMAIL ?? "").trim();
+  const phone = ((await getSetting("business_phone")) ??
+    (process.env.TROLIFT_BUSINESS_PHONE ?? "")).trim();
+  const email = ((await getSetting("business_email")) ??
+    (process.env.TROLIFT_BUSINESS_EMAIL ?? "")).trim();
   const gstin = (process.env.TROLIFT_BUSINESS_GSTIN ?? "").trim().toUpperCase();
   return {
     name,

@@ -270,6 +270,19 @@ describe("render-site contract (fallback cannot be bypassed)", () => {
     expect(card).toContain("resolveProductImage(product.images)");
     expect(card).toMatch(/image:\s*image,/);
   });
+
+  it("dims and de-links out-of-stock cards behind a diagonal ribbon", () => {
+    const card = repoFile("components/products/ProductCard.tsx");
+    expect(card).toContain('product.availability === "out_of_stock"');
+    // Ribbon: rotated band over the unclickable card.
+    expect(card).toContain("rotate-45");
+    expect(card).toContain("Out of stock");
+    // Un-clickable: no View/Add links in the OOS branch, disabled anchor instead.
+    expect(card).toContain('aria-disabled="true"');
+    expect(card).toContain("Sold out");
+    // The card dims but stays fully rendered (specs/description visible).
+    expect(card).toContain("opacity-60");
+  });
 });
 
 describe("rendered output (static markup — exercises the real component)", () => {

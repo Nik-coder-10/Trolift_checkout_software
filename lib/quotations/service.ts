@@ -245,7 +245,7 @@ export async function getQuotationData(orderId: string): Promise<QuotationData> 
     order_id: o.id,
     quotation_number: numberData,
     quotation_date: today,
-    valid_till: addDays(today, getQuotationValidityDays()),
+    valid_till: addDays(today, await getQuotationValidityDays()),
   });
   if (insertError && !isUniqueViolation(insertError)) {
     throw new AppError("INTERNAL_ERROR", "Could not create the quotation.", 500);
@@ -294,7 +294,7 @@ const cartageCopy =
     orderCreatedAt: o.created_at,
     orderStatus: o.order_status,
     paymentMethod: pay?.method ?? "upi",
-    business: getBusinessDetails(),
+    business: await getBusinessDetails(),
     bank: getBankDetails(),
     signatory: getSignatory(),
     terms: getQuotationTerms(),

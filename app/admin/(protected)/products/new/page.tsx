@@ -3,30 +3,35 @@ import { AdminShell } from "@/components/layout/admin/AdminShell";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { ProductForm } from "@/components/admin/ProductForm";
 import type { ProductFormInput } from "@/lib/admin/product-validation";
+import { DEFAULT_LOW_STOCK_THRESHOLD } from "@/lib/inventory/availability";
+import { getSetting } from "@/lib/settings/server";
 
 export const metadata: Metadata = {
   title: "New product",
   robots: { index: false, follow: false },
 };
 
-const EMPTY: ProductFormInput = {
-  name: "",
-  slug: "",
-  description: "",
-  priceRupees: "",
-  category: "",
-  images: [],
-  specificationsJson: "{}",
-  stockQuantity: 0,
-  lowStockThreshold: 5,
-  isActive: true,
-  gstRate: "",
-  weightKg: "",
-  hsnCode: "",
-};
-
 /** Blank creation form (server validation + slug uniqueness enforced). */
-export default function AdminNewProductPage() {
+export default async function AdminNewProductPage() {
+  const thresholdOverride = await getSetting("default_low_stock_threshold");
+  const EMPTY: ProductFormInput = {
+    name: "",
+    slug: "",
+    description: "",
+    priceRupees: "",
+    category: "",
+    images: [],
+    specificationsJson: "{}",
+    stockQuantity: 0,
+    lowStockThreshold:
+      thresholdOverride === null
+        ? DEFAULT_LOW_STOCK_THRESHOLD
+        : Number(thresholdOverride),
+    isActive: true,
+    gstRate: "",
+    weightKg: "",
+    hsnCode: "",
+  };
   return (
     <AdminShell title="New product" subtitle="Add to the customer catalogue">
       <Breadcrumbs

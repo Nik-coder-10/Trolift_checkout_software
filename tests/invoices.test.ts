@@ -350,11 +350,11 @@ describe("business configuration", () => {
     delete process.env.TROLIFT_INVOICE_PREFIX;
   });
 
-  it("defaults the prefix and omits unconfigured optionals", () => {
+  it("defaults the prefix and omits unconfigured optionals", async () => {
     process.env.TROLIFT_BUSINESS_NAME = "Trolift Solutions";
     process.env.TROLIFT_BUSINESS_ADDRESS = "Mumbai";
-    expect(getInvoicePrefix()).toBe("INV");
-    expect(getBusinessDetails()).toEqual({
+    expect(await getInvoicePrefix()).toBe("INV");
+    expect(await getBusinessDetails()).toEqual({
       name: "Trolift Solutions",
       address: "Mumbai",
       phone: null,
@@ -363,11 +363,11 @@ describe("business configuration", () => {
     });
   });
 
-  it("fails closed on missing identity or bad prefix", () => {
+  it("fails closed on missing identity or bad prefix", async () => {
     process.env.TROLIFT_BUSINESS_ADDRESS = "Mumbai";
-    expect(() => getBusinessDetails()).toThrow(/TROLIFT_BUSINESS_NAME/);
+    await expect(getBusinessDetails()).rejects.toThrow(/TROLIFT_BUSINESS_NAME/);
     process.env.TROLIFT_BUSINESS_NAME = "Trolift";
     process.env.TROLIFT_INVOICE_PREFIX = "nope!";
-    expect(() => getInvoicePrefix()).toThrow(/PREFIX/);
+    await expect(getInvoicePrefix()).rejects.toThrow(/PREFIX/);
   });
 });

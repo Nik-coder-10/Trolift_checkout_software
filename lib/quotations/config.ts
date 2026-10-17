@@ -1,4 +1,5 @@
 import { parseGstRate } from "@/lib/tax/india";
+import { getSetting } from "@/lib/settings/server";
 
 /**
  * Quotation/proforma configuration (server configuration, not DB).
@@ -24,8 +25,9 @@ export interface Signatory {
 }
 
 /** Days a quotation stays valid (default 7, matching current practice). */
-export function getQuotationValidityDays(): number {
-  const raw = Number(process.env.QUOTATION_VALIDITY_DAYS ?? "");
+export async function getQuotationValidityDays(): Promise<number> {
+  const override = await getSetting("quotation_validity_days");
+  const raw = Number(override ?? process.env.QUOTATION_VALIDITY_DAYS ?? "");
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 7;
 }
 

@@ -55,6 +55,7 @@ export interface MockBuilder {
   range(from: number, to: number): MockBuilder;
   update(values: unknown): MockBuilder;
   insert(values: unknown): MockBuilder;
+  upsert(values: unknown): MockBuilder;
   delete(): MockBuilder;
   ilike(col: string, pattern: unknown): MockBuilder;
   maybeSingle(): MockBuilder;
@@ -125,6 +126,7 @@ function builder(
     range: () => next({}),
     update: (values) => next({ updateValues: values }),
     insert: (values) => next({ updateValues: values }),
+    upsert: (values) => next({ updateValues: values }),
     delete: () => next({}),
     ilike: (col, pattern) =>
       next({ filters: [...state.filters, { col, op: "ilike", val: pattern }] }),

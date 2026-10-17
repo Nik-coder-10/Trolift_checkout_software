@@ -44,7 +44,7 @@ export const upiManualProvider: PaymentProvider = {
     // UPI takes rupees with exactly 2 decimals — division is exact here
     // because paise values originating from NUMERIC(12,2) are multiples
     // of 1 with at most 2 decimal places in rupees.
-    const { payeeVpa, payeeName } = getOwnerUpi();
+    const { payeeVpa, payeeName } = await getOwnerUpi();
     const amountRupees = input.amountPaise / 100;
     const intentUri = buildUpiIntent(
       { payeeVpa, payeeName },

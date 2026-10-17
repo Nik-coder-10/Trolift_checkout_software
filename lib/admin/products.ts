@@ -415,3 +415,63 @@ export async function setProductActive(
     throw new AppError("NOT_FOUND", "Product not found.", 404);
   }
 }
+
+/**
+ * Quick stock edit from the admin list: absolute set (not a delta)
+ * with the same signed inventory event as full-form edits, so audit
+ * history stays complete. No-op when the value is unchanged.
+ */
+export async function setAdminProductStock(
+  productId: string,
+  stockQuantity: number,
+): Promise<void> {
+  await requireAdmin();
+  if (
+    !Number.isInteger(stockQuantity) ||
+    stockQuantity < 0 ||
+    stockQuantity > 1_000_000
+  ) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Stock quantity must be a whole number between 0 and 1000000.",
+      422,
+    );
+  }
+  const client = await createClient();
+  const { data: prev, error: prevError } = await client
+    .from("products")
+    .select("stock_quantity")
+    .eq("id", productId)
+    .maybeSingle();
+  if (prevError) {
+    throw new AppError("INTERNAL_ERROR", "Could not read the product.", 500);
+  }
+  const previous = (prev as unknown as { stock_quantity: number } | null)
+    ?.stock_quantity;
+  if (previous === undefined || previous === null) {
+    throw new AppError("NOT_FOUND", "Product not found.", 404);
+  }
+  if (previous === stockQuantity) return;
+  const { data, error } = await client
+    .from("products")
+    .update({ stock_quantity: stockQuantity })
+    .eq("id", productId)
+    .select("id");
+  if (error) {
+    throw new AppError("INTERNAL_ERROR", "Could not update stock.", 500);
+  }
+  if (((data ?? []) as unknown as Array<unknown>).length === 0) {
+    throw new AppError("NOT_FOUND", "Product not found.", 404);
+  }
+  const { error: eventError } = await client.from("inventory_events").insert({
+    product_id: productId,
+    order_id: null,
+    event: "adjusted",
+    quantity: stockQuantity - previous,
+    balance_after: stockQuantity,
+    note: "manual stock adjustment (list edit)",
+  });
+  if (eventError) {
+    console.error("[admin] inventory event log failed:", eventError.message);
+  }
+}

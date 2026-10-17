@@ -30,26 +30,26 @@ afterEach(() => {
 });
 
 describe("UPI configuration", () => {
-  it("throws a clear error when the UPI id is missing", () => {
-    expect(() => getOwnerUpi()).toThrow("OWNER_UPI_ID is not configured");
+  it("throws a clear error when the UPI id is missing", async () => {
+    await expect(getOwnerUpi()).rejects.toThrow("OWNER_UPI_ID is not configured");
   });
 
-  it("reads id and name from the environment", () => {
+  it("reads id and name from the environment", async () => {
     process.env[UPI_ID] = "trolift@upi";
     process.env[UPI_NAME] = "Trolift Solutions";
-    expect(getOwnerUpi()).toEqual({
+    await expect(getOwnerUpi()).resolves.toEqual({
       payeeVpa: "trolift@upi",
       payeeName: "Trolift Solutions",
     });
   });
 
-  it("trims the UPI id and rejects malformed VPAs", () => {
+  it("trims the UPI id and rejects malformed VPAs", async () => {
     process.env[UPI_ID] = "  trolift@upi  ";
-    expect(getOwnerUpi().payeeVpa).toBe("trolift@upi");
+    expect((await getOwnerUpi()).payeeVpa).toBe("trolift@upi");
     process.env[UPI_ID] = "not-a-vpa";
-    expect(() => getOwnerUpi()).toThrow(/VPA/);
+    await expect(getOwnerUpi()).rejects.toThrow(/VPA/);
     process.env[UPI_ID] = "x@y";
-    expect(() => getOwnerUpi()).toThrow(/VPA/);
+    await expect(getOwnerUpi()).rejects.toThrow(/VPA/);
   });
 
   it("validates VPA shapes", () => {
@@ -60,12 +60,12 @@ describe("UPI configuration", () => {
     expect(isValidUpiVpa("a@b")).toBe(false);
   });
 
-  it("configures the payment window with a safe default", () => {
-    expect(getPaymentWindowHours()).toBe(24);
+  it("configures the payment window with a safe default", async () => {
+    expect(await getPaymentWindowHours()).toBe(24);
     process.env[WINDOW] = "72";
-    expect(getPaymentWindowHours()).toBe(72);
+    expect(await getPaymentWindowHours()).toBe(72);
     process.env[WINDOW] = "nonsense";
-    expect(getPaymentWindowHours()).toBe(24);
+    expect(await getPaymentWindowHours()).toBe(24);
   });
 });
 

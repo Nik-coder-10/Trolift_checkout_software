@@ -103,7 +103,7 @@ export async function persistOrder(input: {
     },
     // Reservation TTL tracks the payment window: holds outlive the
     // customer's chance to pay, and not a day longer.
-    p_reservation_hours: getPaymentWindowHours(),
+    p_reservation_hours: await getPaymentWindowHours(),
   };
 
   const { data, error } = await admin.rpc("create_order", payload);

@@ -30,6 +30,8 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 import { AppError } from "@/lib/api/errors";
 import {
+  adminStockTier,
+  ADMIN_STOCK_TIER_LABELS,
   fetchAvailability,
   stockStatus,
 } from "@/lib/inventory/availability";
@@ -417,5 +419,37 @@ describe("admin stock controls (audited adjustments)", () => {
     };
     await updateAdminProduct("p1", INPUT);
     expect(eventCalls).toBe(0);
+  });
+});
+
+describe("adminStockTier (admin list badges)", () => {
+  it("follows the agreed tiers in check order", () => {
+    expect(adminStockTier(0, 5)).toBe("out");
+    expect(adminStockTier(-2, 5)).toBe("out");
+    expect(adminStockTier(1, 5)).toBe("critical");
+    expect(adminStockTier(2, 5)).toBe("few");
+    expect(adminStockTier(3, 5)).toBe("few");
+    expect(adminStockTier(4, 5)).toBe("warning");
+    expect(adminStockTier(5, 5)).toBe("warning");
+    expect(adminStockTier(6, 5)).toBe("ok");
+    expect(adminStockTier(50, 5)).toBe("ok");
+  });
+
+  it("respects per-product thresholds and falls back to the default", () => {
+    // 2–3 always wins over the threshold tier (checked first).
+    expect(adminStockTier(2, 1)).toBe("few");
+    expect(adminStockTier(4, 3)).toBe("ok");
+    expect(adminStockTier(4, null)).toBe("warning"); // default threshold 5
+    expect(adminStockTier(4, undefined)).toBe("warning");
+    expect(adminStockTier(6, null)).toBe("ok");
+    expect(adminStockTier(1, 0)).toBe("critical");
+  });
+
+  it("labels every non-ok tier for the UI", () => {
+    expect(ADMIN_STOCK_TIER_LABELS.out).toBe("Out of stock");
+    expect(ADMIN_STOCK_TIER_LABELS.critical).toBe("Only one remaining");
+    expect(ADMIN_STOCK_TIER_LABELS.few).toBe("Only few remaining");
+    expect(ADMIN_STOCK_TIER_LABELS.warning).toBe("Low stock remaining");
+    expect(ADMIN_STOCK_TIER_LABELS.ok).toBe("");
   });
 });

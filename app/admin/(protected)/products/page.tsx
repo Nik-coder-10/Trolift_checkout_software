@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ProductImage } from "@/components/ui/ProductImage";
 import Link from "next/link";
 import { BulkImportDialog } from "@/components/admin/BulkImportDialog";
+import { StockCell } from "@/components/admin/StockCell";
 import { listRecentAudits, type AuditRow } from "@/lib/admin/audit";
 import { AdminShell } from "@/components/layout/admin/AdminShell";
 import { Badge } from "@/components/ui/Badge";
@@ -235,13 +236,13 @@ export default async function AdminProductsPage({
                         {formatMoney({ amountPaise: p.pricePaise, currency: "INR" })}
                       </td>
                       <td className="py-2.5 pr-3 text-zinc-700">
-                        <span className="font-semibold text-zinc-900">{p.available}</span>
-                        <span className="text-zinc-400"> / {p.stockQuantity}</span>
-                        {p.availability === "out_of_stock" ? (
-                          <span className="ml-2"><Badge tone="danger">Out</Badge></span>
-                        ) : p.availability === "low_stock" ? (
-                          <span className="ml-2"><Badge tone="warning">Low</Badge></span>
-                        ) : null}
+                        <StockCell
+                          productId={p.id}
+                          productName={p.name}
+                          stockQuantity={p.stockQuantity}
+                          available={p.available}
+                          lowStockThreshold={p.lowStockThreshold}
+                        />
                       </td>
                       <td className="py-2.5 pr-3">
                         {p.isActive ? (

@@ -1,5 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+// server-only modules throw outside the Next server runtime by design;
+// bypass that guard here so server logic is unit-testable (the guard
+// still applies to real client bundles via the Next compiler).
+vi.mock("server-only", () => ({}));
 import {
   getBankDetails,
   getDeliveryGstRate,
@@ -165,12 +169,12 @@ describe("quotation configuration", () => {
     ]) delete process.env[k];
   });
 
-  it("defaults validity to 7 days and rejects garbage", () => {
-    expect(getQuotationValidityDays()).toBe(7);
+  it("defaults validity to 7 days and rejects garbage", async () => {
+    expect(await getQuotationValidityDays()).toBe(7);
     process.env.QUOTATION_VALIDITY_DAYS = "15";
-    expect(getQuotationValidityDays()).toBe(15);
+    expect(await getQuotationValidityDays()).toBe(15);
     process.env.QUOTATION_VALIDITY_DAYS = "nonsense";
-    expect(getQuotationValidityDays()).toBe(7);
+    expect(await getQuotationValidityDays()).toBe(7);
   });
 
   it("defaults cartage GST to 18% and fails safe on garbage", () => {

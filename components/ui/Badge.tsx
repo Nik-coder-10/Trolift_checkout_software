@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "accent";
+type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "accent" | "orange";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-zinc-200 text-zinc-800",
@@ -9,6 +9,7 @@ const tones: Record<Tone, string> = {
   danger: "bg-red-100 text-red-800",
   info: "bg-brand-100 text-brand-900",
   accent: "bg-amber-400 text-brand-950",
+  orange: "bg-orange-100 text-orange-900",
 };
 
 export function Badge({

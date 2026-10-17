@@ -26,6 +26,7 @@ import {
   type ProductFormInput,
 } from "@/lib/admin/product-validation";
 import { POST as activePost } from "@/app/api/admin/products/[id]/active/route";
+import { PATCH as stockPatch } from "@/app/api/admin/products/[id]/stock/route";
 import {
   GET as detailGet,
   PATCH as detailPatch,
@@ -335,5 +336,100 @@ describe("admin product APIs", () => {
       { params: Promise.resolve({ id: "missing" }) },
     );
     expect(detail.status).toBe(404);
+  });
+});
+
+describe("quick stock edit (admin list)", () => {
+  const stockReq = (body: unknown, id = "p1") =>
+    stockPatch(
+      new Request("http://localhost/x", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+
+  it("sets stock and writes a signed inventory event", async () => {
+    const updates: unknown[] = [];
+    const events: unknown[] = [];
+    handler = (op) => {
+      if (op.table === "profiles") return { rows: [{ is_admin: true }], error: null };
+      if (op.table === "products") {
+        if (op.updateValues !== undefined) {
+          updates.push(op.updateValues);
+          return { rows: [{ id: "p1" }], error: null };
+        }
+        return { rows: [{ stock_quantity: 3 }], error: null };
+      }
+      if (op.table === "inventory_events") {
+        events.push(op.updateValues);
+        return { rows: [], error: null };
+      }
+      throw new Error(`unexpected table ${op.table}`);
+    };
+    const res = await stockReq({ stockQuantity: 12 });
+    expect(res.status).toBe(200);
+    expect(updates).toEqual([{ stock_quantity: 12 }]);
+    expect(events).toEqual([
+      {
+        product_id: "p1",
+        order_id: null,
+        event: "adjusted",
+        quantity: 9,
+        balance_after: 12,
+        note: "manual stock adjustment (list edit)",
+      },
+    ]);
+  });
+
+  it("no-ops when the value is unchanged", async () => {
+    const updates: unknown[] = [];
+    const events: unknown[] = [];
+    handler = (op) => {
+      if (op.table === "profiles") return { rows: [{ is_admin: true }], error: null };
+      if (op.table === "products") {
+        if (op.updateValues !== undefined) {
+          updates.push(op.updateValues);
+          return { rows: [{ id: "p1" }], error: null };
+        }
+        return { rows: [{ stock_quantity: 7 }], error: null };
+      }
+      if (op.table === "inventory_events") {
+        events.push(op.updateValues);
+        return { rows: [], error: null };
+      }
+      throw new Error(`unexpected table ${op.table}`);
+    };
+    const res = await stockReq({ stockQuantity: 7 });
+    expect(res.status).toBe(200);
+    expect(updates).toEqual([]);
+    expect(events).toEqual([]);
+  });
+
+  it("rejects invalid quantities before touching the database", async () => {
+    handler = (op) => {
+      if (op.table === "profiles") return { rows: [{ is_admin: true }], error: null };
+      throw new Error("must not reach the database");
+    };
+    for (const bad of [-1, 1.5, "10", 1_000_001, null]) {
+      const res = await stockReq({ stockQuantity: bad });
+      expect(res.status, String(bad)).toBe(422);
+    }
+    const noBody = await stockPatch(
+      new Request("http://localhost/x", { method: "PATCH" }),
+      { params: Promise.resolve({ id: "p1" }) },
+    );
+    expect(noBody.status).toBe(400);
+  });
+
+  it("404s when the product does not exist", async () => {
+    handler = (op) => {
+      if (op.table === "profiles") return { rows: [{ is_admin: true }], error: null };
+      if (op.table === "products") return { rows: [], error: null };
+      throw new Error("unreachable");
+    };
+    const res = await stockReq({ stockQuantity: 5 }, "missing");
+    expect(res.status).toBe(404);
   });
 });

@@ -27,6 +27,41 @@ export function stockStatus(
   return "in_stock";
 }
 
+/**
+ * Admin-list stock tiers (reserve-aware counts get sharper copy than
+ * the public three-state badge; exact numbers stay admin-only anyway):
+ *   0        → out    "Out of stock"
+ *   1        → critical "Only one remaining"
+ *   2–3      → few    "Only few remaining"
+ *   ≤ per-product threshold (default 5) → warning "Low stock remaining"
+ *   above    → ok     (no badge)
+ * Checked in that order, so 2–3 wins over the threshold tier.
+ */
+export type AdminStockTier = "out" | "critical" | "few" | "warning" | "ok";
+
+export const ADMIN_STOCK_TIER_LABELS: Record<AdminStockTier, string> = {
+  out: "Out of stock",
+  critical: "Only one remaining",
+  few: "Only few remaining",
+  warning: "Low stock remaining",
+  ok: "",
+};
+
+export function adminStockTier(
+  available: number,
+  threshold?: number | null,
+): AdminStockTier {
+  if (available <= 0) return "out";
+  if (available === 1) return "critical";
+  if (available <= 3) return "few";
+  const t =
+    typeof threshold === "number" && Number.isFinite(threshold) && threshold >= 0
+      ? Math.floor(threshold)
+      : DEFAULT_LOW_STOCK_THRESHOLD;
+  if (available <= t) return "warning";
+  return "ok";
+}
+
 export interface AvailabilityRow {
   productId: string;
   available: number;

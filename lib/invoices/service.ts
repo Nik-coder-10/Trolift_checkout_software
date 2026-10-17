@@ -190,7 +190,7 @@ export async function getInvoiceData(orderId: string): Promise<InvoiceData> {
 
   const { data: numberData, error: numberError } = await admin.rpc(
     "generate_invoice_number",
-    { p_prefix: getInvoicePrefix() },
+    { p_prefix: await getInvoicePrefix() },
   );
   if (numberError || typeof numberData !== "string") {
     throw new AppError("INTERNAL_ERROR", "Could not number the invoice.", 500);
@@ -230,7 +230,7 @@ export async function getInvoiceData(orderId: string): Promise<InvoiceData> {
     orderCreatedAt: o.created_at,
     paymentStatus: o.payment_status,
     paymentMethod: pay?.method ?? "upi",
-    business: getBusinessDetails(),
+    business: await getBusinessDetails(),
     customer: {
       name: o.customer_name_snapshot,
       phone: o.customer_phone_snapshot,
