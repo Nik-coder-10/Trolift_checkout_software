@@ -256,6 +256,8 @@ export interface AdminOrderDetail {
   totalPaise: number;
   deliveryPincode: string;
   deliveryPartnerName: string;
+  /** Delivery address as typed at checkout (null on legacy rows). */
+  shippingAddress: string | null;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
   paymentReference: string | null;
@@ -282,7 +284,7 @@ export async function getAdminOrderDetail(
     .from("orders")
     .select(
       "id,order_number,created_at,subtotal,delivery_charge,total_amount," +
-        "delivery_pincode,delivery_partner_name,gstin_snapshot," +
+        "delivery_pincode,delivery_partner_name,gstin_snapshot,shipping_address," +
         "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
         "billing_name,billing_address_line,billing_city,billing_state," +
         "billing_state_code,billing_pincode," +
@@ -301,6 +303,7 @@ export async function getAdminOrderDetail(
     delivery_pincode: string;
     delivery_partner_name: string;
     gstin_snapshot: string | null;
+    shipping_address: string | null;
     tax_treatment: string;
     taxable_amount: string;
     cgst_amount: string;
@@ -401,6 +404,7 @@ export async function getAdminOrderDetail(
     totalPaise: toPaise(o.total_amount),
     deliveryPincode: o.delivery_pincode,
     deliveryPartnerName: o.delivery_partner_name,
+    shippingAddress: o.shipping_address,
     paymentStatus: o.payment_status,
     orderStatus: o.order_status,
     stockState: o.stock_state,

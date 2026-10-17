@@ -72,6 +72,7 @@ const INPUT: OrderMessageInput = {
   etaDays: { min: 2, max: 4 },
   totalPaise: 3759700,
   pincode: "411001",
+  shippingAddress: "Flat 7B, Sundar Villa, Kothrud, Pune 411038",
   paymentWindowHours: 24,
   siteUrl: "https://trolift.example",
   hasPaymentQr: true,
@@ -90,6 +91,7 @@ describe("notification copy", () => {
     expect(text).toContain("Rahul Sharma");
     expect(text).toContain("Mobile: +919876543210");
     expect(text).toContain("Email: rahul@example.com");
+    expect(text).toContain("Shipping: Flat 7B, Sundar Villa, Kothrud, Pune 411038");
     expect(text).toContain("Business: Sharma Traders");
     expect(text).toContain("Address: 12 MG Road, Pune, Maharashtra 411001");
     expect(text).toContain("GSTIN: 27ABCDE1234F1Z0");
@@ -148,6 +150,7 @@ describe("notification copy", () => {
     expect(text).toContain("New order TS-000123 — ₹37,597.00 (payment pending)");
     expect(text).toContain("Mobile: +919876543210");
     expect(text).toContain("Email: rahul@example.com");
+    expect(text).toContain("Shipping: Flat 7B, Sundar Villa, Kothrud, Pune 411038");
     expect(text).toContain("Business: Sharma Traders");
     expect(text).toContain("GST included: ₹5,735.13 (CGST + SGST)");
     expect(text).toContain("Delivery: Included");
@@ -358,6 +361,7 @@ describe("order notification orchestration", () => {
     etaDays: null,
     totalPaise: 629900,
     pincode: "411001",
+    shippingAddress: "Flat 7B, Sundar Villa, Kothrud, Pune 411038",
   };
 
   it("skips loudly (but not fatally) when email is unconfigured", async () => {

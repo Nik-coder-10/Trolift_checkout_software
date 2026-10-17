@@ -470,6 +470,7 @@ describe("snapshots + live configuration", () => {
     await persistOrder({
       idempotencyKey: "c0ffee00-0001-4000-8000-000000000001",
       customer: { name: "D", phone: "+919876543210", email: null, gstin: null },
+      shippingAddress: "24, MG Road, Pune 411001",
       quote: {
         lines: [],
         subtotalPaise: 1259800,

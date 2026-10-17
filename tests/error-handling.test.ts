@@ -302,6 +302,7 @@ describe("Retry safety", () => {
     const body = {
       items: [{ productId: "p1", quantity: 1 }],
       pincode: "400001",
+      shippingAddress: "24, MG Road, Pune 411001",
       customer: { name: "Test", phone: "9876543210", email: null, gstin: null },
       idempotencyKey,
     };

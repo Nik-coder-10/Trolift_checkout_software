@@ -533,6 +533,7 @@ describe("protected routes", () => {
               delivery_pincode: "400001",
               delivery_partner_name: "Partner A",
               gstin_snapshot: "27ABCDE1234F1Z0",
+              shipping_address: "24, MG Road, Indiranagar, Bengaluru 560038",
               tax_treatment: "non_gst",
               taxable_amount: "0.00",
               cgst_amount: "0.00",
@@ -558,6 +559,11 @@ describe("protected routes", () => {
     };
     const order = await getPayableOrder(ORDER_ID);
     expect(order).not.toBeNull();
+    // The order's own shipping address is part of the projection — the
+    // customer needs it back; raw phone/GSTIN still never leave.
+    expect(order?.shippingAddress).toBe(
+      "24, MG Road, Indiranagar, Bengaluru 560038",
+    );
     // …but even the admin-shaped projection carries no raw PII.
     const dumped = JSON.stringify(order);
     expect(dumped).not.toContain("919876543210");

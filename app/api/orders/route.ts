@@ -54,6 +54,7 @@ export const POST = withErrorHandling(async (req: Request) => {
   const persisted = await persistOrder({
     idempotencyKey: parsed.idempotencyKey,
     customer: parsed.customer,
+    shippingAddress: parsed.shippingAddress,
     quote,
   });
   const summary = await fetchOrderSummary(persisted.orderId);
@@ -96,6 +97,7 @@ export const POST = withErrorHandling(async (req: Request) => {
         etaDays: quote.etaDays,
         totalPaise: summary.totalPaise,
         pincode: quote.pincode,
+        shippingAddress: parsed.shippingAddress,
       });
     try {
       after(notify);

@@ -313,6 +313,12 @@ export default async function OrderPage({
                 <dt className="text-zinc-500">Pincode</dt>
                 <dd className="font-semibold text-zinc-900">{order.deliveryPincode}</dd>
               </div>
+              <div className="sm:col-span-3">
+                <dt className="text-zinc-500">Shipping address</dt>
+                <dd className="font-semibold text-zinc-900">
+                  {order.shippingAddress ?? "—"}
+                </dd>
+              </div>
               <div>
                 <dt className="text-zinc-500">Partner</dt>
                 <dd className="font-semibold text-zinc-900">{order.deliveryPartnerName}</dd>

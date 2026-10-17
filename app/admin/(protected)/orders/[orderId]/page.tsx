@@ -272,6 +272,12 @@ export default async function AdminOrderPage({
                 <dt className="text-zinc-600">Pincode</dt>
                 <dd className="font-semibold text-zinc-900">{order.deliveryPincode}</dd>
               </div>
+              <div className="flex justify-between gap-4">
+                <dt className="shrink-0 text-zinc-600">Shipping address</dt>
+                <dd className="text-right font-semibold text-zinc-900">
+                  {order.shippingAddress ?? "—"}
+                </dd>
+              </div>
               <div className="flex justify-between border-t border-zinc-100 pt-2 text-base">
                 <dt className="font-bold text-zinc-900">Total</dt>
                 <dd className="font-bold text-zinc-900">

@@ -465,6 +465,7 @@ function emulateCreateOrder(args: Record<string, unknown>): {
       phone: customer["phone"],
       email: customer["email"] ?? null,
       gstin: customer["gstin"] ?? null,
+      shipping_address: customer["shipping_address"] ?? null,
     });
   }
   const n = db.seq++;
@@ -479,6 +480,7 @@ function emulateCreateOrder(args: Record<string, unknown>): {
     delivery_charge: order["delivery_charge"],
     total_amount: order["total_amount"],
     delivery_pincode: order["delivery_pincode"],
+    shipping_address: order["shipping_address"] ?? null,
     delivery_partner_id: order["delivery_partner_id"],
     delivery_partner_name: order["delivery_partner_name"],
     gstin_snapshot: order["gstin_snapshot"] ?? null,
@@ -582,6 +584,7 @@ const validBody = (over: Record<string, unknown> = {}) => ({
   items: [{ productId: P1, quantity: 2 }],
   customer: { name: "Demo Traders", phone: PHONE },
   pincode: "400001",
+  shippingAddress: "24, MG Road, Indiranagar, Bengaluru 560038",
   idempotencyKey: "c0ffee00-0001-4000-8000-000000000001",
   ...over,
 });
@@ -800,6 +803,10 @@ describe("customer journey: catalogue to delivered invoice", () => {
     const again = await getPayableOrderForGuest(orderId, guestToken);
     expect(again?.orderStatus).toBe("delivered");
     expect(again?.paymentStatus).toBe("paid");
+    // The address asked at checkout stays on the order the guest sees.
+    expect(again?.shippingAddress).toBe(
+      "24, MG Road, Indiranagar, Bengaluru 560038",
+    );
 
     // 13. Full audit trail ends with fulfilment + invoice issuance;
     // the customer feed carries labels + timestamps only.

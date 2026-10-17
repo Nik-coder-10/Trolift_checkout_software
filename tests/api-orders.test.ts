@@ -53,6 +53,7 @@ const validBody = (over: Record<string, unknown> = {}) => ({
   items: [{ productId: P1, quantity: 2 }],
   customer: { name: "Demo Traders", phone: "+919876543210" },
   pincode: "400001",
+  shippingAddress: "24, MG Road, Indiranagar, Bengaluru 560038",
   idempotencyKey: KEY,
   ...over,
 });
@@ -278,6 +279,17 @@ describe("POST /api/orders (server-authoritative totals)", () => {
     // Delivery is already inside the catalogue price, so the quote never
     // carries a charge for an unconfigured pincode either.
     expect(order?.["delivery_charge"]).toBe("0.00");
+    // The address the customer typed reaches both the order row and the
+    // customer master upsert (migration 0037).
+    expect(order?.["shipping_address"]).toBe(
+      "24, MG Road, Indiranagar, Bengaluru 560038",
+    );
+    const customer = captured.args?.["p_customer"] as
+      | Record<string, unknown>
+      | undefined;
+    expect(customer?.["shipping_address"]).toBe(
+      "24, MG Road, Indiranagar, Bengaluru 560038",
+    );
   });
 
   it("replays duplicate submissions to the original order", async () => {

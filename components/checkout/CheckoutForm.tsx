@@ -6,7 +6,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useCart } from "@/components/cart/CartProvider";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Input, Textarea } from "@/components/ui/Input";
 import { PriceDisplay } from "@/components/ui/PriceDisplay";
 import { EmptyState } from "@/components/ui/States";
 import { formatMoney } from "@/lib/orders/pricing";
@@ -128,6 +128,7 @@ export function CheckoutForm() {
       "name",
       "phone",
       "email",
+      "shippingAddress",
       "gstin",
       "billing.name",
       "billing.addressLine",
@@ -240,6 +241,7 @@ export function CheckoutForm() {
                 }
               : null,
           pincode: form.pincode,
+          shippingAddress: form.shippingAddress,
           idempotencyKey,
         }),
       });
@@ -374,6 +376,17 @@ export function CheckoutForm() {
             value={form.email}
             onChange={(e) => set("email", e.target.value)}
             error={errors.email}
+          />
+          <Textarea
+            label="Shipping address"
+            name="shippingAddress"
+            rows={3}
+            autoComplete="street-address"
+            placeholder="House/flat no., street, area, city"
+            value={form.shippingAddress}
+            onChange={(e) => set("shippingAddress", e.target.value)}
+            error={errors.shippingAddress}
+            hint="Where should we deliver this order?"
           />
         </Section>
 

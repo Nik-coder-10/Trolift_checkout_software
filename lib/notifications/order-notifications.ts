@@ -47,6 +47,8 @@ export interface OrderNotificationInput {
   etaDays: { min: number; max: number } | null;
   totalPaise: number;
   pincode: string;
+  /** Delivery address as typed at checkout — both copies show it. */
+  shippingAddress: string;
 }
 
 /** "12 MG Road, Pune, Maharashtra 411001" from whatever is present. */
@@ -119,6 +121,7 @@ export async function notifyOrderPlaced(
     etaDays: input.etaDays,
     totalPaise: input.totalPaise,
     pincode: input.pincode,
+    shippingAddress: input.shippingAddress,
     paymentWindowHours: getPaymentWindowHours(),
     siteUrl: siteConfig.url,
     hasPaymentQr: qrAttachment !== null,

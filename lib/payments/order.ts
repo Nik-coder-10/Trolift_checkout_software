@@ -31,6 +31,8 @@ const UUID_RE =
  * PII discipline: phone is masked, GSTIN is masked (full value lives
  * only in the authorized invoice PDF), payment references show last-4
  * only, and email / billing street / internal notes are never selected.
+ * The order's own shipping address is shown back — only to the guest
+ * (or admin) already authorized for THIS order.
  */
 
 export interface PayableOrderItem {
@@ -72,6 +74,8 @@ export interface PayableOrder {
   totalPaise: number;
   deliveryPincode: string;
   deliveryPartnerName: string;
+  /** Delivery address the order was placed with (own-viewer only). */
+  shippingAddress: string | null;
   items: PayableOrderItem[];
   /** Last-4 only — the full UTR never appears in order views. */
   paymentReferenceMasked: string | null;
@@ -107,7 +111,7 @@ export async function getPayableOrderForAdmin(
       .from("orders")
       .select(
         "id,order_number,customer_id,subtotal,delivery_charge,total_amount," +
-          "delivery_pincode,delivery_partner_name,gstin_snapshot," +
+          "delivery_pincode,delivery_partner_name,gstin_snapshot,shipping_address," +
           "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
           "billing_name,payment_status,order_status,created_at",
       )
@@ -129,6 +133,7 @@ export async function getPayableOrderForAdmin(
     delivery_pincode: string;
     delivery_partner_name: string;
     gstin_snapshot: string | null;
+    shipping_address: string | null;
     tax_treatment: string;
     taxable_amount: string;
     cgst_amount: string;
@@ -193,6 +198,7 @@ export async function getPayableOrderForAdmin(
     paymentStatus: p?.status ?? o.payment_status,
     deliveryPincode: o.delivery_pincode,
     deliveryPartnerName: o.delivery_partner_name,
+    shippingAddress: o.shipping_address,
     gstinMasked: maskGstin(o.gstin_snapshot),
     billingName: o.billing_name,
     tax: {

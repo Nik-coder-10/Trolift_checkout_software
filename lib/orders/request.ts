@@ -12,8 +12,9 @@ import { ORDER_MAX_QTY } from "@/lib/orders/quote";
 /**
  * Order request parsing + validation (pure, unit-tested).
  *
- * Accepts ONLY: item IDs + quantities, customer details (incl. optional
- * billing profile), pincode and an idempotency key. There is
+ * Accepts ONLY: item IDs + quantities, customer details (incl. the
+ * shipping address and optional billing profile), pincode and an
+ * idempotency key. There is
  * deliberately no field for prices, rates, charges, totals, partner,
  * payment status or order status — the server derives all of those,
  * so a hostile client cannot even submit fakes.
@@ -45,6 +46,8 @@ export interface ParsedOrderRequest {
     pincode: string | null;
   } | null;
   pincode: string;
+  /** Delivery address as typed at checkout — required for every order. */
+  shippingAddress: string;
   idempotencyKey: string;
 }
 
@@ -112,6 +115,7 @@ export function parseOrderRequestBody(body: unknown): ParsedOrderRequest {
     email: String(c["email"] ?? ""),
     gstin: String(c["gstin"] ?? ""),
     pincode: String(record["pincode"] ?? ""),
+    shippingAddress: String(record["shippingAddress"] ?? ""),
     customerType: hasBillingProfile ? "business" : "individual",
     billing: billingForm,
   };
@@ -129,6 +133,7 @@ export function parseOrderRequestBody(body: unknown): ParsedOrderRequest {
         "billing.stateCode",
         "billing.pincode",
         "pincode",
+        "shippingAddress",
       ] as const
     ).find((f) => validation.errors[f]);
     fail(
@@ -169,5 +174,12 @@ export function parseOrderRequestBody(body: unknown): ParsedOrderRequest {
     fail("A valid idempotency key is required.");
   }
 
-  return { items, customer, billing, pincode: customer.pincode, idempotencyKey };
+  return {
+    items,
+    customer,
+    billing,
+    pincode: customer.pincode,
+    shippingAddress: customer.shippingAddress,
+    idempotencyKey,
+  };
 }

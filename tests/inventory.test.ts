@@ -174,6 +174,7 @@ describe("server line validation (stale carts, forged counts)", () => {
       ],
       customer: { name: "Demo", phone: "+919876543210" },
       pincode: "400001",
+      shippingAddress: "24, MG Road, Pune 411001",
       idempotencyKey: "c0ffee00-0001-4000-8000-000000000001",
     });
     expect(parsed.items).toEqual([
@@ -244,6 +245,7 @@ describe("atomic order path (race loser fails safe)", () => {
     const err = await persistOrder({
       idempotencyKey: "c0ffee00-0001-4000-8000-000000000001",
       customer: { name: "D", phone: "+919876543210", email: null, gstin: null },
+      shippingAddress: "24, MG Road, Pune 411001",
       quote: quoteFor(2),
     }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);

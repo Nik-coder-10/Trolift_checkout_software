@@ -37,6 +37,8 @@ export interface OrderMessageInput {
   etaDays: { min: number; max: number } | null;
   totalPaise: number;
   pincode: string;
+  /** Delivery address as typed at checkout (required for new orders). */
+  shippingAddress: string;
   paymentWindowHours: number;
   siteUrl: string;
   /** True when a UPI QR image is attached to the email. */
@@ -102,6 +104,7 @@ function identityLines(
   const lines = [`Name: ${input.customerName}`];
   if (opts.phone) lines.push(`Mobile: ${input.customerPhone}`);
   if (opts.email && input.customerEmail) lines.push(`Email: ${input.customerEmail}`);
+  if (input.shippingAddress) lines.push(`Shipping: ${input.shippingAddress}`);
   if (input.businessName) lines.push(`Business: ${input.businessName}`);
   if (input.billingAddress) lines.push(`Address: ${input.billingAddress}`);
   if (input.gstin) lines.push(`GSTIN: ${input.gstin}`);

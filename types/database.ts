@@ -39,6 +39,8 @@ export interface CustomerRow {
   phone: string;
   email: string | null;
   gstin: string | null;
+  /** Latest delivery address supplied at checkout (0037). */
+  shipping_address: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -112,6 +114,8 @@ export interface OrderRow {
   delivery_partner_id: string | null;
   /** Partner name snapshot (FK may be nulled later). */
   delivery_partner_name: string;
+  /** Delivery address as typed at checkout (0037; null on legacy rows). */
+  shipping_address: string | null;
   /** GSTIN snapshot (customer master may change later). */
   gstin_snapshot: string | null;
   /** Order-time customer identity (frozen for invoices). */

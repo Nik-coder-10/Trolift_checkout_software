@@ -37,6 +37,20 @@ test.describe("checkout", () => {
     await expect(page).toHaveURL(/\/checkout/);
   });
 
+  test("shipping address is required with the client details", async ({
+    page,
+  }) => {
+    await seedCart(page);
+    await page.getByLabel("Full name").fill("Acme Traders");
+    await page.getByLabel("Mobile number").fill("9876543210");
+    await page.getByLabel("Delivery Pincode").fill("400001");
+    await page.getByRole("button", { name: /place order/i }).click();
+    // The address is asked next to name/mobile/email and blocks submit.
+    await expect(page.getByLabel("Shipping address")).toBeVisible();
+    await expect(page.getByText(/full shipping address/i).first()).toBeVisible();
+    await expect(page).toHaveURL(/\/checkout/);
+  });
+
   test("business GSTIN demands a complete billing profile", async ({
     page,
   }) => {

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   EMPTY_BILLING_FORM,
   EMPTY_CHECKOUT_FORM,
@@ -12,6 +14,7 @@ const VALID = {
   email: "",
   gstin: "",
   pincode: "400001",
+  shippingAddress: "24, MG Road, Indiranagar, Bengaluru 560038",
   customerType: "individual" as const,
   billing: { ...EMPTY_BILLING_FORM },
 };
@@ -70,6 +73,33 @@ describe("checkout validation", () => {
     expect(r.valid).toBe(false);
   });
 
+  it("requires a shipping address with the client details", () => {
+    for (const shippingAddress of ["", "   ", "12 MG Rd"]) {
+      const r = validateCheckoutForm({ ...VALID, shippingAddress }, 1);
+      expect(r.valid).toBe(false);
+      expect(r.errors.shippingAddress).toContain("shipping address");
+    }
+  });
+
+  it("collapses a multi-line address instead of rejecting it", () => {
+    const r = validateCheckoutForm(
+      { ...VALID, shippingAddress: "  24,  MG\nRoad \t  Pune  " },
+      1,
+    );
+    expect(r.valid).toBe(true);
+    expect(normalizeCheckoutForm({ ...VALID, shippingAddress: "  24,  MG\nRoad \t  Pune  " }).shippingAddress)
+      .toBe("24, MG Road Pune");
+  });
+
+  it("caps the shipping address at 500 characters", () => {
+    const r = validateCheckoutForm(
+      { ...VALID, shippingAddress: "x".repeat(501) },
+      1,
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.shippingAddress).toContain("500");
+  });
+
   it("starts from an empty form", () => {
     expect(EMPTY_CHECKOUT_FORM).toEqual({
       name: "",
@@ -77,6 +107,7 @@ describe("checkout validation", () => {
       email: "",
       gstin: "",
       pincode: "",
+      shippingAddress: "",
       customerType: "individual",
       billing: {
         name: "",
@@ -102,6 +133,41 @@ describe("checkout validation", () => {
       email: null,
       gstin: "27ABCDE1234F1Z0",
       pincode: "400001",
+      shippingAddress: "24, MG Road, Indiranagar, Bengaluru 560038",
     });
+  });
+});
+
+describe("checkout form contract (source)", () => {
+  const form = () =>
+    readFileSync(
+      join(__dirname, "..", "components", "checkout", "CheckoutForm.tsx"),
+      "utf8",
+    );
+
+  it("asks for the shipping address next to name, mobile and email", () => {
+    const src = form();
+    expect(src).toContain('label="Shipping address"');
+    expect(src).toContain('name="shippingAddress"');
+    expect(src).toContain("shippingAddress: form.shippingAddress");
+    expect(src).toContain('autoComplete="street-address"');
+    // Field lives inside the client-details section, before the GST step.
+    expect(src.indexOf('label="Shipping address"')).toBeLessThan(
+      src.indexOf('title="Customer type & GST"'),
+    );
+    expect(src.indexOf('label="Shipping address"')).toBeLessThan(
+      src.indexOf('label="Delivery Pincode"'),
+    );
+  });
+
+  it("puts the field first in the focus order after a failed submit", () => {
+    const src = form();
+    const at = src.indexOf("const focusFirstError");
+    expect(at).toBeGreaterThan(-1);
+    const focusBlock = src.slice(at, at + 600);
+    expect(focusBlock.indexOf("shippingAddress")).toBeGreaterThan(-1);
+    expect(focusBlock.indexOf("shippingAddress")).toBeLessThan(
+      focusBlock.indexOf("pincode"),
+    );
   });
 });

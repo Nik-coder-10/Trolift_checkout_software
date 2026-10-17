@@ -18,6 +18,7 @@ const body = (over: Record<string, unknown> = {}) => ({
     gstin: "",
   },
   pincode: "400001",
+  shippingAddress: "24, MG Road, Indiranagar, Bengaluru 560038",
   idempotencyKey: KEY,
   ...over,
 });
@@ -38,6 +39,7 @@ describe("parseOrderRequestBody (server gate)", () => {
     expect(r.items).toEqual([{ productId: PID, quantity: 2 }]);
     expect(r.customer.phone).toBe("+919876543210");
     expect(r.pincode).toBe("400001");
+    expect(r.shippingAddress).toBe("24, MG Road, Indiranagar, Bengaluru 560038");
     expect(r.idempotencyKey).toBe(KEY);
   });
 
@@ -81,6 +83,19 @@ describe("parseOrderRequestBody (server gate)", () => {
     );
   });
 
+  it("rejects a shipping address that is missing, too short or too long", () => {
+    for (const shippingAddress of [undefined, "", "12 MG", "x".repeat(501)]) {
+      expect(
+        codeOf(() => parseOrderRequestBody(body({ shippingAddress }))),
+      ).toBe("VALIDATION_ERROR");
+    }
+    // A multi-line address is normalised, not rejected.
+    expect(
+      parseOrderRequestBody(body({ shippingAddress: "24,  MG\nRoad,  Pune" }))
+        .shippingAddress,
+    ).toBe("24, MG Road, Pune");
+  });
+
   it("has nowhere to put fake money: extra fields are dropped", () => {
     const r = parseOrderRequestBody(
       body({
@@ -98,7 +113,14 @@ describe("parseOrderRequestBody (server gate)", () => {
     expect(r).not.toHaveProperty("paymentStatus");
     expect(r).not.toHaveProperty("orderStatus");
     expect(Object.keys(r).sort()).toEqual(
-      ["billing", "customer", "idempotencyKey", "items", "pincode"].sort(),
+      [
+        "billing",
+        "customer",
+        "idempotencyKey",
+        "items",
+        "pincode",
+        "shippingAddress",
+      ].sort(),
     );
   });
 });

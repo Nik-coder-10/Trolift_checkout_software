@@ -31,9 +31,14 @@ export interface CheckoutFormData {
   email: string;
   gstin: string;
   pincode: string;
+  /** Delivery address — asked with the client details, for every order. */
+  shippingAddress: string;
   customerType: CustomerType;
   billing: BillingFormData;
 }
+
+export const SHIPPING_ADDRESS_MIN = 10;
+export const SHIPPING_ADDRESS_MAX = 500;
 
 export type CheckoutField =
   | keyof Omit<CheckoutFormData, "billing" | "customerType">
@@ -55,9 +60,15 @@ export const EMPTY_CHECKOUT_FORM: CheckoutFormData = {
   email: "",
   gstin: "",
   pincode: "",
+  shippingAddress: "",
   customerType: "individual",
   billing: { ...EMPTY_BILLING_FORM },
 };
+
+/** Whitespace-collapsed address as stored: "24,  MG\nRoad" → "24, MG Road". */
+export function normalizeShippingAddress(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
 
 export interface CheckoutValidation {
   errors: CheckoutErrors;
@@ -86,6 +97,16 @@ export function validateCheckoutForm(
   }
   if (!isValidPincode(form.pincode)) {
     errors.pincode = "Enter a valid 6-digit delivery pincode.";
+  }
+  // The address is where the goods actually go — pincode alone has
+  // never been enough to dispatch, so it is required for every order.
+  const shippingAddress = normalizeShippingAddress(form.shippingAddress);
+  if (shippingAddress.length < SHIPPING_ADDRESS_MIN) {
+    errors.shippingAddress =
+      "Enter the full shipping address (house/flat, street, area, city).";
+  } else if (shippingAddress.length > SHIPPING_ADDRESS_MAX) {
+    errors.shippingAddress =
+      `Shipping address is too long — ${SHIPPING_ADDRESS_MAX} characters maximum.`;
   }
   if (form.customerType === "business") {
     // GST orders need a complete billing profile; format-checked here,
@@ -136,6 +157,7 @@ export function normalizeCheckoutForm(form: CheckoutFormData) {
     email: form.email.trim() === "" ? null : form.email.trim(),
     gstin: form.gstin.trim() === "" ? null : normalizeGstin(form.gstin),
     pincode: normalizePincode(form.pincode),
+    shippingAddress: normalizeShippingAddress(form.shippingAddress),
   };
 }
 

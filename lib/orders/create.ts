@@ -30,6 +30,8 @@ export async function persistOrder(input: {
     email: string | null;
     gstin: string | null;
   };
+  /** Delivery address as typed at checkout (order + customer master). */
+  shippingAddress: string;
   quote: OrderQuote;
 }): Promise<PersistedOrder> {
   const admin = createAdminClient();
@@ -42,6 +44,7 @@ export async function persistOrder(input: {
       phone: input.customer.phone,
       email: input.customer.email,
       gstin: input.customer.gstin,
+      shipping_address: input.shippingAddress,
     },
     p_order: {
       order_number: "",
@@ -49,6 +52,7 @@ export async function persistOrder(input: {
       delivery_charge: toRupees(quote.deliveryChargePaise),
       total_amount: toRupees(quote.totalPaise),
       delivery_pincode: quote.pincode,
+      shipping_address: input.shippingAddress,
       delivery_partner_id: quote.deliveryPartnerId,
       delivery_partner_name: quote.deliveryPartnerName,
       gstin_snapshot: input.customer.gstin,

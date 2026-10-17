@@ -200,6 +200,7 @@ describe("checkout billing validation", () => {
     name: "Acme Pvt Ltd",
     phone: "9810001111",
     pincode: "400001",
+    shippingAddress: "14 Industrial Estate, Andheri East, Mumbai 400069",
     customerType: "business" as const,
     gstin: GSTIN,
     billing: {
@@ -243,6 +244,7 @@ describe("checkout billing validation", () => {
       name: "Jane",
       phone: "9810001111",
       pincode: "400001",
+      shippingAddress: "24, MG Road, Indiranagar, Bengaluru 560038",
       customerType: "individual" as const,
       gstin: GSTIN,
       billing: { ...EMPTY_BILLING_FORM },
@@ -291,6 +293,7 @@ describe("order request billing (server authority)", () => {
     items: [{ productId: itemId, quantity: 1 }],
     customer: { name: "Acme", phone: "9810001111", email: "", gstin: GSTIN },
     pincode: "400001",
+    shippingAddress: "24, MG Road, Pune 411001",
     idempotencyKey: key,
     ...over,
   });
