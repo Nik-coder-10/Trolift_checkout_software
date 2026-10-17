@@ -33,9 +33,12 @@ export async function persistOrder(input: {
   /** Delivery address as typed at checkout (order + customer master). */
   shippingAddress: string;
   quote: OrderQuote;
+  /** Redeem code resolved for this order (absent when none applied). */
+  coupon?: { code: string; discountPaise: number } | null;
 }): Promise<PersistedOrder> {
   const admin = createAdminClient();
   const { quote } = input;
+  const discountPaise = input.coupon?.discountPaise ?? 0;
 
   const payload = {
     p_idempotency_key: input.idempotencyKey,
@@ -50,7 +53,11 @@ export async function persistOrder(input: {
       order_number: "",
       subtotal: toRupees(quote.subtotalPaise),
       delivery_charge: toRupees(quote.deliveryChargePaise),
-      total_amount: toRupees(quote.totalPaise),
+      // The buyer pays the quoted total minus any redeem discount;
+      // orders_total_check pins total = subtotal + delivery + tax - discount.
+      total_amount: toRupees(quote.totalPaise - discountPaise),
+      coupon_code: input.coupon?.code ?? "",
+      discount_amount: toRupees(discountPaise),
       delivery_pincode: quote.pincode,
       shipping_address: input.shippingAddress,
       delivery_partner_id: quote.deliveryPartnerId,
@@ -91,7 +98,7 @@ export async function persistOrder(input: {
       hsn_snapshot: l.hsn,
     })),
     p_payment: {
-      amount: toRupees(quote.totalPaise),
+      amount: toRupees(quote.totalPaise - discountPaise),
       method: "upi",
     },
     // Reservation TTL tracks the payment window: holds outlive the
@@ -150,6 +157,10 @@ export interface OrderSummary {
   /** Frozen freight rules (null when plain pincode pricing applied). */
   deliveryRuleSummary: string | null;
   totalPaise: number;
+  /** Rupees knocked off by the redeem code (0 when none). */
+  discountPaise: number;
+  /** Redeem code granted, or null when the order used no offer. */
+  couponCode: string | null;
   taxTreatment: string;
   taxablePaise: number;
   cgstPaise: number;
@@ -166,6 +177,7 @@ export async function fetchOrderSummary(orderId: string): Promise<OrderSummary> 
     .from("orders")
     .select(
       "id,order_number,subtotal,delivery_charge,total_amount," +
+        "coupon_code,discount_amount," +
         "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
         "delivery_weight_kg,delivery_rule_summary," +
         "payment_status,order_status",
@@ -187,6 +199,8 @@ export async function fetchOrderSummary(orderId: string): Promise<OrderSummary> 
     delivery_weight_kg: string | null;
     delivery_rule_summary: string | null;
     total_amount: string;
+    coupon_code: string | null;
+    discount_amount: string;
     tax_treatment: string;
     taxable_amount: string;
     cgst_amount: string;
@@ -205,6 +219,9 @@ export async function fetchOrderSummary(orderId: string): Promise<OrderSummary> 
       row.delivery_weight_kg === null ? null : Number(row.delivery_weight_kg),
     deliveryRuleSummary: row.delivery_rule_summary,
     totalPaise: paise(row.total_amount),
+    // Tolerant of pre-discount readers/mocks: the column defaults to 0.
+    discountPaise: paise(row.discount_amount ?? "0"),
+    couponCode: row.coupon_code ?? null,
     taxTreatment: row.tax_treatment,
     taxablePaise: paise(row.taxable_amount),
     cgstPaise: paise(row.cgst_amount),

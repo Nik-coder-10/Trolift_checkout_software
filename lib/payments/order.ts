@@ -72,6 +72,10 @@ export interface PayableOrder {
   subtotalPaise: number;
   deliveryChargePaise: number;
   totalPaise: number;
+  /** Rupees knocked off by a redeem code (0 when the order used none). */
+  discountPaise: number;
+  /** Redeem code granted at checkout, or null when none was used. */
+  couponCode: string | null;
   deliveryPincode: string;
   deliveryPartnerName: string;
   /** Delivery address the order was placed with (own-viewer only). */
@@ -111,6 +115,7 @@ export async function getPayableOrderForAdmin(
       .from("orders")
       .select(
         "id,order_number,customer_id,subtotal,delivery_charge,total_amount," +
+          "coupon_code,discount_amount," +
           "delivery_pincode,delivery_partner_name,gstin_snapshot,shipping_address," +
           "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
           "billing_name,payment_status,order_status,created_at",
@@ -130,6 +135,8 @@ export async function getPayableOrderForAdmin(
     subtotal: string;
     delivery_charge: string;
     total_amount: string;
+    coupon_code?: string | null;
+    discount_amount?: string;
     delivery_pincode: string;
     delivery_partner_name: string;
     gstin_snapshot: string | null;
@@ -211,6 +218,10 @@ export async function getPayableOrderForAdmin(
     subtotalPaise: toPaise(o.subtotal),
     deliveryChargePaise: toPaise(o.delivery_charge),
     totalPaise: toPaise(o.total_amount),
+    // Optional-shaped so pre-discount readers/mocks still map cleanly;
+    // live rows always carry the column (default 0).
+    discountPaise: toPaise(o.discount_amount ?? "0"),
+    couponCode: o.coupon_code ?? null,
     items: rows.map((r) => ({
       name: r.product_name,
       quantity: r.quantity,

@@ -278,6 +278,16 @@ export default async function AdminOrderPage({
                   {order.shippingAddress ?? "—"}
                 </dd>
               </div>
+              {order.discountPaise > 0 ? (
+                <div className="flex justify-between">
+                  <dt className="text-zinc-600">
+                    Discount{order.couponCode ? ` (${order.couponCode})` : ""}
+                  </dt>
+                  <dd className="font-semibold text-red-600">
+                    -<PriceDisplay amountPaise={order.discountPaise} size="sm" />
+                  </dd>
+                </div>
+              ) : null}
               <div className="flex justify-between border-t border-zinc-100 pt-2 text-base">
                 <dt className="font-bold text-zinc-900">Total</dt>
                 <dd className="font-bold text-zinc-900">

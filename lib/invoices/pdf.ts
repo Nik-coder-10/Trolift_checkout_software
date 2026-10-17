@@ -233,6 +233,14 @@ function totals(ctx: Ctx, invoice: InvoiceData): void {
     }
   }
   rows.push([`Delivery (${invoice.shipping.partnerName})`, t.deliveryPaise, false]);
+  const discount = t.discountPaise ?? 0;
+  if (discount > 0) {
+    rows.push([
+      `Discount${t.couponCode ? ` (${t.couponCode})` : ""}`,
+      -discount,
+      false,
+    ]);
+  }
   rows.push(["Grand total", t.grandTotalPaise, true]);
 
   const labelW = 300;

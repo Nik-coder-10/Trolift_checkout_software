@@ -7,6 +7,7 @@ import {
   type BillingFormData,
   type CheckoutFormData,
 } from "@/lib/checkout/validation";
+import { COUPON_CODE_RE, normalizeCouponCode } from "@/lib/coupons/code";
 import { ORDER_MAX_QTY } from "@/lib/orders/quote";
 
 /**
@@ -48,6 +49,8 @@ export interface ParsedOrderRequest {
   pincode: string;
   /** Delivery address as typed at checkout — required for every order. */
   shippingAddress: string;
+  /** Redeem code applied at checkout ("" when no offer was used). */
+  couponCode: string;
   idempotencyKey: string;
 }
 
@@ -174,12 +177,20 @@ export function parseOrderRequestBody(body: unknown): ParsedOrderRequest {
     fail("A valid idempotency key is required.");
   }
 
+  // Shape-only: the code itself (active? first order? window?) is
+  // resolved server-side after quoting — never by the client.
+  const couponCode = normalizeCouponCode(record["couponCode"]);
+  if (couponCode !== "" && !COUPON_CODE_RE.test(couponCode)) {
+    fail("Enter a valid redeem code.", 422);
+  }
+
   return {
     items,
     customer,
     billing,
     pincode: customer.pincode,
     shippingAddress: customer.shippingAddress,
+    couponCode,
     idempotencyKey,
   };
 }

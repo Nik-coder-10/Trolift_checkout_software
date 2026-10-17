@@ -92,6 +92,7 @@ export type RateLimitCategory =
   | "recover"
   | "delivery"
   | "contact"
+  | "coupon"
   | "invoice"
   | "import"
   | "export"
@@ -135,6 +136,10 @@ export function routeLimit(route: RateLimitCategory | RateLimitRoute): CategoryP
       // closed — a store outage must never open an unbounded channel
       // to the inbox. The page shows phone numbers as the fallback.
       return { limit: readEnvInt("RATE_LIMIT_CONTACT_PER_MIN", 5), windowMs, onBackendError: "closed" };
+    case "coupon":
+      // Redeem-code checks: a buyer may try a couple of codes, never
+      // dozens. Fail closed — the code box must not become an oracle.
+      return { limit: readEnvInt("RATE_LIMIT_COUPON_PER_MIN", 10), windowMs, onBackendError: "closed" };
     case "import":
       return { limit: readEnvInt("RATE_LIMIT_IMPORT_PER_MIN", 10), windowMs, onBackendError: "closed" };
     case "export":

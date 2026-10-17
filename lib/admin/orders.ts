@@ -254,6 +254,10 @@ export interface AdminOrderDetail {
   stockState: string;
   deliveryChargePaise: number;
   totalPaise: number;
+  /** Rupees knocked off by a redeem code (0 when the order used none). */
+  discountPaise: number;
+  /** Redeem code granted at checkout, or null when none was used. */
+  couponCode: string | null;
   deliveryPincode: string;
   deliveryPartnerName: string;
   /** Delivery address as typed at checkout (null on legacy rows). */
@@ -284,6 +288,7 @@ export async function getAdminOrderDetail(
     .from("orders")
     .select(
       "id,order_number,created_at,subtotal,delivery_charge,total_amount," +
+        "coupon_code,discount_amount," +
         "delivery_pincode,delivery_partner_name,gstin_snapshot,shipping_address," +
         "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
         "billing_name,billing_address_line,billing_city,billing_state," +
@@ -300,6 +305,8 @@ export async function getAdminOrderDetail(
     subtotal: string;
     delivery_charge: string;
     total_amount: string;
+    coupon_code?: string | null;
+    discount_amount?: string;
     delivery_pincode: string;
     delivery_partner_name: string;
     gstin_snapshot: string | null;
@@ -402,6 +409,8 @@ export async function getAdminOrderDetail(
     igstPaise: toPaise(o.igst_amount),
     deliveryChargePaise: toPaise(o.delivery_charge),
     totalPaise: toPaise(o.total_amount),
+    discountPaise: toPaise(o.discount_amount ?? "0"),
+    couponCode: o.coupon_code ?? null,
     deliveryPincode: o.delivery_pincode,
     deliveryPartnerName: o.delivery_partner_name,
     shippingAddress: o.shipping_address,

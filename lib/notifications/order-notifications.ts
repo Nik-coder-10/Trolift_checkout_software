@@ -46,6 +46,10 @@ export interface OrderNotificationInput {
   deliveryPartnerName: string | null;
   etaDays: { min: number; max: number } | null;
   totalPaise: number;
+  /** Rupees knocked off by the redeem code (0 when no offer applied). */
+  discountPaise: number;
+  /** Redeem code granted at checkout, or null when none was used. */
+  couponCode: string | null;
   pincode: string;
   /** Delivery address as typed at checkout — both copies show it. */
   shippingAddress: string;
@@ -120,6 +124,8 @@ export async function notifyOrderPlaced(
     deliveryPartnerName: input.deliveryPartnerName,
     etaDays: input.etaDays,
     totalPaise: input.totalPaise,
+    discountPaise: input.discountPaise,
+    couponCode: input.couponCode,
     pincode: input.pincode,
     shippingAddress: input.shippingAddress,
     paymentWindowHours: getPaymentWindowHours(),

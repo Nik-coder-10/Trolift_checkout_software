@@ -68,10 +68,23 @@ test.describe("admin and access control", () => {
       "/api/admin/customers",
       "/api/admin/export/products",
       "/api/admin/notes",
+      "/api/admin/coupons",
     ]) {
       const res = await request.get(url);
       expect(res.status(), url).toBe(401);
     }
+  });
+
+  test("redeem-code management rejects anonymous writes", async ({ request }) => {
+    const uuid = "123e4567-e89b-42d3-a456-426614174000";
+    const created = await request.post("/api/admin/coupons", {
+      data: { code: "GUEST100", discountRupees: 100 },
+    });
+    expect(created.status()).toBe(401);
+    const patched = await request.patch(`/api/admin/coupons/${uuid}`, {
+      data: { code: "GUEST100", discountRupees: 100, isActive: false },
+    });
+    expect(patched.status()).toBe(401);
   });
 
   test("staff notes API denies anonymous reads, writes and edits", async ({

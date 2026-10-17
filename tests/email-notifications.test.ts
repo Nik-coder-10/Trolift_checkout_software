@@ -71,6 +71,8 @@ const INPUT: OrderMessageInput = {
   deliveryPartnerName: "Delhivery",
   etaDays: { min: 2, max: 4 },
   totalPaise: 3759700,
+  discountPaise: 0,
+  couponCode: null,
   pincode: "411001",
   shippingAddress: "Flat 7B, Sundar Villa, Kothrud, Pune 411038",
   paymentWindowHours: 24,
@@ -108,6 +110,28 @@ describe("notification copy", () => {
     expect(text).toContain(
       "Pincode 411001 (Maharashtra): serviceable — Delhivery, ETA 5-6 business days, delivery included.",
     );
+  });
+
+  it("shows the redeem discount between delivery and the total it reduced", () => {
+    const text = buildCustomerOrderMessage({
+      ...INPUT,
+      totalPaise: 3729700,
+      discountPaise: 30000,
+      couponCode: "FIRST300",
+    });
+    expect(text).toContain("Discount (FIRST300): -₹300.00");
+    expect(text).toContain("Total: ₹37,297.00");
+    expect(text.indexOf("Delivery: Included")).toBeLessThan(
+      text.indexOf("Discount (FIRST300)"),
+    );
+    expect(text.indexOf("Discount (FIRST300)")).toBeLessThan(
+      text.indexOf("Total: ₹37,297.00"),
+    );
+  });
+
+  it("keeps the discount line out of orders that used no code", () => {
+    const text = buildCustomerOrderMessage(INPUT);
+    expect(text).not.toContain("Discount");
   });
 
   it("names the IGST component for inter-state orders", () => {
@@ -366,6 +390,8 @@ describe("order notification orchestration", () => {
     deliveryPartnerName: "Delhivery",
     etaDays: null,
     totalPaise: 629900,
+    discountPaise: 0,
+    couponCode: null,
     pincode: "411001",
     shippingAddress: "Flat 7B, Sundar Villa, Kothrud, Pune 411038",
   };

@@ -170,4 +170,21 @@ describe("checkout form contract (source)", () => {
       focusBlock.indexOf("pincode"),
     );
   });
+
+  it("applies redeem codes in the order summary with a struck-through total", () => {
+    const src = form();
+    // The code input lives in the right-side summary, near the totals.
+    expect(src).toContain('htmlFor="coupon-code"');
+    expect(src).toContain("Redeem code");
+    expect(src).toContain('name="couponCode"');
+    expect(src).toContain('"/api/coupons/validate"');
+    // Applied state feeds both the summary rows and the place-order body.
+    expect(src).toContain("couponCode: appliedCoupon?.code ?? null");
+    expect(src).toContain("Discount ({appliedCoupon.code})");
+    expect(src).toContain("text-red-600 line-through");
+    expect(src).toContain("You saved");
+    // One code at a time: applied chip offers Remove, phone edits drop it.
+    expect(src).toContain("removeCoupon");
+    expect(src).toContain("c.status === \"applied\" ? { status: \"idle\" } : c");
+  });
 });

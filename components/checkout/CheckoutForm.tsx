@@ -44,6 +44,17 @@ type DeliveryState =
   | { status: "unavailable"; result: DeliveryCheckResult }
   | { status: "error"; message: string };
 
+interface AppliedCoupon {
+  code: string;
+  discountPaise: number;
+}
+
+type CouponState =
+  | { status: "idle" }
+  | { status: "checking" }
+  | { status: "applied"; coupon: AppliedCoupon }
+  | { status: "error"; message: string };
+
 function Section({
   n,
   title,
@@ -90,6 +101,8 @@ export function CheckoutForm() {
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<CouponState>({ status: "idle" });
   // One key per checkout attempt: retries and double-clicks replay to
   // the same server order instead of duplicating it.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
@@ -101,6 +114,11 @@ export function CheckoutForm() {
     setForm((f) => ({ ...f, [field]: value }));
     setReviewed(false);
     if (field === "pincode") setDelivery({ status: "idle" });
+    // The phone decides who counts as a first-time buyer, so an applied
+    // code must be re-checked whenever the number changes.
+    if (field === "phone") {
+      setCoupon((c) => (c.status === "applied" ? { status: "idle" } : c));
+    }
   };
 
   const setBilling = (field: keyof BillingFormData, value: string) => {
@@ -192,6 +210,47 @@ export function CheckoutForm() {
     }
   };
 
+  const applyCoupon = async () => {
+    const code = couponInput.trim();
+    setReviewed(false);
+    if (code === "") {
+      setCoupon({ status: "error", message: "Enter a valid redeem code." });
+      return;
+    }
+    setCoupon({ status: "checking" });
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, phone: form.phone }),
+      });
+      const json = (await res.json()) as ApiResponse<{
+        code: string;
+        discountPaise: number;
+        firstOrderOnly: boolean;
+      }>;
+      if (!json.ok) {
+        setCoupon({ status: "error", message: json.error.message });
+        return;
+      }
+      setCouponInput("");
+      setCoupon({
+        status: "applied",
+        coupon: { code: json.data.code, discountPaise: json.data.discountPaise },
+      });
+    } catch {
+      setCoupon({
+        status: "error",
+        message: "Could not reach the server. Please try again.",
+      });
+    }
+  };
+
+  const removeCoupon = () => {
+    setCoupon({ status: "idle" });
+    setReviewed(false);
+  };
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const result = validateCheckoutForm(form, items.length);
@@ -243,6 +302,7 @@ export function CheckoutForm() {
               : null,
           pincode: form.pincode,
           shippingAddress: form.shippingAddress,
+          couponCode: appliedCoupon?.code ?? null,
           idempotencyKey,
         }),
       });
@@ -346,6 +406,16 @@ export function CheckoutForm() {
   // the pincode check adds.
   const totalPaise = subtotalPaise;
   const deliverySummary = <span className="text-zinc-700">Included</span>;
+
+  const appliedCoupon = coupon.status === "applied" ? coupon.coupon : null;
+  // The server refuses a code that meets or exceeds the order total
+  // (payment must stay positive) — mirror that here so the summary
+  // never shows a zero or negative payable amount.
+  const couponOverCap =
+    appliedCoupon !== null && appliedCoupon.discountPaise >= totalPaise;
+  const discountPaise =
+    appliedCoupon !== null && !couponOverCap ? appliedCoupon.discountPaise : 0;
+  const payablePaise = totalPaise - discountPaise;
 
   return (
     <form noValidate onSubmit={submit} className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
@@ -582,6 +652,66 @@ export function CheckoutForm() {
             </li>
           ))}
         </ul>
+        {coupon.status !== "applied" ? (
+          <div className="mt-3 flex flex-col gap-1.5">
+            <label
+              htmlFor="coupon-code"
+              className="text-sm font-semibold text-zinc-800"
+            >
+              Redeem code
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="coupon-code"
+                name="couponCode"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="e.g. FIRST300"
+                value={couponInput}
+                onChange={(e) => {
+                  setCouponInput(e.target.value);
+                  if (coupon.status === "error") setCoupon({ status: "idle" });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void applyCoupon();
+                  }
+                }}
+                className="h-11 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm uppercase text-zinc-900 outline-none transition-colors placeholder:normal-case placeholder:text-zinc-400 focus:border-brand-700"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void applyCoupon()}
+                loading={coupon.status === "checking"}
+              >
+                Apply
+              </Button>
+            </div>
+            {coupon.status === "error" ? (
+              <p role="alert" className="text-xs text-red-700">
+                {coupon.message}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+            <span className="min-w-0 truncate text-sm font-semibold text-emerald-800">
+              {coupon.coupon.code}
+              <span className="ml-2 font-normal">
+                −{formatMoney({ amountPaise: coupon.coupon.discountPaise, currency: "INR" })}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={removeCoupon}
+              className="shrink-0 text-xs font-bold text-emerald-800 underline hover:text-emerald-900"
+            >
+              Remove
+            </button>
+          </div>
+        )}
         <dl className="mt-3 flex flex-col gap-1.5 text-sm">
           <div className="flex justify-between">
             <dt className="text-zinc-600">Items ({items.length})</dt>
@@ -593,13 +723,41 @@ export function CheckoutForm() {
             <dt className="text-zinc-600">Delivery</dt>
             <dd className="font-semibold text-zinc-900">{deliverySummary}</dd>
           </div>
+          {discountPaise > 0 && appliedCoupon ? (
+            <div className="flex justify-between">
+              <dt className="text-zinc-600">Discount ({appliedCoupon.code})</dt>
+              <dd className="font-semibold text-red-600">
+                −{formatMoney({ amountPaise: discountPaise, currency: "INR" })}
+              </dd>
+            </div>
+          ) : null}
           <div className="flex justify-between border-t border-zinc-100 pt-2 text-base">
             <dt className="font-bold text-zinc-900">Total</dt>
             <dd className="font-bold text-zinc-900">
-              <PriceDisplay amountPaise={totalPaise} size="md" />
+              {discountPaise > 0 ? (
+                <span className="flex items-baseline justify-end gap-2">
+                  <del className="text-sm font-semibold text-red-600 line-through">
+                    {formatMoney({ amountPaise: totalPaise, currency: "INR" })}
+                  </del>
+                  {formatMoney({ amountPaise: payablePaise, currency: "INR" })}
+                </span>
+              ) : (
+                <PriceDisplay amountPaise={totalPaise} size="md" />
+              )}
             </dd>
           </div>
         </dl>
+        {discountPaise > 0 && appliedCoupon ? (
+          <p className="mt-2 text-xs font-semibold text-emerald-700">
+            You saved {formatMoney({ amountPaise: discountPaise, currency: "INR" })}{" "}
+            with {appliedCoupon.code}
+          </p>
+        ) : null}
+        {couponOverCap && appliedCoupon ? (
+          <p role="status" className="mt-2 text-xs font-semibold text-amber-800">
+            Add more items to this order to use {appliedCoupon.code}.
+          </p>
+        ) : null}
         <p className="mt-2 text-xs leading-5 text-zinc-500">
           All prices include GST and delivery — this total is what you pay.
           Delivery availability is confirmed by the pincode check.

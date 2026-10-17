@@ -191,6 +191,97 @@ describe("POST /api/orders (server-authoritative totals)", () => {
     expect(json.data.deliveryChargePaise).toBe(70000);
   });
 
+  it("re-resolves the redeem code and persists the discounted money", async () => {
+    wireDb("6299.00", "450.00");
+    const captured: { args?: Record<string, unknown> } = {};
+    const inner = adminHandler;
+    adminHandler = (op) => {
+      if (op.rpc === "create_order") {
+        captured.args = op.rpcArgs as Record<string, unknown>;
+        return inner(op);
+      }
+      if (op.table === "coupons") {
+        const filter = op.filters.find((f) => f.col === "code");
+        return filter?.val === "FIRST300"
+          ? {
+              rows: [
+                {
+                  code: "FIRST300",
+                  discount_paise: 30000,
+                  first_order_only: false,
+                  active: true,
+                  valid_from: null,
+                  valid_until: null,
+                },
+              ],
+              error: null,
+            }
+          : { rows: [], error: null };
+      }
+      if (op.table === "orders") {
+        // What the discounted create_order RPC would have persisted:
+        // delivery rides inside the catalogue price (quote charge = 0).
+        return {
+          rows: [
+            {
+              id: CREATED_ORDER_ID,
+              order_number: "TS-261004-0002",
+              subtotal: "12598.00",
+              delivery_charge: "0.00",
+              total_amount: "12298.00",
+              coupon_code: "FIRST300",
+              discount_amount: "300.00",
+              payment_status: "pending",
+              order_status: "pending_payment",
+            },
+          ],
+          error: null,
+        };
+      }
+      return inner(op);
+    };
+
+    const res = await post(validBody({ couponCode: "first300" }));
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: Record<string, unknown>;
+      error?: { message: string };
+    };
+    expect(json.error).toBeUndefined();
+    expect(json.ok).toBe(true);
+    // The summary tells the checkout what actually got charged.
+    expect(json.data).toMatchObject({
+      totalPaise: 1229800,
+      discountPaise: 30000,
+      couponCode: "FIRST300",
+    });
+
+    // Money identity: the RPC receives the discounted total, never the
+    // undiscounted quote, and the coupon is stored on the order row.
+    const pOrder = captured.args?.["p_order"] as Record<string, unknown>;
+    expect(pOrder["coupon_code"]).toBe("FIRST300");
+    expect(pOrder["discount_amount"]).toBe("300.00");
+    expect(pOrder["total_amount"]).toBe("12298.00");
+    const pPayment = captured.args?.["p_payment"] as Record<string, unknown>;
+    expect(pPayment["amount"]).toBe("12298.00");
+  });
+
+  it("refuses an unknown redeem code instead of charging full price quietly", async () => {
+    wireDb("6299.00", "450.00");
+    const inner = adminHandler;
+    adminHandler = (op) => {
+      if (op.table === "coupons") return { rows: [], error: null };
+      return inner(op);
+    };
+    const res = await post(validBody({ couponCode: "GONE99" }));
+    const json = (await res.json()) as {
+      ok: boolean;
+      error?: { message: string };
+    };
+    expect(json.ok).toBe(false);
+    expect(json.error?.message).toBe("This redeem code is not valid.");
+  });
+
   it("rejects inactive and unknown products", async () => {
     serverHandler = (op) => {
       if (op.table === "products") {

@@ -6,6 +6,7 @@ import { checkRateLimit, denyIfLimited } from "@/lib/rate-limit/index";
 import { parseOrderRequestBody } from "@/lib/orders/request";
 import { quoteOrder } from "@/lib/orders/quote";
 import { fetchOrderSummary, persistOrder } from "@/lib/orders/create";
+import { resolveCoupon } from "@/lib/coupons/resolve";
 import { issueGuestToken } from "@/lib/guest-access/guard";
 import { notifyOrderPlaced } from "@/lib/notifications/order-notifications";
 
@@ -51,11 +52,21 @@ export const POST = withErrorHandling(async (req: Request) => {
     pincode: parsed.pincode,
     billing: parsed.billing,
   });
+  // One offer at a time, re-resolved here against THIS order's phone
+  // and total — the checkout preview is advisory, money is this side.
+  const coupon = parsed.couponCode
+    ? await resolveCoupon({
+        code: parsed.couponCode,
+        phone: parsed.customer.phone,
+        totalPaise: quote.totalPaise,
+      })
+    : null;
   const persisted = await persistOrder({
     idempotencyKey: parsed.idempotencyKey,
     customer: parsed.customer,
     shippingAddress: parsed.shippingAddress,
     quote,
+    coupon,
   });
   const summary = await fetchOrderSummary(persisted.orderId);
   // Duplicate replay (same idempotency key): rotate into a fresh token
@@ -96,6 +107,8 @@ export const POST = withErrorHandling(async (req: Request) => {
         deliveryPartnerName: quote.deliveryPartnerName,
         etaDays: quote.etaDays,
         totalPaise: summary.totalPaise,
+        discountPaise: summary.discountPaise,
+        couponCode: summary.couponCode,
         pincode: quote.pincode,
         shippingAddress: parsed.shippingAddress,
       });

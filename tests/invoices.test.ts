@@ -72,6 +72,7 @@ function gstInput(over: Partial<BuildInvoiceInput> = {}): BuildInvoiceInput {
       cgstPaise: 113382,
       sgstPaise: 113382,
       igstPaise: 0,
+      discountPaise: 0,
       grandTotalPaise: 1531564,
     },
     ...over,
@@ -123,6 +124,7 @@ describe("invoice generation (snapshot-only)", () => {
           cgstPaise: 0,
           sgstPaise: 0,
           igstPaise: 0,
+          discountPaise: 0,
           grandTotalPaise: 15000,
         },
       }),
@@ -152,6 +154,7 @@ describe("invoice generation (snapshot-only)", () => {
           cgstPaise: 0,
           sgstPaise: 0,
           igstPaise: tax,
+          discountPaise: 0,
           grandTotalPaise: subtotal + tax + 10000,
         },
       }),
@@ -166,6 +169,30 @@ describe("invoice generation (snapshot-only)", () => {
         gstInput({ totals: { ...gstInput().totals, grandTotalPaise: 1 } }),
       ),
     ).toThrow(/grand total/);
+    // A redeem discount must be netted into the printed grand total.
+    expect(() =>
+      buildInvoiceData(
+        gstInput({
+          totals: {
+            ...gstInput().totals,
+            discountPaise: 30000,
+            couponCode: "FIRST300",
+          },
+        }),
+      ),
+    ).toThrow(/grand total/);
+    expect(() =>
+      buildInvoiceData(
+        gstInput({
+          totals: {
+            ...gstInput().totals,
+            discountPaise: 30000,
+            couponCode: "FIRST300",
+            grandTotalPaise: 1531564 - 30000,
+          },
+        }),
+      ),
+    ).not.toThrow();
     expect(() =>
       buildInvoiceData(
         gstInput({
@@ -214,8 +241,9 @@ describe("invoice generation (snapshot-only)", () => {
             taxablePaise: 100,
             cgstPaise: 10,
             sgstPaise: 0,
-            igstPaise: 0,
-            grandTotalPaise: 110,
+          igstPaise: 0,
+          discountPaise: 0,
+          grandTotalPaise: 110,
           },
         }),
       ),
@@ -269,6 +297,7 @@ describe("invoice generation (snapshot-only)", () => {
           cgstPaise: 0,
           sgstPaise: 0,
           igstPaise: 0,
+          discountPaise: 0,
           grandTotalPaise: 100,
         },
       }),

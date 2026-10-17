@@ -63,6 +63,7 @@ function base(over: Partial<BuildInvoiceInput> = {}): BuildInvoiceInput {
       cgstPaise: 113382,
       sgstPaise: 113382,
       igstPaise: 0,
+      discountPaise: 0,
       grandTotalPaise: 1531564,
     },
     ...over,
@@ -113,8 +114,9 @@ describe("invoice PDF (structured data → A4 document)", () => {
             taxablePaise: 10000,
             cgstPaise: 0,
             sgstPaise: 0,
-            igstPaise: 0,
-            grandTotalPaise: 15000,
+          igstPaise: 0,
+          discountPaise: 0,
+          grandTotalPaise: 15000,
           },
         }),
       ),
@@ -123,6 +125,25 @@ describe("invoice PDF (structured data → A4 document)", () => {
     expect(text).toContain("Rs. 150.00");
     expect(text).toContain("no GST charged");
     expect(text).not.toContain("CGST");
+  });
+
+  it("renders the redeem-code discount row and nets it into the grand total", async () => {
+    const pdf = await renderInvoicePdf(
+      buildInvoiceData(
+        base({
+          totals: {
+            ...base().totals,
+            discountPaise: 30000,
+            couponCode: "FIRST300",
+            grandTotalPaise: 1531564 - 30000,
+          },
+        }),
+      ),
+    );
+    const text = (await pdfParse(pdf)).text;
+    expect(text).toContain("Discount (FIRST300)");
+    expect(text).toContain("Rs. -300.00");
+    expect(text).toContain("Rs. 15,015.64");
   });
 
   it("renders very long names and many items across pages", async () => {
@@ -150,6 +171,7 @@ describe("invoice PDF (structured data → A4 document)", () => {
             cgstPaise: tax / 2,
             sgstPaise: tax / 2,
             igstPaise: 0,
+            discountPaise: 0,
             grandTotalPaise: subtotal + tax,
           },
         }),

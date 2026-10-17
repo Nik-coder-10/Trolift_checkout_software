@@ -37,6 +37,10 @@ export interface OrderMessageInput {
   deliveryPartnerName: string | null;
   etaDays: { min: number; max: number } | null;
   totalPaise: number;
+  /** Rupees knocked off by the redeem code (0 when no offer applied). */
+  discountPaise: number;
+  /** Redeem code granted at checkout, or null when none was used. */
+  couponCode: string | null;
   pincode: string;
   /** Delivery address as typed at checkout (required for new orders). */
   shippingAddress: string;
@@ -85,6 +89,11 @@ function summaryLines(input: OrderMessageInput): string[] {
     lines.push(`GST included: ₹${rupees(input.taxPaise)} (${component})`);
   }
   lines.push("Delivery: Included");
+  if (input.discountPaise > 0) {
+    lines.push(
+      `Discount${input.couponCode ? ` (${input.couponCode})` : ""}: -₹${rupees(input.discountPaise)}`,
+    );
+  }
   lines.push(`Total: ₹${rupees(input.totalPaise)}`);
   return lines;
 }

@@ -96,6 +96,20 @@ describe("parseOrderRequestBody (server gate)", () => {
     ).toBe("24, MG Road, Pune");
   });
 
+  it("normalizes the redeem code and fails closed on a malformed one", () => {
+    expect(
+      parseOrderRequestBody(body({ couponCode: " first300 " })).couponCode,
+    ).toBe("FIRST300");
+    // Absent means "no code", never a shape error.
+    expect(parseOrderRequestBody(body()).couponCode).toBe("");
+    expect(
+      codeOf(() => parseOrderRequestBody(body({ couponCode: "bad code!" }))),
+    ).toBe("VALIDATION_ERROR");
+    expect(
+      codeOf(() => parseOrderRequestBody(body({ couponCode: "AB" }))),
+    ).toBe("VALIDATION_ERROR");
+  });
+
   it("has nowhere to put fake money: extra fields are dropped", () => {
     const r = parseOrderRequestBody(
       body({
@@ -112,9 +126,13 @@ describe("parseOrderRequestBody (server gate)", () => {
     expect(r).not.toHaveProperty("deliveryCharge");
     expect(r).not.toHaveProperty("paymentStatus");
     expect(r).not.toHaveProperty("orderStatus");
+    // The coupon is shape-checked only — the discount money never
+    // arrives here; the server re-resolves the code after quoting.
+    expect(r).not.toHaveProperty("discountPaise");
     expect(Object.keys(r).sort()).toEqual(
       [
         "billing",
+        "couponCode",
         "customer",
         "idempotencyKey",
         "items",

@@ -45,6 +45,9 @@ interface OrderSnapshot {
   subtotal: string | number;
   delivery_charge: string | number;
   total_amount: string | number;
+  /** Null on orders placed before the redeem-code feature. */
+  coupon_code?: string | null;
+  discount_amount?: string | number;
   delivery_pincode: string;
   delivery_partner_name: string;
   gstin_snapshot: string | null;
@@ -142,7 +145,7 @@ export async function getInvoiceData(orderId: string): Promise<InvoiceData> {
     .from("orders")
     .select(
       "id,order_number,created_at,payment_status,order_status,subtotal,delivery_charge," +
-        "total_amount,delivery_pincode,delivery_partner_name,gstin_snapshot," +
+        "total_amount,coupon_code,discount_amount,delivery_pincode,delivery_partner_name,gstin_snapshot," +
         "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
         "billing_name,billing_address_line,billing_city,billing_state," +
         "billing_state_code,billing_pincode,customer_name_snapshot," +
@@ -264,6 +267,8 @@ export async function getInvoiceData(orderId: string): Promise<InvoiceData> {
       cgstPaise: toPaise(o.cgst_amount),
       sgstPaise: toPaise(o.sgst_amount),
       igstPaise: toPaise(o.igst_amount),
+      discountPaise: toPaise(o.discount_amount ?? 0),
+      couponCode: o.coupon_code ?? null,
       grandTotalPaise: toPaise(o.total_amount),
     },
   });
