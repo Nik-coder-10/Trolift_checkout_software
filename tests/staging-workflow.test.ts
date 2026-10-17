@@ -78,7 +78,12 @@ describe("rate-limit route coverage (static contract)", () => {
 
   it(".env.example documents the auth budget variable (name only)", () => {
     const src = readFileSync(join(REPO, ".env.example"), "utf8");
-    const line = src.split("\n").find((l) => l.startsWith("RATE_LIMIT_AUTH_PER_MIN"));
+    // .env.example is checked in with CRLF line endings, so split on
+    // either ending — a trailing \r would otherwise spoil the
+    // exact-match assertion below.
+    const line = src
+      .split(/\r?\n/)
+      .find((l) => l.startsWith("RATE_LIMIT_AUTH_PER_MIN"));
     expect(line).toBe("RATE_LIMIT_AUTH_PER_MIN=");
   });
 });
