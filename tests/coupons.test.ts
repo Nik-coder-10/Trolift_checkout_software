@@ -17,7 +17,11 @@ interface CouponFixture {
 }
 
 let coupons: CouponFixture[] = [];
-let priorPhones = new Set<string>();
+interface PriorOrder {
+  phone: string;
+  status: string;
+}
+let priorOrders: PriorOrder[] = [];
 let couponsDbBroken = false;
 
 const handler: MockResponder = (op) => {
@@ -31,12 +35,33 @@ const handler: MockResponder = (op) => {
     };
   }
   if (op.table === "orders") {
-    const filter = op.filters.find((f) => f.col === "customer_phone_snapshot");
-    const phone = filter?.val;
+    const phone = op.filters.find(
+      (f) => f.col === "customer_phone_snapshot" && f.op === "eq",
+    )?.val;
+    const matches = priorOrders.filter(
+      (o) => typeof phone === "string" && o.phone === phone,
+    );
+    const exclusion = op.filters.find(
+      (f) => f.col === "order_status" && f.op === "not",
+    );
+    if (!exclusion) {
+      // The query asked for every prior order regardless of status.
+      return { rows: [], error: null, count: matches.length };
+    }
+    const { operator, value } = exclusion.val as {
+      operator: string;
+      value: unknown;
+    };
+    if (operator !== "in") {
+      throw new Error(`unexpected order_status operator ${operator}`);
+    }
+    const excluded = String(value)
+      .replace(/[()]/g, "")
+      .split(",");
     return {
       rows: [],
       error: null,
-      count: typeof phone === "string" && priorPhones.has(phone) ? 3 : 0,
+      count: matches.filter((o) => !excluded.includes(o.status)).length,
     };
   }
   throw new Error(`unexpected admin op on ${op.table ?? op.rpc}`);
@@ -65,7 +90,7 @@ const PHONE = "+919876543210";
 beforeEach(() => {
   resetRateLimits();
   coupons = [ROW];
-  priorPhones = new Set();
+  priorOrders = [];
   couponsDbBroken = false;
 });
 
@@ -158,9 +183,31 @@ describe("resolveCoupon", () => {
       resolveCoupon({ code: "NAV300", phone: PHONE }),
     ).resolves.toMatchObject({ code: "NAV300", firstOrderOnly: true });
 
-    priorPhones = new Set([PHONE]);
+    priorOrders = [{ phone: PHONE, status: "confirmed" }];
     await expect(
       resolveCoupon({ code: "NAV300", phone: PHONE }),
+    ).rejects.toMatchObject({ message: "This code is only for first-time buyers." });
+  });
+
+  it("ignores abandoned checkouts and cancelled orders", async () => {
+    coupons = [{ ...ROW, first_order_only: true }];
+    priorOrders = [
+      { phone: PHONE, status: "draft" },
+      { phone: PHONE, status: "pending_payment" },
+      { phone: PHONE, status: "cancelled" },
+    ];
+
+    await expect(
+      resolveCoupon({ code: "FIRST300", phone: PHONE }),
+    ).resolves.toMatchObject({ code: "FIRST300", firstOrderOnly: true });
+  });
+
+  it("counts a submitted payment as a prior order", async () => {
+    coupons = [{ ...ROW, first_order_only: true }];
+    priorOrders = [{ phone: PHONE, status: "payment_submitted" }];
+
+    await expect(
+      resolveCoupon({ code: "FIRST300", phone: PHONE }),
     ).rejects.toMatchObject({ message: "This code is only for first-time buyers." });
   });
 

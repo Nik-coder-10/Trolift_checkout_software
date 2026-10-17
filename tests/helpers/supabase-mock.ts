@@ -9,7 +9,7 @@
 
 export interface MockFilter {
   col: string;
-  op: "eq" | "neq" | "in" | "or" | "gte" | "lte" | "ilike";
+  op: "eq" | "neq" | "in" | "not" | "or" | "gte" | "lte" | "ilike";
   val: unknown;
 }
 
@@ -46,6 +46,7 @@ export interface MockBuilder {
   eq(col: string, val: unknown): MockBuilder;
   neq(col: string, val: unknown): MockBuilder;
   in(col: string, val: unknown): MockBuilder;
+  not(col: string, operator: string, val: unknown): MockBuilder;
   or(raw: string): MockBuilder;
   gte(col: string, val: unknown): MockBuilder;
   lte(col: string, val: unknown): MockBuilder;
@@ -106,6 +107,13 @@ function builder(
       next({ filters: [...state.filters, { col, op: "neq", val }] }),
     in: (col, val) =>
       next({ filters: [...state.filters, { col, op: "in", val }] }),
+    not: (col, operator, val) =>
+      next({
+        filters: [
+          ...state.filters,
+          { col, op: "not", val: { operator, value: val } },
+        ],
+      }),
     or: (raw) =>
       next({ filters: [...state.filters, { col: "", op: "or", val: raw }] }),
     gte: (col, val) =>

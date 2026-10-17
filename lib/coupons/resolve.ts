@@ -78,10 +78,15 @@ export async function resolveCoupon(input: {
     if (input.phone === null) {
       fail("Enter your mobile number to use this code.");
     }
+    // Only orders that progressed past checkout disqualify: an
+    // abandoned cart (draft/pending_payment) or a cancelled order
+    // never became a purchase, so it must not lock a first-time-buyer
+    // code forever (there is no order-expiry sweep to clear them).
     const prior = await admin
       .from("orders")
       .select("id", { count: "exact", head: true })
-      .eq("customer_phone_snapshot", input.phone);
+      .eq("customer_phone_snapshot", input.phone)
+      .not("order_status", "in", "(draft,pending_payment,cancelled)");
     if (prior.error) {
       internal("Could not verify this redeem code. Please try again.");
     }
