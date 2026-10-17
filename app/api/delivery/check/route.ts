@@ -77,8 +77,10 @@ export const POST = withErrorHandling(async (req: Request) => {
     }
   }
   const quote = await quoteDelivery(pincode, subtotalPaise, items ?? []);
-  // Orders require a priced partner row — the same gate quoteOrder
-  // applies — so "serviceable" here means exactly "orderable here".
+  // Same gate quoteOrder applies, so "serviceable" here means exactly
+  // "orderable here": every covered pincode carries a partner (a
+  // configured rate row, or the coverage-source fallback), so a missing
+  // one only ever means the pincode itself cannot be served.
   const serviceable = Boolean(quote.serviceable && quote.selected);
   if (!serviceable) {
     return ok({

@@ -899,7 +899,9 @@ describe("failure flows fail safe with the item named", () => {
     });
     expect(badPhone.res.status).toBe(422);
 
-    const unserved = await placeOrder("24", { pincode: "799001" });
+    // 680522 is flagged ODA in the Delhivery list: coverage rejects it
+    // outright, so no order (and no reservation) is ever created.
+    const unserved = await placeOrder("24", { pincode: "680522" });
     expect(unserved.res.status).toBe(422);
     expect(db.orders.size).toBe(0);
   });

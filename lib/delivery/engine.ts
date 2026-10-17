@@ -36,17 +36,32 @@ import {
  * All money is integer paise; all weights are integer grams (NUMERIC
  * inputs carry at most 3 decimals, so both conversions are exact).
  *
- * COVERAGE vs PRICE: a pincode the list covers still needs a configured
- * rate row to be priced. With no rows at all (or an unreachable
- * database) the quote reports it as deliverable with no selected option
- * and a charge-to-be-confirmed reason. Rows that exist but qualify
- * nothing (serviceable=false, inactive partner, order windows) are the
- * operator's explicit "no" and stay not serviceable.
+ * COVERAGE vs SERVICE: the rate table no longer decides serviceability.
+ * A pincode the list covers is orderable even with no rate row —
+ * delivery is already inside the catalogue price, so there is no charge
+ * left to configure, and the quote falls back to the partner the
+ * coverage verdict came from (id null until the operator adds a row).
+ * Rows that exist but qualify nothing (serviceable=false, inactive
+ * partner, order windows) are the operator's explicit "no" and stay not
+ * serviceable.
  */
 
-/** Verdict for a pincode the list covers but no rate row prices yet. */
-const UNPRICED_REASON =
-  "Delivery is available for this pincode, but the delivery charge isn't configured yet. Please contact us to confirm it.";
+/**
+ * Serving partner for a pincode the Delhivery list covers but the rate
+ * table has no row for. The coverage verdict itself came from
+ * Delhivery's pincode list, so this names that network rather than
+ * guessing; the id stays null (orders.delivery_partner_id is nullable)
+ * until the operator configures a row, which then replaces it with a
+ * real partner, ETA and order windows.
+ */
+export const UNCONFIGURED_PARTNER_NAME = "Delhivery";
+
+function unconfiguredSelected(): DeliveryQuote["selected"] {
+  return {
+    partner: { id: null, name: UNCONFIGURED_PARTNER_NAME },
+    deliveryChargePaise: 0,
+  };
+}
 
 /**
  * Customer-facing verdict for an unserviceable pincode. Delivery
@@ -80,7 +95,12 @@ export interface RateOption {
 }
 
 export interface DeliveryPartnerRef {
-  id: string;
+  /**
+   * Rate-row partner id, or null when the pincode is covered but the
+   * rate table has no row yet (orders.delivery_partner_id is nullable,
+   * so the order records the name without inventing an id).
+   */
+  id: string | null;
   name: string;
 }
 
@@ -89,9 +109,10 @@ export interface DeliveryQuote {
   /** True when the pincode is deliverable (Delhivery list coverage). */
   serviceable: boolean;
   /**
-   * Priced option, or null when coverage exists but no rate is
-   * configured yet. Orders cannot be placed in that state — the order
-   * API requires a selected partner and charge.
+   * The partner the order will be placed with, or null when the
+   * pincode is not serviceable. Covered pincodes always carry one —
+   * configured rate rows pick a partner/ETA, and an uncovered-by-rates
+   * pincode falls back to UNCONFIGURED_PARTNER_NAME.
    */
   selected: {
     partner: DeliveryPartnerRef;
@@ -273,14 +294,14 @@ export async function quoteDelivery(
 
   // Indexed pincode lookup (pincode_rates_pincode_idx) — one narrow
   // query, never a table scan — plus the small rule tables. An
-  // unconfigured/unreachable database degrades to "coverage yes, charge
-  // to be confirmed" instead of failing: coverage is already answered
-  // and no money is decided here.
+  // unreachable database degrades to "coverage yes, orderable" instead
+  // of failing: coverage is already answered from the shipped list and
+  // no money is decided here.
   let supabase: Awaited<ReturnType<typeof createClient>> | null = null;
   try {
     supabase = await createClient();
   } catch {
-    return { ...empty, serviceable: true, reason: UNPRICED_REASON };
+    return { ...empty, serviceable: true, selected: unconfiguredSelected() };
   }
   const ids = lines.length > 0 ? [...new Set(lines.map((l) => l.productId))] : [];
   const [
@@ -321,9 +342,13 @@ export async function quoteDelivery(
 
   const rows = (rateData ?? []) as unknown as RateRow[];
   if (rows.length === 0) {
-    // The list covers this pincode but no rate is configured for it:
-    // deliverable, unpriced, and not orderable until a rate exists.
-    return { ...empty, serviceable: true, reason: UNPRICED_REASON };
+    // Covered, but the rate table has no row for this pincode. Nothing
+    // is left to price — delivery is already inside the catalogue price
+    // — so the pincode is serviceable and orderable against the
+    // coverage-source partner. Weight is only read to price weight
+    // slabs, which need a rate row, so it stays unknown here; an
+    // operator row added later brings partner, ETA, windows and weight.
+    return { ...empty, serviceable: true, selected: unconfiguredSelected() };
   }
   const slabs = (slabData ?? []) as unknown as SlabRow[];
   const categoryRules = (ruleData ?? []) as unknown as CategoryRuleRow[];

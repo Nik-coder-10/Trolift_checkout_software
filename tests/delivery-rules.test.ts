@@ -322,14 +322,34 @@ describe("rule engine (precedence + selection)", () => {
     expect(q.selected).toBeNull();
   });
 
-  it("reports a covered pincode with no configured rate as deliverable but unpriced", async () => {
+  it("accepts a covered pincode with no configured rate as orderable", async () => {
+    // A missing rate row means nothing is left to price — not "we don't
+    // deliver here". The pincode is serviceable and orderable against
+    // the partner its coverage verdict came from, with no id until the
+    // operator configures a row.
     wireEngine({ rates: [] });
     const q = await quoteDelivery("799001");
     expect(q.serviceable).toBe(true);
+    expect(q.coverage.deliverable).toBe(true);
+    expect(q.selected).toMatchObject({
+      partner: { id: null, name: "Delhivery" },
+      deliveryChargePaise: 0,
+    });
+    expect(q.reason).toBeUndefined();
+    expect(JSON.stringify(q)).not.toContain("delivery_weight_slabs");
+  });
+
+  it("stays not serviceable when every configured row says no", async () => {
+    // The operator's explicit refusal (serviceable=false) still wins:
+    // a covered pincode with rows that qualify nothing is not orderable.
+    wireEngine({ rates: [rate({ serviceable: false })], products: [product()] });
+    const q = await quoteDelivery("799001", 100000, [
+      { productId: P1, quantity: 1 },
+    ]);
+    expect(q.serviceable).toBe(false);
     expect(q.selected).toBeNull();
     expect(q.coverage.deliverable).toBe(true);
-    expect(q.reason).toContain("charge");
-    expect(JSON.stringify(q)).not.toContain("delivery_weight_slabs");
+    expect(q.reason).toContain("do not serve");
   });
 });
 

@@ -171,9 +171,10 @@ describe("POST /api/delivery/check", () => {
     expect(String(json.data.message)).toContain("nearby pincode");
   });
 
-  it("treats a covered pincode with no configured rate as not orderable", async () => {
-    // Orders require a priced partner row — same gate as quoteOrder —
-    // so covered-but-unpriced answers with the nearby-pincode message.
+  it("treats a covered pincode with no configured rate as orderable", async () => {
+    // No rate row means nothing is priced — not "we don't deliver here".
+    // The verdict stays serviceable and names the partner the coverage
+    // came from, so the customer can place the order.
     serverHandler = (op) => {
       if (op.table === "delivery_pincode_rates") {
         return { rows: [], error: null };
@@ -192,10 +193,49 @@ describe("POST /api/delivery/check", () => {
       data: Record<string, unknown>;
     };
     expect(json.ok).toBe(true);
+    expect(json.data.serviceable).toBe(true);
+    expect(json.data.partner).toMatchObject({ name: "Delhivery" });
+    expect(String(json.data.message)).toContain("included");
+    expect(json.data.coverage).toMatchObject({ listed: true, oda: false });
+  });
+
+  it("stays not orderable when every configured row says no", async () => {
+    serverHandler = (op) => {
+      if (op.table === "delivery_pincode_rates") {
+        return {
+          rows: [
+            {
+              delivery_partner_id: "a1b2c3d4-0001-4000-8000-000000000001",
+              serviceable: false,
+              delivery_charge: "0.00",
+              remote_surcharge: "0.00",
+              eta_min_days: null,
+              eta_max_days: null,
+              min_order_amount: null,
+              max_order_amount: null,
+              delivery_partners: { name: "Delhivery", is_active: true, priority: 100 },
+            },
+          ],
+          error: null,
+        };
+      }
+      if (op.table === "delivery_weight_slabs") {
+        return { rows: [], error: null };
+      }
+      if (op.table === "delivery_category_rules") {
+        return { rows: [], error: null };
+      }
+      throw new Error("unreachable");
+    };
+    const res = await call(deliveryPost, { pincode: "799001" });
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: Record<string, unknown>;
+    };
+    expect(json.ok).toBe(true);
     expect(json.data.serviceable).toBe(false);
     expect(json.data.partner).toBeNull();
     expect(String(json.data.message)).toContain("nearby pincode");
-    expect(json.data.coverage).toMatchObject({ listed: true, oda: false });
   });
 
   it("rejects malformed input", async () => {

@@ -76,7 +76,8 @@ export interface OrderQuote {
   subtotalPaise: number;
   tax: OrderTax;
   billing: BillingInput;
-  deliveryPartnerId: string;
+  /** Null for a covered pincode with no configured rate row. */
+  deliveryPartnerId: string | null;
   deliveryPartnerName: string;
   /** Always 0 — delivery is included in the catalogue price. */
   deliveryChargePaise: number;

@@ -57,7 +57,7 @@ const validBody = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-function wireDb(price: string, charge: string) {
+function wireDb(price: string, charge: string, rates: unknown[] = [rateRow(charge)]) {
   // Summary rows mirror what the RPC would persist from the quote, so
   // the response mapping is exercised end to end.
   const subtotal = (Number(price) * 2).toFixed(2);
@@ -76,7 +76,7 @@ function wireDb(price: string, charge: string) {
       };
     }
     if (op.table === "delivery_pincode_rates") {
-      return { rows: [rateRow(charge)], error: null };
+      return { rows: rates, error: null };
     }
     if (op.table === "delivery_weight_slabs") {
       return { rows: [], error: null };
@@ -212,6 +212,8 @@ describe("POST /api/orders (server-authoritative totals)", () => {
   });
 
   it("rejects unserviceable pincodes", async () => {
+    // 680522 is flagged ODA in the Delhivery list, so coverage vetoes it
+    // before any rate lookup — no rows configured, and none required.
     serverHandler = (op) => {
       if (op.table === "products") {
         return {
@@ -236,13 +238,46 @@ describe("POST /api/orders (server-authoritative totals)", () => {
       }
       throw new Error("unreachable");
     };
-    const res = await post(validBody({ pincode: "799001" }));
+    const res = await post(validBody({ pincode: "680522" }));
     const json = (await res.json()) as {
       ok: boolean;
       error: { code: string };
     };
     expect(json.ok).toBe(false);
     expect(json.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("places an order on a covered pincode with no configured rate", async () => {
+    // No rate row means nothing is left to price — not "we don't deliver
+    // here". The order goes through against the coverage-source partner,
+    // recorded without a partner id until the operator configures one.
+    wireDb("6299.00", "450.00", []);
+    const captured: { args?: Record<string, unknown> } = {};
+    const inner = adminHandler;
+    adminHandler = (op) => {
+      if (op.rpc === "create_order") {
+        captured.args = op.rpcArgs as Record<string, unknown>;
+      }
+      return inner(op);
+    };
+
+    const res = await post(validBody({ pincode: "302012" }));
+    const json = (await res.json()) as {
+      ok: boolean;
+      error?: { code: string; message: string };
+    };
+    expect(json.error).toBeUndefined();
+    expect(json.ok).toBe(true);
+
+    const order = captured.args?.["p_order"] as
+      | Record<string, unknown>
+      | undefined;
+    expect(order).toBeDefined();
+    expect(order?.["delivery_partner_id"]).toBeNull();
+    expect(order?.["delivery_partner_name"]).toBe("Delhivery");
+    // Delivery is already inside the catalogue price, so the quote never
+    // carries a charge for an unconfigured pincode either.
+    expect(order?.["delivery_charge"]).toBe("0.00");
   });
 
   it("replays duplicate submissions to the original order", async () => {
