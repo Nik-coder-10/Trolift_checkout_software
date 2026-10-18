@@ -11,6 +11,7 @@ import { GuestKeyExchange } from "@/components/orders/GuestKeyExchange";
 import { getPayableOrderForGuest } from "@/lib/payments/order";
 import { guestCookieName } from "@/lib/guest-access/tokens";
 import { buildTimeline } from "@/lib/orders/display";
+import { canIssueQuotation } from "@/lib/quotations/data";
 
 async function loadOrder(id: string) {
   try {
@@ -88,6 +89,9 @@ export default async function OrderPage({
   const payable =
     (order.paymentStatus === "pending" || order.paymentStatus === "failed") &&
     (order.orderStatus === "pending_payment" || order.orderStatus === "draft");
+  // Quotations are provisional documents — downloadable while the
+  // order is still pre-payment (same gate as the quotation service).
+  const provisional = canIssueQuotation(order.orderStatus);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
@@ -391,9 +395,20 @@ export default async function OrderPage({
                 Download Invoice
               </a>
             ) : (
-              <p className="text-xs leading-5 text-zinc-500">
-                The tax invoice is issued after payment verification.
-              </p>
+              <div className="flex flex-col gap-2">
+                {provisional ? (
+                  <a
+                    href={`/api/orders/${order.id}/quotation`}
+                    download
+                    className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-5 text-sm font-bold text-zinc-800 hover:bg-zinc-50"
+                  >
+                    Download Quotation
+                  </a>
+                ) : null}
+                <p className="text-xs leading-5 text-zinc-500">
+                  The tax invoice is issued after payment verification.
+                </p>
+              </div>
             )}
           </div>
         </aside>

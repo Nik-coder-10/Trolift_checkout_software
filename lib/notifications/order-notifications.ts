@@ -53,6 +53,13 @@ export interface OrderNotificationInput {
   pincode: string;
   /** Delivery address as typed at checkout — both copies show it. */
   shippingAddress: string;
+  /**
+   * The order's frozen quotation PDF. Attached to the customer's copy
+   * (they may have missed the pay-page download) AND the owner's copy
+   * (their record of what was quoted). Built by the caller so this
+   * module stays free of PDF/DB dependencies.
+   */
+  quotation?: { number: string; content: Buffer } | null;
 }
 
 /** "12 MG Road, Pune, Maharashtra 411001" from whatever is present. */
@@ -70,6 +77,8 @@ function composeAddress(billing: OrderNotificationInput["billing"]): string | nu
  * Load the shop's static UPI QR (PayZapp/HDFC) for email attachment.
  * The path can be overridden with PAYMENT_QR_PATH; the default is
  * public/images/payment-qr.png. Missing file → null (email still sent).
+ * Attached to the CUSTOMER's copy only — the owner does not pay
+ * themselves, so the owner alert never carries the QR.
  */
 async function loadPaymentQrAttachment(): Promise<EmailAttachment | null> {
   const relPath = (process.env.PAYMENT_QR_PATH ?? "").trim() || "images/payment-qr.png";
@@ -108,7 +117,24 @@ export async function notifyOrderPlaced(
   deps?: NotifyDeps,
 ): Promise<{ sent: number; failed: number; skipped: number }> {
   const qrAttachment = await loadPaymentQrAttachment();
-  const attachments = qrAttachment ? [qrAttachment] : undefined;
+  const quotation = input.quotation ?? null;
+  const quotationAttachment: EmailAttachment | null =
+    quotation === null
+      ? null
+      : {
+          filename: `${quotation.number}.pdf`,
+          content: quotation.content,
+          contentType: "application/pdf",
+        };
+  // Per-recipient attachments: the customer pays us (QR + quotation);
+  // we never pay ourselves, so the owner's copy carries the quotation
+  // only. Built as fresh arrays so neither recipient can see the
+  // other's set.
+  const customerAttachments = [
+    qrAttachment,
+    quotationAttachment,
+  ].filter((a): a is EmailAttachment => a !== null);
+  const ownerAttachments = quotationAttachment ? [quotationAttachment] : undefined;
 
   const messageInput: OrderMessageInput = {
     orderNumber: input.orderNumber,
@@ -131,6 +157,7 @@ export async function notifyOrderPlaced(
     paymentWindowHours: await getPaymentWindowHours(),
     siteUrl: siteConfig.url,
     hasPaymentQr: qrAttachment !== null,
+    quotationNumber: quotation?.number ?? null,
   };
 
   const ownerRecipient = getOrderNotificationRecipient();
@@ -146,7 +173,8 @@ export async function notifyOrderPlaced(
         to: customerEmail,
         subject: `Order Confirmation — ${input.orderNumber}`,
         body: buildCustomerOrderMessage(messageInput),
-        attachments,
+        attachments:
+          customerAttachments.length > 0 ? customerAttachments : undefined,
       },
     });
   }
@@ -158,7 +186,7 @@ export async function notifyOrderPlaced(
         to: ownerRecipient,
         subject: `New Order — ${input.orderNumber}`,
         body: buildOwnerOrderMessage(messageInput),
-        attachments,
+        attachments: ownerAttachments,
       },
     });
   }

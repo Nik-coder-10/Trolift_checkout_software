@@ -48,6 +48,8 @@ export interface OrderMessageInput {
   siteUrl: string;
   /** True when a UPI QR image is attached to the email. */
   hasPaymentQr: boolean;
+  /** QTN number when the quotation PDF is attached; null otherwise. */
+  quotationNumber: string | null;
 }
 
 /** Indian-grouped rupees with paise, e.g. 316298000 → "31,62,980.00". */
@@ -134,7 +136,10 @@ export function buildCustomerOrderMessage(input: OrderMessageInput): string {
     `Delivery status — ${deliveryStatusLine(input)}`,
     "",
     `To confirm this order, please pay ₹${rupees(input.totalPaise)} within ${input.paymentWindowHours} hours ${payVia(input)}.`,
-    `Order status: ${input.siteUrl}`,
+    `My orders (status, payment & quotations): ${input.siteUrl}/orders`,
+    ...(input.quotationNumber
+      ? [`Quotation ${input.quotationNumber} is attached to this email.`]
+      : []),
     "",
     "After paying, reply to this email with the payment screenshot (or the UTR/reference number) so we can verify and confirm your order.",
     "",
@@ -165,5 +170,8 @@ export function buildOwnerOrderMessage(input: OrderMessageInput): string {
     "",
     `Payable within ${input.paymentWindowHours} hours.`,
     "Customer has been asked to reply with the payment screenshot/UTR.",
+    ...(input.quotationNumber
+      ? [`Quotation ${input.quotationNumber} is attached.`]
+      : []),
   ].join("\n");
 }

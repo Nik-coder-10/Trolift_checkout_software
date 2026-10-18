@@ -9,6 +9,9 @@ import { fetchOrderSummary, persistOrder } from "@/lib/orders/create";
 import { resolveCoupon } from "@/lib/coupons/resolve";
 import { issueGuestToken } from "@/lib/guest-access/guard";
 import { notifyOrderPlaced } from "@/lib/notifications/order-notifications";
+import { getQuotationData } from "@/lib/quotations/service";
+import { renderQuotationPdf } from "@/lib/quotations/pdf";
+import { logWarn } from "@/lib/observability/logger";
 
 /**
  * POST /api/orders — place an order from cart + checkout details.
@@ -87,8 +90,28 @@ export const POST = withErrorHandling(async (req: Request) => {
   // A duplicate submit (same idempotency key) is the same order, so it
   // must not message anyone a second time.
   if (!persisted.duplicate) {
-    const notify = () =>
-      notifyOrderPlaced({
+    const notify = async () => {
+      // Best-effort: freeze + render the order's quotation so BOTH email
+      // copies carry the PDF (the customer may have missed the pay-page
+      // download; the owner keeps their copy). Any failure here is
+      // logged and the emails still go out without the attachment —
+      // a PDF hiccup can never fail a committed order.
+      let quotation: { number: string; content: Buffer } | null = null;
+      try {
+        const data = await getQuotationData(persisted.orderId);
+        quotation = {
+          number: data.quotationNumber,
+          content: await renderQuotationPdf(data),
+        };
+      } catch (error) {
+        logWarn("Order emails sent without the quotation PDF.", {
+          category: "email",
+          operation: "order-notification",
+          orderNumber: summary.orderNumber,
+          reason: error instanceof Error ? error.message : "unknown",
+        });
+      }
+      return notifyOrderPlaced({
         orderNumber: summary.orderNumber,
         customer: {
           name: parsed.customer.name,
@@ -111,7 +134,9 @@ export const POST = withErrorHandling(async (req: Request) => {
         couponCode: summary.couponCode,
         pincode: quote.pincode,
         shippingAddress: parsed.shippingAddress,
+        quotation,
       });
+    };
     try {
       after(notify);
     } catch {

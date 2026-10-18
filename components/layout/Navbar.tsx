@@ -12,6 +12,7 @@ const LINKS = [
   { label: "Home", href: "/" },
   { label: "Products", href: "/products" },
   { label: "Why Trolift", href: "/#trust" },
+  { label: "My Orders", href: "/orders" },
   { label: "Contact", href: "/contact" },
   { label: "Admin", href: "/admin/login" },
 ] as const;

@@ -375,6 +375,19 @@ export function CheckoutForm() {
           >
             View order
           </Link>
+          <a
+            href={`/api/orders/${placed.orderId}/quotation`}
+            download
+            className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-5 text-sm font-bold text-zinc-800 hover:bg-zinc-50"
+          >
+            Download Quotation
+          </a>
+          <Link
+            href="/orders"
+            className="inline-flex h-11 items-center justify-center rounded-md px-5 text-sm font-bold text-brand-700 hover:underline"
+          >
+            My orders
+          </Link>
           <Link
             href="/products"
             className="inline-flex h-11 items-center justify-center rounded-md px-5 text-sm font-bold text-brand-700 hover:underline"

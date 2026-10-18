@@ -78,6 +78,7 @@ const INPUT: OrderMessageInput = {
   paymentWindowHours: 24,
   siteUrl: "https://trolift.example",
   hasPaymentQr: true,
+  quotationNumber: null,
 };
 
 describe("notification copy", () => {
@@ -150,6 +151,34 @@ describe("notification copy", () => {
     const text = buildCustomerOrderMessage({ ...INPUT, hasPaymentQr: false });
     expect(text).toContain("payment link on the order status page");
     expect(text).not.toContain("UPI QR attached");
+  });
+
+  it("points the customer at My orders for status, payment and quotations", () => {
+    const text = buildCustomerOrderMessage(INPUT);
+    expect(text).toContain("My orders (status, payment & quotations): https://trolift.example/orders");
+  });
+
+  it("names the attached quotation in the customer's copy", () => {
+    const text = buildCustomerOrderMessage({
+      ...INPUT,
+      quotationNumber: "QTN-TS0000000001",
+    });
+    expect(text).toContain("Quotation QTN-TS0000000001 is attached to this email.");
+  });
+
+  it("keeps the quotation line out of copies sent without one", () => {
+    const text = buildCustomerOrderMessage(INPUT);
+    expect(text).not.toContain("is attached");
+  });
+
+  it("names the attached quotation in the owner's copy too", () => {
+    const text = buildOwnerOrderMessage({
+      ...INPUT,
+      quotationNumber: "QTN-TS0000000001",
+    });
+    expect(text).toContain("Quotation QTN-TS0000000001 is attached.");
+    const plain = buildOwnerOrderMessage(INPUT);
+    expect(plain).not.toContain("is attached");
   });
 
   it("omits business fields for individual orders", () => {
@@ -424,17 +453,63 @@ describe("order notification orchestration", () => {
     expect(subjects[1]).toContain("New Order");
   });
 
-  it("attaches the payment QR image when the file exists", async () => {
+  it("attaches the payment QR to the customer copy only", async () => {
     setEnv({ ...EMAIL_ENV, PAYMENT_QR_PATH: "images/logo.png" });
-    const attachments: Array<{ filename: string; contentType: string }> = [];
+    const byRecipient: Record<string, Array<{ filename: string; contentType: string }>> = {};
     await notifyOrderPlaced(ORDER, {
-      sendMail: (async (msg: { attachments?: Array<{ filename: string; contentType: string }> }) => {
-        if (msg.attachments) attachments.push(...msg.attachments);
+      sendMail: (async (msg: { to: string; attachments?: Array<{ filename: string; contentType: string }> }) => {
+        byRecipient[msg.to] = msg.attachments ?? [];
       }) as never,
     });
-    expect(attachments).toHaveLength(2);
-    expect(attachments[0]!.filename).toBe("trolift-payment-qr.png");
-    expect(attachments[0]!.contentType).toBe("image/png");
+    // The customer pays us — they get the QR. We never pay ourselves,
+    // so the owner's copy carries no QR (and no quotation here).
+    expect(byRecipient["rahul@example.com"]).toHaveLength(1);
+    expect(byRecipient["rahul@example.com"]![0]!.filename).toBe("trolift-payment-qr.png");
+    expect(byRecipient["rahul@example.com"]![0]!.contentType).toBe("image/png");
+    expect(byRecipient["bizwise.ops@gmail.com"]).toEqual([]);
+  });
+
+  it("attaches the quotation PDF to both copies, with the QR only on the customer's", async () => {
+    setEnv({ ...EMAIL_ENV, PAYMENT_QR_PATH: "images/logo.png" });
+    const pdf = Buffer.from("%PDF-1.7 quotation");
+    const byRecipient: Record<string, Array<{ filename: string; contentType: string }>> = {};
+    await notifyOrderPlaced(
+      { ...ORDER, quotation: { number: "QTN-TS0000000001", content: pdf } },
+      {
+        sendMail: (async (msg: { to: string; attachments?: Array<{ filename: string; contentType: string }> }) => {
+          byRecipient[msg.to] = msg.attachments ?? [];
+        }) as never,
+      },
+    );
+    const customer = byRecipient["rahul@example.com"] ?? [];
+    const owner = byRecipient["bizwise.ops@gmail.com"] ?? [];
+    expect(customer.map((a) => a.filename)).toEqual([
+      "trolift-payment-qr.png",
+      "QTN-TS0000000001.pdf",
+    ]);
+    expect(customer[1]!.contentType).toBe("application/pdf");
+    // Owner: the quotation — never the QR.
+    expect(owner.map((a) => a.filename)).toEqual(["QTN-TS0000000001.pdf"]);
+  });
+
+  it("attaches the quotation even when the QR image is missing", async () => {
+    setEnv({ ...EMAIL_ENV, PAYMENT_QR_PATH: "images/does-not-exist.png" });
+    const pdf = Buffer.from("%PDF-1.7 quotation");
+    const byRecipient: Record<string, Array<{ filename: string }>> = {};
+    await notifyOrderPlaced(
+      { ...ORDER, quotation: { number: "QTN-TS0000000002", content: pdf } },
+      {
+        sendMail: (async (msg: { to: string; attachments?: Array<{ filename: string }> }) => {
+          byRecipient[msg.to] = msg.attachments ?? [];
+        }) as never,
+      },
+    );
+    expect(byRecipient["rahul@example.com"]?.map((a) => a.filename)).toEqual([
+      "QTN-TS0000000002.pdf",
+    ]);
+    expect(byRecipient["bizwise.ops@gmail.com"]?.map((a) => a.filename)).toEqual([
+      "QTN-TS0000000002.pdf",
+    ]);
   });
 
   it("still sends when the QR image is missing", async () => {
