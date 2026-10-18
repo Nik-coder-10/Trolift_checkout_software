@@ -93,6 +93,59 @@ export function getSignatory(): Signatory | null {
 }
 
 /**
+ * Public-relative artwork paths for the quotation header logo and the
+ * signatory's signature strip. Server-only consumers read the bytes
+ * from ``public/`` (falling back to the embedded copies in
+ * embedded.ts when the bundle has no files on disk). Overrides must
+ * stay inside ``public/`` — absolute paths and ``..`` traversal are
+ * rejected back to the defaults.
+ */
+function envPublicPath(key: string, fallback: string): string {
+  const raw = (process.env[key] ?? "").trim().replace(/\\/g, "/");
+  if (raw === "") return fallback;
+  const rel = raw.replace(/^\/+/, "");
+  if (
+    rel === ".." ||
+    rel.startsWith("../") ||
+    rel.includes("/../") ||
+    rel.endsWith("/..")
+  ) {
+    return fallback;
+  }
+  return rel;
+}
+
+/** Header logo on quotations (public/-relative; default images/logo.png). */
+export function getQuotationLogoPath(): string {
+  return envPublicPath("TROLIFT_QUOTATION_LOGO_PATH", "images/logo.png");
+}
+
+/**
+ * Signature strip drawn above the signatory name
+ * (public/-relative; default images/proprietor-sign.png).
+ */
+export function getSignatorySignPath(): string {
+  return envPublicPath("TROLIFT_SIGNATORY_SIGN_PATH", "images/proprietor-sign.png");
+}
+
+/**
+ * "About Trolift Solutions" copy frozen into new quotations. One
+ * paragraph per line in the override (joined with spaces); unconfigured
+ * uses the standard description.
+ */
+const DEFAULT_ABOUT =
+  "Trolift Solutions is a Jaipur-based manufacturer and supplier of aluminium telescopic ladders, step ladders, trolleys and material-handling equipment. Every product is built from quality aluminium, load-tested for safety and shipped across India with warranty-backed support.";
+
+export function getQuotationAbout(): string {
+  const text = (process.env.TROLIFT_QUOTATION_ABOUT ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l !== "")
+    .join(" ");
+  return text === "" ? DEFAULT_ABOUT : text;
+}
+
+/**
  * Quotation terms, one per line. Newline-separated override; defaults
  * are the current standard terms. The owner edits these (env) when
  * rates or policy change — they are frozen into each document.

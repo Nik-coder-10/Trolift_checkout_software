@@ -107,7 +107,14 @@ export interface BuildQuotationInput {
     phone: string;
     pincode: string;
     partnerName: string;
+    /**
+     * Free-text delivery address (orders.shipping_address). Optional:
+     * documents frozen before it existed render without it.
+     */
+    addressLine?: string | null;
   };
+  /** "About Trolift Solutions" copy (frozen like terms; optional). */
+  about?: string;
   items: QuotationItemSnapshot[];
   cartage: QuotationCartageSnapshot;
   totals: {
@@ -152,6 +159,8 @@ export interface QuotationData {
   bank: BankDetails | null;
   signatory: Signatory | null;
   terms: string[];
+  /** "About Trolift Solutions" copy (undefined on legacy frozen docs). */
+  about?: string;
   placeOfSupply: string | null;
   customer: {
     name: string;
@@ -358,6 +367,7 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
     bank: input.bank,
     signatory: input.signatory,
     terms: [...input.terms],
+    ...(input.about === undefined ? {} : { about: input.about }),
     placeOfSupply: input.placeOfSupply,
     customer: { ...input.customer },
     billing: { ...input.billing },

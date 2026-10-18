@@ -12,6 +12,7 @@ import { getPayableOrderForGuest } from "@/lib/payments/order";
 import { guestCookieName } from "@/lib/guest-access/tokens";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { getPaymentWindowHours } from "@/lib/payments/upi";
+import { canIssueQuotation } from "@/lib/quotations/data";
 
 async function loadOrder(id: string) {
   try {
@@ -91,6 +92,15 @@ export default async function OrderPayPage({
         </h1>
         <PaymentStatusBadge status={order.paymentStatus} />
         <OrderStatusBadge status={order.orderStatus} />
+        {canIssueQuotation(order.orderStatus) ? (
+          <a
+            href={`/api/orders/${order.id}/quotation`}
+            download
+            className="inline-flex h-9 items-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-bold text-zinc-800 hover:bg-zinc-50"
+          >
+            Download Quotation
+          </a>
+        ) : null}
       </div>
       <p className="mt-1 text-sm text-zinc-600">
         Hi {order.customerName} — please complete payment within{" "}

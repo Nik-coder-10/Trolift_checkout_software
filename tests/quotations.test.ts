@@ -8,9 +8,12 @@ import {
   getBankDetails,
   getDeliveryGstRate,
   getDeliverySac,
+  getQuotationAbout,
+  getQuotationLogoPath,
   getQuotationTerms,
   getQuotationValidityDays,
   getSignatory,
+  getSignatorySignPath,
 } from "@/lib/quotations/config";
 import { amountInWords, rupeesInWords } from "@/lib/quotations/words";
 import {
@@ -165,7 +168,10 @@ describe("quotation configuration", () => {
       "TROLIFT_BANK_NAME",
       "TROLIFT_SIGNATORY_NAME",
       "TROLIFT_SIGNATORY_TITLE",
+      "TROLIFT_SIGNATORY_SIGN_PATH",
+      "TROLIFT_QUOTATION_LOGO_PATH",
       "TROLIFT_QUOTATION_TERMS",
+      "TROLIFT_QUOTATION_ABOUT",
     ]) delete process.env[k];
   });
 
@@ -207,6 +213,25 @@ describe("quotation configuration", () => {
     expect(getQuotationTerms()).toHaveLength(5);
     process.env.TROLIFT_QUOTATION_TERMS = "Custom one\nCustom two";
     expect(getQuotationTerms()).toEqual(["Custom one", "Custom two"]);
+  });
+
+  it("defaults the artwork paths inside public/ and rejects traversal", () => {
+    expect(getQuotationLogoPath()).toBe("images/logo.png");
+    expect(getSignatorySignPath()).toBe("images/proprietor-sign.png");
+    process.env.TROLIFT_QUOTATION_LOGO_PATH = "images/custom-logo.png";
+    expect(getQuotationLogoPath()).toBe("images/custom-logo.png");
+    process.env.TROLIFT_SIGNATORY_SIGN_PATH = "../outside.png";
+    expect(getSignatorySignPath()).toBe("images/proprietor-sign.png");
+    process.env.TROLIFT_QUOTATION_LOGO_PATH = "..\\..\\evil.png";
+    expect(getQuotationLogoPath()).toBe("images/logo.png");
+  });
+
+  it("ships the About Trolift copy with newline override", () => {
+    expect(getQuotationAbout()).toContain("Trolift Solutions");
+    process.env.TROLIFT_QUOTATION_ABOUT = "Para one\nPara two";
+    expect(getQuotationAbout()).toBe("Para one Para two");
+    process.env.TROLIFT_QUOTATION_ABOUT = "  \n ";
+    expect(getQuotationAbout()).toContain("Trolift Solutions");
   });
 });
 

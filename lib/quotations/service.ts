@@ -9,6 +9,7 @@ import {
   getDeliveryGstRate,
   getDeliveryLineCopy,
   getDeliverySac,
+  getQuotationAbout,
   getQuotationTerms,
   getQuotationValidityDays,
   getSignatory,
@@ -67,6 +68,7 @@ interface OrderSnapshot {
   billing_state: string | null;
   billing_state_code: string | null;
   billing_pincode: string | null;
+  shipping_address: string | null;
   customer_name_snapshot: string;
   customer_phone_snapshot: string;
   customer_email_snapshot: string | null;
@@ -188,7 +190,7 @@ export async function getQuotationData(orderId: string): Promise<QuotationData> 
         "total_amount,delivery_pincode,delivery_partner_name,gstin_snapshot," +
         "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
         "billing_name,billing_address_line,billing_city,billing_state," +
-        "billing_state_code,billing_pincode,customer_name_snapshot," +
+        "billing_state_code,billing_pincode,shipping_address,customer_name_snapshot," +
         "customer_phone_snapshot,customer_email_snapshot",
     )
     .eq("id", orderId)
@@ -298,6 +300,7 @@ const cartageCopy =
     bank: getBankDetails(),
     signatory: getSignatory(),
     terms: getQuotationTerms(),
+    about: getQuotationAbout(),
     placeOfSupply: o.billing_state,
     customer: {
       name: o.customer_name_snapshot,
@@ -318,6 +321,7 @@ const cartageCopy =
       phone: o.customer_phone_snapshot,
       pincode: o.delivery_pincode,
       partnerName: o.delivery_partner_name,
+      addressLine: o.shipping_address,
     },
     items: rows.map((r) => {
       const lineTotalPaise = toPaise(r.line_total);

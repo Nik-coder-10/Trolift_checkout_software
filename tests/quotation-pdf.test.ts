@@ -58,6 +58,7 @@ function base(over: Partial<BuildQuotationInput> = {}): BuildQuotationInput {
       phone: "+919810001111",
       pincode: "110075",
       partnerName: "Partner A",
+      addressLine: "Plot 22, MIDC Andheri East",
     },
     items: [
       {
@@ -111,6 +112,11 @@ describe("quotation PDF (reference layout)", () => {
       "09 Oct 2026",
       "16 Oct 2026",
       "Acme Pvt Ltd",
+      "Bill To",
+      "Ship To",
+      "Plot 22, MIDC Andheri East",
+      "About Trolift Solutions",
+      "Trolift Solutions is a Jaipur-based manufacturer",
       "Metal Trolley 600 Kg",
       "87168010",
       "Cartage - delivery charge",
@@ -125,6 +131,68 @@ describe("quotation PDF (reference layout)", () => {
     }
     expect(text).not.toContain("TAX INVOICE");
     expect(text).not.toContain("INV/");
+  });
+
+  it("shows billing only when the customer provided a GSTIN", async () => {
+    const noGst = base({
+      customer: {
+        name: "Retail Buyer",
+        phone: "+919810002222",
+        email: null,
+        gstin: null,
+      },
+      shipping: {
+        name: "Retail Buyer",
+        phone: "+919810002222",
+        pincode: "110075",
+        partnerName: "Partner A",
+        addressLine: "Plot 22, MIDC Andheri East",
+      },
+      items: [
+        {
+          name: "Metal Trolley 600 Kg",
+          description: "Metal Trolley 600 Kg",
+          quantity: 1,
+          unitPricePaise: 505000,
+          lineTotalPaise: 505000,
+          gstRate: null,
+          lineTaxPaise: 0,
+          hsn: "87168010",
+        },
+      ],
+      cartage: {
+        name: "Cartage - delivery charge",
+        description: "Delivery Fees",
+        chargePaise: 47000,
+        sac: null,
+        gstRate: null,
+        taxPaise: 0,
+      },
+      totals: {
+        treatment: "non_gst",
+        subtotalPaise: 552000,
+        deliveryPaise: 47000,
+        deliveryTaxPaise: 0,
+        taxablePaise: 505000,
+        cgstPaise: 0,
+        sgstPaise: 0,
+        igstPaise: 0,
+        grandTotalPaise: 552000,
+      },
+    });
+    const text = (await pdfParse(await renderQuotationPdf(buildQuotationData(noGst)))).text;
+    // Shipping address alone carries a non-GST quotation.
+    expect(text).toContain("Ship To");
+    expect(text).toContain("Plot 22, MIDC Andheri East");
+    expect(text).not.toContain("Bill To");
+    expect(text).not.toContain("GSTIN: —");
+    expect(text).toContain("About Trolift Solutions");
+  });
+
+  it("embeds the header logo and the signature strip", async () => {
+    const pdf = await renderQuotationPdf(buildQuotationData(base()));
+    const raw = pdf.toString("latin1");
+    expect(raw.match(/\/Subtype\s*\/Image/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 
   it("is deterministic for identical frozen input", async () => {

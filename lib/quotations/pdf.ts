@@ -2,6 +2,8 @@ import "server-only";
 import PDFDocument from "pdfkit";
 import { formatINR } from "@/lib/invoices/pdf";
 import { amountInWords } from "@/lib/quotations/words";
+import { loadQuotationLogo, loadQuotationSign } from "@/lib/quotations/assets";
+import { getQuotationAbout } from "@/lib/quotations/config";
 import type { QuotationData } from "@/lib/quotations/data";
 
 /**
@@ -13,6 +15,13 @@ import type { QuotationData } from "@/lib/quotations/data";
  * (built-in fonts: no font files, no network), blue/grey
  * B/W-tolerant palette, deterministic metadata (CreationDate = quote
  * date) so the same frozen document always yields the same bytes.
+ *
+ * Layout follows the reference quotation: Trolift logo top-right with
+ * the QUOTATION title beneath it; Bill To printed ONLY when the
+ * customer provided a GSTIN (a non-GST quotation carries the shipping
+ * address alone); an "About Trolift Solutions" band; the frozen item
+ * table and totals; and the proprietor's signature image above the
+ * signatory line.
  *
  * The document is visually and textually a QUOTATION, never a tax
  * invoice: "QUOTATION" title, QTN-TS number, validity window, terms,
@@ -52,10 +61,28 @@ function rateLabel(rate: string | number | null): string {
 
 interface Ctx {
   doc: InstanceType<typeof PDFDocument>;
+  /** Header logo bytes (null only if the artwork failed to load). */
+  logo: Buffer | null;
+  /** Signatory signature-strip bytes (null only if load failed). */
+  sign: Buffer | null;
 }
+
+/** Logo placement box, top-right (contain-fit, right-aligned). */
+const LOGO_BOX = { width: 96, height: 60 };
 
 function header(ctx: Ctx, quote: QuotationData): void {
   const { doc } = ctx;
+  // Logo occupies the top-right corner; the QUOTATION title sits right
+  // beneath it (at the very top when no logo is available).
+  let titleY = MARGIN;
+  if (ctx.logo) {
+    doc.image(ctx.logo, PAGE_WIDTH - MARGIN - LOGO_BOX.width, MARGIN, {
+      fit: [LOGO_BOX.width, LOGO_BOX.height],
+      align: "center",
+      valign: "center",
+    });
+    titleY = MARGIN + LOGO_BOX.height + 4;
+  }
   doc.fillColor(INK).font("Helvetica-Bold").fontSize(15);
   doc.text(quote.business.name.toUpperCase(), MARGIN, MARGIN, {
     width: CONTENT_WIDTH - 220,
@@ -70,7 +97,7 @@ function header(ctx: Ctx, quote: QuotationData): void {
   doc.text(lines.join("\n"), MARGIN, doc.y + 2, { width: CONTENT_WIDTH - 220 });
 
   doc.fillColor(BLUE).font("Helvetica-Bold").fontSize(22);
-  doc.text("QUOTATION", PAGE_WIDTH - MARGIN - 220, MARGIN, {
+  doc.text("QUOTATION", PAGE_WIDTH - MARGIN - 220, titleY, {
     width: 220,
     align: "right",
   });
@@ -112,10 +139,41 @@ function metaTable(ctx: Ctx, quote: QuotationData): void {
   doc.moveDown(0.6);
 }
 
+/** Ship-To lines: full delivery address when the order snapshot has one. */
+function shipToLines(quote: QuotationData): string[] {
+  const s = quote.shipping;
+  const address = (s.addressLine ?? "").trim();
+  const lines = [s.name];
+  if (address !== "") lines.push(address);
+  lines.push(`Phone: ${s.phone}`);
+  if (s.pincode !== "" && !address.includes(s.pincode)) {
+    lines.push(`Delivery pincode: ${s.pincode}`);
+  }
+  if (s.partnerName.trim() !== "") {
+    lines.push(`Delivery partner: ${s.partnerName}`);
+  }
+  return lines;
+}
+
 function parties(ctx: Ctx, quote: QuotationData): void {
   const { doc } = ctx;
   const colW = (CONTENT_WIDTH - 16) / 2;
   const startY = doc.y;
+  // Billing address is printed ONLY when the customer provided a
+  // GSTIN: without GST there is no tax consequence to bill against, so
+  // the shipping address alone carries the document.
+  const showBilling = (quote.customer.gstin ?? "").trim() !== "";
+
+  if (!showBilling) {
+    doc.fillColor(INK).font("Helvetica-Bold").fontSize(10);
+    doc.text("Ship To", MARGIN, startY, { width: CONTENT_WIDTH });
+    doc.fillColor(INK).font("Helvetica").fontSize(9);
+    doc.text(shipToLines(quote).join("\n"), MARGIN, doc.y + 2, {
+      width: CONTENT_WIDTH,
+    });
+    doc.y += 8;
+    return;
+  }
 
   doc.fillColor(INK).font("Helvetica-Bold").fontSize(10);
   doc.text("Bill To", MARGIN, startY, { width: colW });
@@ -126,13 +184,12 @@ function parties(ctx: Ctx, quote: QuotationData): void {
     [quote.billing.city, quote.billing.state, quote.billing.pincode]
       .filter(Boolean)
       .join(", "),
+    `GSTIN: ${quote.customer.gstin}`,
+    `Phone: ${quote.customer.phone}`,
+    quote.customer.email ? `Email: ${quote.customer.email}` : null,
   ];
-  if (quote.customer.gstin) billLines.push(`GSTIN: ${quote.customer.gstin}`);
-  else billLines.push("GSTIN: — (no GST charged)");
-  billLines.push(`Phone: ${quote.customer.phone}`);
-  if (quote.customer.email) billLines.push(`Email: ${quote.customer.email}`);
   doc.text(
-    billLines.filter((l) => l !== "").join("\n"),
+    billLines.filter((l): l is string => l !== null && l !== "").join("\n"),
     MARGIN,
     doc.y + 2,
     { width: colW },
@@ -142,16 +199,72 @@ function parties(ctx: Ctx, quote: QuotationData): void {
   doc.fillColor(INK).font("Helvetica-Bold").fontSize(10);
   doc.text("Ship To", MARGIN + colW + 16, startY, { width: colW });
   doc.fillColor(INK).font("Helvetica").fontSize(9);
-  const shipLines = [
-    quote.shipping.name,
-    `Phone: ${quote.shipping.phone}`,
-    `Delivery pincode: ${quote.shipping.pincode}`,
-    `Delivery partner: ${quote.shipping.partnerName}`,
-  ];
-  doc.text(shipLines.join("\n"), MARGIN + colW + 16, doc.y + 2, {
+  doc.text(shipToLines(quote).join("\n"), MARGIN + colW + 16, doc.y + 2, {
     width: colW,
   });
   doc.y = Math.max(leftEnd, doc.y) + 8;
+}
+
+/** Page-break when the block won't fit (no table head — not in-table). */
+function ensureSpace(ctx: Ctx, height: number): void {
+  const { doc } = ctx;
+  if (doc.y + height > PAGE_HEIGHT - MARGIN - 40) {
+    doc.addPage();
+  }
+}
+
+/**
+ * Where an absolutely-positioned block (bank box, signatory) starts:
+ * below whichever is lower — the block's own flow (y) or the text
+ * cursor — restarting on a fresh page (no table head) when it cannot
+ * fit. Returning the anchor keeps the drawn y in sync with the page
+ * break, so a block never renders against a stale position.
+ */
+function blockAnchor(ctx: Ctx, y: number, height: number): number {
+  const { doc } = ctx;
+  const start = Math.max(y, doc.y);
+  if (start + height > PAGE_HEIGHT - MARGIN - 4) {
+    doc.addPage();
+    return doc.y;
+  }
+  return start;
+}
+
+/**
+ * "About Trolift Solutions" band between the parties block and the
+ * item table: frozen copy (falls back to the standard description for
+ * documents frozen before the field existed).
+ */
+function aboutSection(ctx: Ctx, quote: QuotationData): void {
+  const { doc } = ctx;
+  const text = ((quote.about ?? "").trim() || getQuotationAbout()).trim();
+  if (text === "") return;
+  const padX = 8;
+  const padTop = 6;
+  const headingH = 14;
+  const bodyW = CONTENT_WIDTH - padX * 2;
+  const bodyH = doc.heightOfString(text, { width: bodyW, lineGap: 1 });
+  const boxH = padTop + headingH + bodyH + padTop;
+  ensureSpace(ctx, boxH + 10);
+  const y = doc.y;
+  doc.save();
+  doc.fillColor("#f8fafc").rect(MARGIN, y, CONTENT_WIDTH, boxH).fill();
+  doc.restore();
+  doc
+    .strokeColor(LIGHT)
+    .lineWidth(0.5)
+    .rect(MARGIN, y, CONTENT_WIDTH, boxH)
+    .stroke();
+  doc.fillColor(INK).font("Helvetica-Bold").fontSize(9.5);
+  doc.text("About Trolift Solutions", MARGIN + padX, y + padTop, {
+    width: bodyW,
+  });
+  doc.fillColor(MUTED).font("Helvetica").fontSize(8.5);
+  doc.text(text, MARGIN + padX, y + padTop + headingH, {
+    width: bodyW,
+    lineGap: 1,
+  });
+  doc.y = y + boxH + 8;
 }
 
 interface Column {
@@ -365,8 +478,7 @@ function totalsAndTerms(ctx: Ctx, quote: QuotationData): void {
       b.accountType ? `Account Type: ${b.accountType}` : null,
     ].filter((l): l is string => l !== null);
     const bankH = bankLines.length * 12 + 26;
-    ensureRoom(ctx, bankH);
-    y = Math.max(y, doc.y);
+    y = blockAnchor(ctx, y, bankH);
     const by = y;
     doc.fillColor(INK).font("Helvetica-Bold").fontSize(9);
     doc.text("Bank Details", boxX + 6, by + 4, { width: boxW - 12 });
@@ -382,20 +494,54 @@ function totalsAndTerms(ctx: Ctx, quote: QuotationData): void {
     y = by + bankH;
   }
   y += 10;
-  ensureRoom(ctx, 60);
-  y = Math.max(y, doc.y);
+  // Signatory block: signature image box (when artwork loaded) above a
+  // dashed signature rule, then the printed name/title.
+  const sigNeed = (ctx.sign ? 48 + 13 : 0) + 34;
   if (quote.signatory) {
+    y = blockAnchor(ctx, y, sigNeed);
+    const sigBoxW = 96;
+    const sigBoxH = 48;
+    const sigX = PAGE_WIDTH - MARGIN - sigBoxW;
+    if (ctx.sign) {
+      doc.save();
+      doc.fillColor("#ffffff").rect(sigX, y, sigBoxW, sigBoxH).fill();
+      doc
+        .strokeColor(LIGHT)
+        .lineWidth(0.5)
+        .rect(sigX, y, sigBoxW, sigBoxH)
+        .stroke();
+      doc.restore();
+      doc.image(ctx.sign, sigX + 3, y + 3, {
+        fit: [sigBoxW - 6, sigBoxH - 6],
+        align: "center",
+        valign: "center",
+      });
+      y += sigBoxH;
+    }
+    // The line the proprietor signs over (matches the reference rule).
+    doc
+      .save()
+      .strokeColor("#9ca3af")
+      .lineWidth(0.6)
+      .dash(3, { space: 2 })
+      .moveTo(PAGE_WIDTH - MARGIN - 170, y + 5)
+      .lineTo(PAGE_WIDTH - MARGIN, y + 5)
+      .stroke()
+      .undash()
+      .restore();
+    y += 13;
+    const sigTextX = PAGE_WIDTH - MARGIN - 170;
     doc.fillColor(INK).font("Helvetica-Bold").fontSize(9.5);
-    doc.text(quote.signatory.name, boxX, y, { width: boxW, align: "right" });
+    doc.text(quote.signatory.name, sigTextX, y, { width: 170, align: "right" });
     doc.fillColor(MUTED).font("Helvetica").fontSize(8.5);
     if (quote.signatory.title) {
-      doc.text(quote.signatory.title, boxX, doc.y + 1, {
-        width: boxW,
+      doc.text(quote.signatory.title, sigTextX, doc.y + 1, {
+        width: 170,
         align: "right",
       });
     }
-    doc.text("Authorized Signatory", boxX, doc.y + 1, {
-      width: boxW,
+    doc.text("Authorized Signatory", sigTextX, doc.y + 1, {
+      width: 170,
       align: "right",
     });
   }
@@ -404,7 +550,9 @@ function totalsAndTerms(ctx: Ctx, quote: QuotationData): void {
 
 function footer(ctx: Ctx, quote: QuotationData): void {
   const { doc } = ctx;
-  ensureRoom(ctx, 50);
+  // Raw break (no table head): the notes must never grow a stray
+  // table header when the last page is short.
+  ensureSpace(ctx, 50);
   doc
     .strokeColor(LIGHT)
     .lineWidth(0.5)
@@ -424,6 +572,11 @@ function footer(ctx: Ctx, quote: QuotationData): void {
   const pages = doc.bufferedPageRange();
   for (let i = 0; i < pages.count; i++) {
     doc.switchToPage(i);
+    // The folio sits in the BOTTOM MARGIN band. pdfkit paginates any
+    // text run past maxY() (= height − bottom margin), which would
+    // spawn a blank page per folio — drop the margin for the write.
+    const savedBottom = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
     doc
       .fillColor(MUTED)
       .font("Helvetica")
@@ -434,11 +587,19 @@ function footer(ctx: Ctx, quote: QuotationData): void {
         PAGE_HEIGHT - MARGIN + 8,
         { width: CONTENT_WIDTH, align: "center" },
       );
+    doc.page.margins.bottom = savedBottom;
   }
 }
 
 /** Render a frozen QuotationData to a PDF Buffer (A4). */
 export async function renderQuotationPdf(quote: QuotationData): Promise<Buffer> {
+  // Artwork bytes first: identical files in / embedded mean identical
+  // output; failure falls back to the embedded defaults, never null
+  // unless BOTH sources are unusable.
+  const [logo, sign] = await Promise.all([
+    loadQuotationLogo(),
+    loadQuotationSign(),
+  ]);
   const doc = new PDFDocument({
     size: "A4",
     margins: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
@@ -452,10 +613,11 @@ export async function renderQuotationPdf(quote: QuotationData): Promise<Buffer> 
       ModDate: new Date(`${quote.quotationDate}T12:00:00Z`),
     },
   });
-  const ctx: Ctx = { doc };
+  const ctx: Ctx = { doc, logo, sign };
   header(ctx, quote);
   metaTable(ctx, quote);
   parties(ctx, quote);
+  aboutSection(ctx, quote);
   itemsTable(ctx, quote);
   totalsAndTerms(ctx, quote);
   footer(ctx, quote);
