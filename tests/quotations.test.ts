@@ -360,6 +360,19 @@ describe("quotation builder (reference vectors)", () => {
     expect(q.totals.totalTaxPaise).toBe(0);
   });
 
+  it("builds a B2C GST quotation without a customer GSTIN", () => {
+    // Every real order is tax_treatment=gst with no GSTIN — the guard
+    // must not refuse the normal B2C supply (mirror of invoices/data.ts).
+    const q = buildQuotationData(
+      refInput({
+        customer: { name: "Jane", phone: "+919820002222", email: null, gstin: null },
+      }),
+    );
+    expect(q.treatment).toBe("gst");
+    expect(q.customer.gstin).toBeNull();
+    expect(q.totals.igstPaise).toBe(33710);
+  });
+
   it("refuses corrupt snapshots instead of rendering wrong totals", () => {
     expect(() =>
       buildQuotationData(

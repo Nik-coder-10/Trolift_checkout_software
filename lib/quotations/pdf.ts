@@ -18,10 +18,10 @@ import type { QuotationData } from "@/lib/quotations/data";
  *
  * Layout follows the reference quotation: Trolift logo top-right with
  * the QUOTATION title beneath it; Bill To printed ONLY when the
- * customer provided a GSTIN (a non-GST quotation carries the shipping
- * address alone); an "About Trolift Solutions" band; the frozen item
- * table and totals; and the proprietor's signature image above the
- * signatory line.
+ * customer provided a GSTIN (without one the shipping address alone
+ * carries the document); an "About Trolift Solutions" band; the frozen
+ * item table and totals; and the proprietor's signature image above
+ * the signatory line.
  *
  * The document is visually and textually a QUOTATION, never a tax
  * invoice: "QUOTATION" title, QTN-TS number, validity window, terms,
@@ -160,8 +160,8 @@ function parties(ctx: Ctx, quote: QuotationData): void {
   const colW = (CONTENT_WIDTH - 16) / 2;
   const startY = doc.y;
   // Billing address is printed ONLY when the customer provided a
-  // GSTIN: without GST there is no tax consequence to bill against, so
-  // the shipping address alone carries the document.
+  // GSTIN: the Bill To block exists for input credit, so a B2C supply
+  // (no GSTIN, GST still charged) carries the shipping address alone.
   const showBilling = (quote.customer.gstin ?? "").trim() !== "";
 
   if (!showBilling) {
@@ -565,7 +565,9 @@ function footer(ctx: Ctx, quote: QuotationData): void {
     "This is a provisional quotation, not a tax invoice. Prices and taxes are frozen as quoted; the final tax invoice is issued only after payment verification.",
     quote.customer.gstin
       ? "Customer GSTIN is customer-provided and not government-verified."
-      : "No customer GSTIN — no GST charged on this quotation.",
+      : quote.treatment === "gst"
+        ? "No customer GSTIN — B2C sale, GST charged with no input credit."
+        : "No customer GSTIN — no GST charged on this quotation.",
     `Generated from frozen order ${quote.orderNumber} snapshots — catalogue or profile edits cannot alter this document.`,
   ];
   doc.text(notes.join(" "), MARGIN, doc.y, { width: CONTENT_WIDTH });

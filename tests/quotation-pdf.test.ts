@@ -189,6 +189,26 @@ describe("quotation PDF (reference layout)", () => {
     expect(text).toContain("About Trolift Solutions");
   });
 
+  it("renders a B2C GST quotation (no GSTIN) with shipping alone", async () => {
+    const b2c = base({
+      customer: {
+        name: "Retail Buyer",
+        phone: "+919810002222",
+        email: null,
+        gstin: null,
+      },
+    });
+    const text = (await pdfParse(await renderQuotationPdf(buildQuotationData(b2c)))).text;
+    expect(text).toContain("Ship To");
+    expect(text).toContain("Plot 22, MIDC Andheri East");
+    expect(text).not.toContain("Bill To");
+    expect(text).toContain("IGST");
+    expect(text).toContain(
+      "No customer GSTIN — B2C sale, GST charged with no input credit.",
+    );
+    expect(text).not.toContain("no GST charged on this quotation");
+  });
+
   it("embeds the header logo and the signature strip", async () => {
     const pdf = await renderQuotationPdf(buildQuotationData(base()));
     const raw = pdf.toString("latin1");

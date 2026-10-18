@@ -231,11 +231,11 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
   if (input.items.length === 0) fail("a quotation needs at least one item.");
   if (input.terms.length === 0) fail("a quotation needs terms.");
 
-  // Treatment/GSTIN coherence (same rule as the order engine: GST
-  // documents require a customer GSTIN; non-GST ones carry none).
-  if (input.totals.treatment === "gst" && (input.customer.gstin ?? "") === "") {
-    fail("a GST quotation needs the customer GSTIN snapshot.");
-  }
+  // Treatment/GSTIN coherence (same rule as invoices/data.ts): GST
+  // applies to every order (B2C and B2B alike), so a missing GSTIN on
+  // a GST quotation is normal — it just has no input credit. A non-GST
+  // document must not carry one (legacy rows only) — a mismatch means
+  // corrupt snapshots.
   if (input.totals.treatment === "non_gst" && (input.customer.gstin ?? "") !== "") {
     fail("a non-GST quotation must not carry a customer GSTIN.");
   }
