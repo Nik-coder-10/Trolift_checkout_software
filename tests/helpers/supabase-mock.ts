@@ -20,6 +20,8 @@ export interface MockOp {
   filters: MockFilter[];
   single: boolean;
   updateValues: unknown;
+  /** True when the builder ended in .delete() (a DELETE request). */
+  isDelete: boolean;
 }
 
 export interface DbError {
@@ -70,6 +72,7 @@ interface BuilderState {
   filters: MockFilter[];
   single: boolean;
   updateValues: unknown;
+  isDelete: boolean;
 }
 
 function run(
@@ -84,6 +87,7 @@ function run(
     filters: state.filters,
     single: state.single,
     updateValues: state.updateValues,
+    isDelete: state.isDelete,
   });
   const data = state.single ? (result.rows[0] ?? null) : result.rows;
   return Promise.resolve({ data, error: result.error, count: result.count });
@@ -99,6 +103,7 @@ function builder(
       filters: [...state.filters],
       single: state.single,
       updateValues: state.updateValues,
+      isDelete: state.isDelete,
       ...patch,
     });
   const b: MockBuilder = {
@@ -127,7 +132,7 @@ function builder(
     update: (values) => next({ updateValues: values }),
     insert: (values) => next({ updateValues: values }),
     upsert: (values) => next({ updateValues: values }),
-    delete: () => next({}),
+    delete: () => next({ isDelete: true }),
     ilike: (col, pattern) =>
       next({ filters: [...state.filters, { col, op: "ilike", val: pattern }] }),
     maybeSingle: () => next({ single: true }),
@@ -138,7 +143,7 @@ function builder(
 }
 
 function fresh(): BuilderState {
-  return { filters: [], single: false, updateValues: undefined };
+  return { filters: [], single: false, updateValues: undefined, isDelete: false };
 }
 
 export interface MockUser {
@@ -178,12 +183,13 @@ export function createMockClient(
     rpc: (name: string, args: unknown) => {
       const r = responder({
         table: null,
-        rpc: name,
-        rpcArgs: args,
-        filters: [],
-        single: false,
-        updateValues: undefined,
-      });
+      rpc: name,
+      rpcArgs: args,
+      filters: [],
+      single: false,
+      updateValues: undefined,
+      isDelete: false,
+    });
       // Like postgrest-js: a single jsonb/scalar row arrives unwrapped.
       const data = r.rows.length === 1 ? r.rows[0] : r.rows;
       return Promise.resolve({ data, error: r.error });

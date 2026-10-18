@@ -8,6 +8,7 @@ import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/StatusBadg
 import { getCommandCenterData, type CommandCenterData } from "@/lib/admin/dashboard";
 import { signOutAdmin } from "@/lib/auth/actions";
 import { priceToPaise } from "@/lib/catalog/products";
+import { DeleteOrderButton } from "@/components/admin/DeleteOrderButton";
 import type { OrderStatus, PaymentStatus } from "@/types";
 
 export const metadata: Metadata = {
@@ -488,7 +489,7 @@ export default async function AdminDashboardPage({
             ) : (
               <>
                 <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-left text-sm">
+                  <table className="w-full min-w-[880px] text-left text-sm">
                     <thead>
                       <tr className="border-b border-zinc-200 text-xs text-zinc-500 uppercase">
                         <th scope="col" className="py-2 pr-3 font-bold">Order</th>
@@ -497,7 +498,8 @@ export default async function AdminDashboardPage({
                         <th scope="col" className="py-2 pr-3 font-bold">Payment</th>
                         <th scope="col" className="py-2 pr-3 font-bold">Order status</th>
                         <th scope="col" className="py-2 pr-3 font-bold">Shipment</th>
-                        <th scope="col" className="py-2 font-bold">Created</th>
+                        <th scope="col" className="py-2 pr-3 font-bold">Created</th>
+                        <th scope="col" className="py-2 font-bold">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -531,8 +533,17 @@ export default async function AdminDashboardPage({
                               ? (DISPATCH_LABELS[o.dispatch_status] ?? o.dispatch_status)
                               : "—"}
                           </td>
-                          <td className="py-2.5 text-xs whitespace-nowrap text-zinc-500">
+                          <td className="py-2.5 pr-3 text-xs whitespace-nowrap text-zinc-500">
                             {new Date(o.created_at).toLocaleString("en-IN", TIME_FMT)}
+                          </td>
+                          <td className="py-2.5">
+                            {isOrderStatus(o.order_status) ? (
+                              <DeleteOrderButton
+                                orderId={o.order_id}
+                                orderNumber={o.order_number}
+                                orderStatus={o.order_status}
+                              />
+                            ) : null}
                           </td>
                         </tr>
                       ))}

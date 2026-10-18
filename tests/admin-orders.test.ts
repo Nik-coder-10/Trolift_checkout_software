@@ -8,6 +8,9 @@ import {
 import { resetRateLimits } from "@/lib/rate-limit/index";
 
 vi.mock("server-only", () => ({}));
+// revalidatePath in route handlers needs the Next static-generation
+// store; stub it out like every other admin route test.
+vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 let authUser: MockUser | null = { id: "admin-1" };
 let adminFlag = true;
@@ -22,6 +25,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import {
+  deleteOrder,
   escapeLikeWildcards,
   listAdminOrders,
   listPaymentClaims,
@@ -32,6 +36,7 @@ import {
 import { POST as statusPost } from "@/app/api/admin/orders/status/route";
 import { POST as verifyPost } from "@/app/api/admin/payments/verify/route";
 import { GET as listGet } from "@/app/api/admin/orders/route";
+import { DELETE as deleteRoute } from "@/app/api/admin/orders/[id]/route";
 import { GET as proofGet } from "@/app/api/admin/payments/proof/route";
 
 let proofBytes: Uint8Array | null = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
@@ -494,6 +499,101 @@ describe("payment claims inbox", () => {
     adminFlag = false;
     handler = profileResponder();
     await expect(listPaymentClaims(1)).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe("order deletion", () => {
+  function wireDelete(orderStatus: string, stockState = "reserved") {
+    const seen: MockOp[] = [];
+    handler = (op) => {
+      seen.push(op);
+      if (op.table === "profiles") return { rows: [{ is_admin: true }], error: null };
+      if (op.rpc === "restore_reservation") {
+        return { rows: ["restored"], error: null };
+      }
+      if (op.table === "orders") {
+        if (op.isDelete) return { rows: [{ id: "o1" }], error: null };
+        return {
+          rows: [{
+            id: "o1",
+            order_number: "TS-261004-0001",
+            order_status: orderStatus,
+            stock_state: stockState,
+          }],
+          error: null,
+        };
+      }
+      if (op.table === "admin_audit_log") return { rows: [], error: null };
+      throw new Error(`unexpected ${op.table}`);
+    };
+    return { seen };
+  }
+
+  it("rejects unauthenticated callers with 401", async () => {
+    authUser = null;
+    handler = profileResponder();
+    const res = await deleteRoute(
+      new Request("http://localhost/api/admin/orders/o1", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "o1" }) },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects non-admins with 403", async () => {
+    adminFlag = false;
+    handler = profileResponder();
+    const res = await deleteRoute(
+      new Request("http://localhost/api/admin/orders/o1", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "o1" }) },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("restores stock then deletes the order and audits it", async () => {
+    const { seen } = wireDelete("confirmed", "consumed");
+    const r = await deleteOrder("o1");
+    expect(r).toEqual({ orderNumber: "TS-261004-0001" });
+    const restore = seen.find((op) => op.rpc === "restore_reservation");
+    expect(restore?.rpcArgs).toMatchObject({
+      p_order_id: "o1",
+      p_reason: "order deleted by admin",
+    });
+    const del = seen.find((op) => op.table === "orders" && op.isDelete);
+    expect(del).toBeDefined();
+    const audit = seen.find((op) => op.table === "admin_audit_log");
+    expect(audit).toBeDefined();
+    expect(audit?.updateValues).toMatchObject({
+      operation: "delete_order",
+      dataset: "orders",
+      total_rows: 1,
+    });
+  });
+
+  it("blocks dispatched and delivered orders with 409", async () => {
+    for (const status of ["dispatched", "delivered"]) {
+      wireDelete(status);
+      await expect(deleteOrder("o1")).rejects.toMatchObject({ status: 409 });
+    }
+  });
+
+  it("returns 404 for unknown orders", async () => {
+    handler = (op) => {
+      if (op.table === "profiles") return { rows: [{ is_admin: true }], error: null };
+      if (op.table === "orders") return { rows: [], error: null };
+      throw new Error(`unexpected ${op.table}`);
+    };
+    await expect(deleteOrder("missing")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("DELETE route returns the order number on success", async () => {
+    wireDelete("confirmed");
+    const res = await deleteRoute(
+      new Request("http://localhost/api/admin/orders/o1", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "o1" }) },
+    );
+    const json = (await res.json()) as { ok: boolean; data: Record<string, unknown> };
+    expect(json.ok).toBe(true);
+    expect(json.data).toMatchObject({ orderNumber: "TS-261004-0001" });
   });
 });
 

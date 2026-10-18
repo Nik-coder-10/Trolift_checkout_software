@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/States";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/ui/StatusBadge";
 import { PaymentActions } from "@/components/admin/PaymentActions";
 import { StatusActions } from "@/components/admin/StatusActions";
+import { DeleteOrderButton } from "@/components/admin/DeleteOrderButton";
 import { getAdminOrderDetail } from "@/lib/admin/orders";
 import { getOrderDocumentActions } from "@/lib/admin/order-documents";
 import { listStaffNotes } from "@/lib/admin/notes";
@@ -311,6 +312,21 @@ export default async function AdminOrderPage({
                   (e) => e.eventType === "READY_FOR_DISPATCH",
                 )}
               />
+            </div>
+            <div className="mt-3 border-t border-zinc-100 pt-3">
+              <h3 className="text-sm font-bold text-zinc-900">Danger zone</h3>
+              <p className="mt-1 text-xs text-zinc-500">
+                Deletes this order and every dependent record permanently.
+              </p>
+              <div className="mt-2">
+                <DeleteOrderButton
+                  orderId={order.id}
+                  orderNumber={order.orderNumber}
+                  orderStatus={order.orderStatus}
+                  size="md"
+                  redirectTo="/admin/orders"
+                />
+              </div>
             </div>
             {shipment ? (
               <div className="mt-4 border-t border-zinc-100 pt-4">

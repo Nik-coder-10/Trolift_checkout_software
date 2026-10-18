@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/session";
 import { AppError } from "@/lib/api/errors";
+import { logAdminAudit } from "@/lib/admin/audit";
 import {
   canTransition,
   canTransitionPayment,
@@ -780,4 +781,84 @@ export async function markFulfillmentStep(
   return {
     eventType: step === "packed" ? "PACKED" : "READY_FOR_DISPATCH",
   };
+}
+
+/**
+ * Permanently delete an order and every row that hangs off it.
+ *
+ * All FKs referencing orders(id) are ON DELETE CASCADE (order_items,
+ * payments, order_events, invoices, stock_reservations, inventory
+ * events, shipments, guest tokens, quotations), so the DB removes the
+ * dependents atomically — no manual fan-out here. Because order_events
+ * cascade away, the durable audit trail for a deletion is
+ * admin_audit_log (append-only), not logOrderEvent.
+ *
+ * Stock discipline: restore_reservation() runs BEFORE the delete — it
+ * is exactly-once per order (gated on stock_state), releasing holds for
+ * 'reserved' orders and returning sold units for 'consumed' ones; it
+ * no-ops for 'none'/'restored'. Dispatched and delivered orders are
+ * blocked: fulfilment history and quotation/invoice paper trail are
+ * permanent.
+ */
+export async function deleteOrder(orderId: string): Promise<{ orderNumber: string }> {
+  const admin = await requireAdmin();
+  const client = await createClient();
+  const { data, error } = await client
+    .from("orders")
+    .select("id,order_number,order_status,stock_state")
+    .eq("id", orderId)
+    .maybeSingle();
+  const row = data as unknown as {
+    id: string;
+    order_number: string;
+    order_status: OrderStatus;
+    stock_state: string;
+  } | null;
+  if (error || !row) {
+    throw new AppError("NOT_FOUND", "Order not found.", 404);
+  }
+  const BLOCKED: ReadonlyArray<OrderStatus> = ["shipped", "dispatched", "delivered"];
+  if ((BLOCKED as ReadonlyArray<string>).includes(row.order_status)) {
+    throw new AppError(
+      "BAD_REQUEST",
+      "Dispatched and delivered orders are permanent and cannot be deleted.",
+      409,
+    );
+  }
+  // Give held/sold units back to on-hand stock; no-op when nothing is held.
+  const { error: restoreError } = await client.rpc("restore_reservation", {
+    p_order_id: row.id,
+    p_reason: "order deleted by admin",
+  });
+  if (restoreError) {
+    throw mapStockError(restoreError, "Stock could not be restored.");
+  }
+  const { data: deleted, error: deleteError } = await client
+    .from("orders")
+    .delete()
+    .eq("id", row.id)
+    .select("id");
+  if (
+    deleteError ||
+    ((deleted ?? []) as unknown as Array<unknown>).length === 0
+  ) {
+    throw new AppError("NOT_FOUND", "Order not found.", 404);
+  }
+  await logAdminAudit({
+    actorUserId: admin.id,
+    operation: "delete_order",
+    dataset: "orders",
+    totalRows: 1,
+    insertedRows: 0,
+    updatedRows: 0,
+    failedRows: 0,
+    result: "success",
+    summary: {
+      order_id: row.id,
+      order_number: row.order_number,
+      order_status: row.order_status,
+      stock_state: row.stock_state,
+    },
+  });
+  return { orderNumber: row.order_number };
 }

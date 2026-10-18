@@ -8,6 +8,7 @@ import {
   parseAdminOrderQuery,
 } from "@/lib/admin/orders";
 import { formatMoney } from "@/lib/orders/pricing";
+import { DeleteOrderButton } from "@/components/admin/DeleteOrderButton";
 
 export const metadata: Metadata = {
   title: "Orders",
@@ -198,7 +199,7 @@ export default async function AdminOrdersPage({
               {result.total} {result.total === 1 ? "order" : "orders"}
             </p>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-left text-sm">
+              <table className="w-full min-w-[980px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-xs text-zinc-500 uppercase">
                     <th scope="col" className="py-2 pr-3 font-bold">Order</th>
@@ -208,7 +209,8 @@ export default async function AdminOrdersPage({
                     <th scope="col" className="py-2 pr-3 font-bold">Delivery</th>
                     <th scope="col" className="py-2 pr-3 font-bold">Total</th>
                     <th scope="col" className="py-2 pr-3 font-bold">Payment</th>
-                    <th scope="col" className="py-2 font-bold">Status</th>
+                    <th scope="col" className="py-2 pr-3 font-bold">Status</th>
+                    <th scope="col" className="py-2 font-bold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -242,8 +244,15 @@ export default async function AdminOrdersPage({
                       <td className="py-2.5 pr-3">
                         <PaymentStatusBadge status={o.paymentStatus} />
                       </td>
-                      <td className="py-2.5">
+                      <td className="py-2.5 pr-3">
                         <OrderStatusBadge status={o.orderStatus} />
+                      </td>
+                      <td className="py-2.5">
+                        <DeleteOrderButton
+                          orderId={o.id}
+                          orderNumber={o.orderNumber}
+                          orderStatus={o.orderStatus}
+                        />
                       </td>
                     </tr>
                   ))}
