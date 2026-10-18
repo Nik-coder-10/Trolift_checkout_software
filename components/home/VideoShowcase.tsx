@@ -18,6 +18,30 @@ const VIDEOS = [
     desc: "Setup, climb and fold — all in one clip.",
   },
   {
+    src: "/videos/a-type-second-half.mp4",
+    poster: "/videos/a-type-second-half-poster.jpg",
+    title: "A-type ladder in two halves",
+    desc: "Watch both halves become a full A-frame.",
+  },
+  {
+    src: "/videos/stabilizer-bar.mp4",
+    poster: "/videos/stabilizer-bar-poster.jpg",
+    title: "Stabilizer bar installed",
+    desc: "A wider stance at the feet for a steadier climb.",
+  },
+  {
+    src: "/videos/frp-ladder.mp4",
+    poster: "/videos/frp-ladder-poster.jpg",
+    title: "FRP ladder on show",
+    desc: "Fiberglass build for safe electrical work.",
+  },
+  {
+    src: "/videos/frp-ladder-jobsite.mp4",
+    poster: "/videos/frp-ladder-jobsite-poster.jpg",
+    title: "FRP ladder on site",
+    desc: "Out on a site, handled the way you will use it.",
+  },
+  {
     src: "/videos/container-unloading.mp4",
     poster: "/videos/container-unloading-poster.jpg",
     title: "Container unloading made easy",
@@ -30,10 +54,46 @@ const VIDEOS = [
     desc: "Heavy loads moved smoothly and safely.",
   },
   {
+    src: "/videos/ms-trolley-pallet.mp4",
+    poster: "/videos/ms-trolley-pallet-poster.jpg",
+    title: "Trolley handles the stack",
+    desc: "Floor moves without lifting strain.",
+  },
+  {
+    src: "/videos/ms-trolley-packed-stock.mp4",
+    poster: "/videos/ms-trolley-packed-stock-poster.jpg",
+    title: "Stock packed and wheeled",
+    desc: "Bubble-wrapped consignments ride steady.",
+  },
+  {
+    src: "/videos/pt-trolley-move.mp4",
+    poster: "/videos/pt-trolley-move-poster.jpg",
+    title: "Plastic platform trolley on the move",
+    desc: "Shifting loads on the lighter platform.",
+  },
+  {
+    src: "/videos/trolley-assembly.mp4",
+    poster: "/videos/trolley-assembly-poster.jpg",
+    title: "Trolley assembly in progress",
+    desc: "Casters go on before every dispatch.",
+  },
+  {
+    src: "/videos/trolley-600-unboxing.mp4",
+    poster: "/videos/trolley-600-unboxing-poster.jpg",
+    title: "600 kg trolley unboxed",
+    desc: "Every part in the box, checked before ship.",
+  },
+  {
     src: "/videos/unbox-and-fold.mp4",
     poster: "/videos/unbox-and-fold-poster.jpg",
     title: "Unboxed, then packed away",
     desc: "What arrives at your door — and how it collapses.",
+  },
+  {
+    src: "/videos/warehouse-stock.mp4",
+    poster: "/videos/warehouse-stock-poster.jpg",
+    title: "Stocked shelves at Trolift",
+    desc: "TALT range ready to dispatch from the warehouse.",
   },
 ] as const;
 
