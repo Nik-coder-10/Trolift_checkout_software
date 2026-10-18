@@ -108,7 +108,7 @@ values
     'Finger-protect telescopic ladder TALT-F44 — extends to 4.4 m (15 ft) with 15 steps at 30 cm step distance, 13.8 kg. Anti-pinch finger guards on every step.',
     'Ladders',
     '{"model": "TALT-F44", "ladder_type": "Telescopic (Finger protect)", "steps": 15, "step_distance_cm": 30, "extended_height": "4.4 Mtr (15 Ft)", "weight_kg": 13.8}',
-    8590.00, 50, 13.800, 18.00, '{}', true, now() - interval '6 minutes'
+    8590.00, 50, 13.800, 18.00, '{"/images/products/talt-fp-01.png","/images/products/talt-fp-02.png"}', true, now() - interval '6 minutes'
   ),
   (
     'c7d8e9f0-0008-4000-8000-000000000008',
@@ -117,7 +117,7 @@ values
     'Finger-protect telescopic ladder TALT-F55 — extends to 5.5 m (18 ft) with 15 steps at 37 cm step distance, 14.9 kg. Anti-pinch finger guards on every step.',
     'Ladders',
     '{"model": "TALT-F55", "ladder_type": "Telescopic (Finger protect)", "steps": 15, "step_distance_cm": 37, "extended_height": "5.5 Mtr (18 Ft)", "weight_kg": 14.9}',
-    9990.00, 50, 14.900, 18.00, '{}', true, now() - interval '7 minutes'
+    9990.00, 50, 14.900, 18.00, '{"/images/products/talt-fp-01.png","/images/products/talt-fp-02.png"}', true, now() - interval '7 minutes'
   ),
   (
     'c7d8e9f0-0009-4000-8000-000000000009',

@@ -143,7 +143,7 @@ const RAW_PRODUCTS: Array<Omit<CatalogProduct, "availability">> = [
     specifications: { model: "TALT-F44", ladder_type: "Telescopic (Finger protect)", steps: 15, step_distance_cm: 30, extended_height: "4.4 Mtr (15 Ft)", weight_kg: 13.8 },
     price: "8590.00",
     stock_quantity: 50,
-    images: [],
+    images: ["/images/products/talt-fp-01.png", "/images/products/talt-fp-02.png"],
     is_active: true,
   },
   {
@@ -156,7 +156,7 @@ const RAW_PRODUCTS: Array<Omit<CatalogProduct, "availability">> = [
     specifications: { model: "TALT-F55", ladder_type: "Telescopic (Finger protect)", steps: 15, step_distance_cm: 37, extended_height: "5.5 Mtr (18 Ft)", weight_kg: 14.9 },
     price: "9990.00",
     stock_quantity: 50,
-    images: [],
+    images: ["/images/products/talt-fp-01.png", "/images/products/talt-fp-02.png"],
     is_active: true,
   },
   {
