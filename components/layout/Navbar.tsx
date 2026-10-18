@@ -74,7 +74,8 @@ function CartButton({ onNavigate }: { onNavigate?: () => void }) {
       href="/cart"
       onClick={onNavigate}
       aria-label={shown === 0 ? "Shopping cart, empty" : `Shopping cart, ${shown} items`}
-      className="relative rounded p-2 text-white hover:bg-brand-800"
+      aria-hidden
+      className="relative rounded p-2 text-white hover:bg-white/10"
     >
       <CartIcon />
       {shown > 0 ? (
@@ -113,7 +114,7 @@ function HeaderSearch({ onNavigate }: { onNavigate?: () => void }) {
         placeholder="Search ladders, trolleys…"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="h-10 w-full rounded-md border border-brand-700 bg-brand-800 px-3 text-sm text-white outline-none placeholder:text-brand-300 focus:border-amber-400"
+        className="h-10 w-full rounded-md border border-white/15 bg-white/10 px-3 text-sm text-white outline-none placeholder:text-brand-200 focus:border-amber-400"
       />
     </form>
   );
@@ -136,7 +137,7 @@ export function Navbar() {
   }, [open ]);
 
   return (
-    <header className="sticky top-0 z-40 bg-brand-900 text-white shadow-md print:hidden">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-brand-950/80 text-white shadow-md backdrop-blur-md print:hidden">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
         <Link href="/" aria-label={`${siteConfig.name} — home`} className="shrink-0">
           <BrandMark />
@@ -149,7 +150,7 @@ export function Navbar() {
             <Link
               key={l.label}
               href={l.href}
-              className="rounded px-3 py-2 text-sm font-semibold text-brand-100 hover:bg-brand-800 hover:text-white"
+              className="rounded px-3 py-2 text-sm font-semibold text-brand-100 hover:bg-white/10 hover:text-white"
             >
               {l.label}
             </Link>
@@ -167,7 +168,7 @@ export function Navbar() {
             aria-controls="mobile-nav"
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((v) => !v)}
-            className="cursor-pointer rounded p-2 hover:bg-brand-800"
+            className="cursor-pointer rounded p-2 hover:bg-white/10"
           >
             <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden>
               {open ? (
@@ -180,7 +181,7 @@ export function Navbar() {
         </div>
       </div>
       {open ? (
-        <nav id="mobile-nav" aria-label="Mobile" className="border-t border-brand-800 px-4 pt-2 pb-4 md:hidden">
+        <nav id="mobile-nav" aria-label="Mobile" className="border-t border-white/10 bg-brand-950/90 px-4 pt-2 pb-4 backdrop-blur-xl md:hidden">
           <div className="py-2">
             <HeaderSearch onNavigate={() => setOpen(false)} />
           </div>
@@ -190,7 +191,7 @@ export function Navbar() {
                 <Link
                   href={l.href}
                   onClick={() => setOpen(false)}
-                  className="block rounded px-2 py-2.5 text-sm font-semibold text-brand-100 hover:bg-brand-800 hover:text-white"
+                  className="block rounded px-2 py-2.5 text-sm font-semibold text-brand-100 hover:bg-white/10 hover:text-white"
                 >
                   {l.label}
                 </Link>

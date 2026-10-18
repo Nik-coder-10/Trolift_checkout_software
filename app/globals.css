@@ -3,7 +3,7 @@
 /**
  * Trolift industrial design tokens (Tailwind v4 theme).
  * Solid navy + steel neutrals + one safety-amber accent.
- * No gradients, no glass — flat surfaces, 6px default radius.
+ * Home hero/CTA use dimmed photo layers with glass panels on top.
  */
 @theme {
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;

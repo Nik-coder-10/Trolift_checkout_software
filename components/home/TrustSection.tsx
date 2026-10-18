@@ -17,23 +17,34 @@ const PILLARS = [
   },
 ] as const;
 
-/** Trust/proof band: flat white cards on paper background. */
+/** Trust/proof band: introductory rail beside four numbered pillar cards. */
 export function TrustSection() {
   return (
-    <section aria-labelledby="trust-heading" id="trust" className="scroll-mt-20 rounded-lg bg-white p-6 sm:p-8">
-      <p className="text-xs font-bold tracking-[0.14em] text-brand-700 uppercase">Why Trolift</p>
-      <h2 id="trust-heading" className="mt-1 text-2xl font-extrabold tracking-tight text-zinc-900">
-        A supplier that behaves like a partner
-      </h2>
-      <ul className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {PILLARS.map((p, i) => (
-          <li key={p.title} className="border-t-2 border-amber-400 pt-3">
-            <p className="text-xs font-bold text-zinc-400">0{i + 1}</p>
-            <h3 className="mt-1 text-base font-bold text-zinc-900">{p.title}</h3>
-            <p className="mt-1.5 text-sm leading-6 text-zinc-600">{p.desc}</p>
-          </li>
-        ))}
-      </ul>
+    <section aria-labelledby="trust-heading" id="trust" className="scroll-mt-24">
+      <div className="grid gap-8 lg:grid-cols-[1fr_2fr] lg:items-start">
+        <div className="rounded-2xl bg-brand-950 p-7 text-white shadow-lg">
+          <p className="text-xs font-bold tracking-[0.14em] text-amber-400 uppercase">Why Trolift</p>
+          <h2 id="trust-heading" className="mt-2 text-2xl font-extrabold tracking-tight text-white">
+            A supplier that behaves like a partner
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-brand-100">
+            One point of contact from quote to invoice — the same standards
+            your shop floor holds, applied to your supplier.
+          </p>
+        </div>
+        <ul className="grid gap-4 sm:grid-cols-2">
+          {PILLARS.map((p, i) => (
+            <li
+              key={p.title}
+              className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <p aria-hidden className="text-xs font-bold text-amber-500">0{i + 1}</p>
+              <h3 className="mt-1 text-base font-bold text-zinc-900">{p.title}</h3>
+              <p className="mt-1.5 text-sm leading-6 text-zinc-600">{p.desc}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
