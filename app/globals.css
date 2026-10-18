@@ -59,3 +59,13 @@ body {
 ::selection {
   background: var(--color-brand-200);
 }
+
+/* Horizontal carousels (e.g. the home video strip) hide the raw bar;
+   keyboard/tab, trackpad and touch scrolling all still work. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
