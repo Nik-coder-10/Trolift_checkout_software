@@ -1,5 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Fragment } from "react";
+import { DiyaIcon } from "@/components/ui/DiyaIcon";
+import { getActiveOffers, type ActiveOffer } from "@/lib/coupons/active";
 
 const STEPS: [string, string][] = [
   ["Pick equipment", "Browse the catalogue with clear, all-inclusive pricing."],
@@ -13,11 +16,19 @@ const STEPS: [string, string][] = [
  * proposition card left, ordering steps right, CTAs, ordering facts
  * in the overlapping ProofBand below.
  */
-export function Hero() {
+export async function Hero() {
+  let offers: ActiveOffer[] = [];
+  try {
+    offers = await getActiveOffers();
+  } catch {
+    offers = [];
+  }
+  const shown = offers.slice(0, 3);
+  const festive = shown.some((o) => /DUSSHERA|DIWALI|NAVRATRI|FESTIVE/i.test(o.code));
   return (
     <section
       aria-labelledby="hero-heading"
-      className="relative isolate overflow-hidden bg-brand-950 text-white"
+      className="relative isolate overflow-hidden bg-brand-950 text-cream"
     >
       <Image
         src="/images/home-hero.jpg"
@@ -33,6 +44,10 @@ export function Hero() {
         aria-hidden
         className="absolute inset-0 bg-gradient-to-b from-brand-950/90 via-brand-950/80 to-brand-950/95"
       />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-20 -left-16 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl"
+      />
       <div className="relative mx-auto grid w-full max-w-6xl gap-6 px-4 py-14 sm:px-6 sm:py-16 lg:grid-cols-[1.35fr_1fr] lg:items-start lg:gap-8 lg:py-20">
         <div className="rounded-2xl border border-white/15 bg-white/[0.07] p-6 shadow-2xl shadow-brand-950/40 backdrop-blur-md sm:p-8">
           <p className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold tracking-[0.14em] text-amber-300 uppercase">
@@ -44,10 +59,18 @@ export function Hero() {
           >
             Material-handling equipment your shop floor can rely on.
           </h1>
-          <div
-            aria-hidden
-            className="mt-3 h-0.5 w-28 rounded-full bg-gradient-to-r from-amber-300 via-amber-400 to-amber-400/40 shadow-[0_0_10px_rgba(251,191,36,0.45)]"
-          />
+          <div aria-hidden className="mt-3 flex items-center gap-1.5">
+            <span className="h-0.5 w-24 rounded-full bg-gradient-to-r from-amber-300 via-amber-400 to-amber-400/40 shadow-[0_0_10px_rgba(251,191,36,0.45)]" />
+            <span className="diya-flame h-1.5 w-1.5 rounded-full bg-amber-200 shadow-[0_0_8px_rgba(253,230,138,0.9)]" />
+            <span
+              className="diya-flame h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"
+              style={{ animationDelay: "0.9s" }}
+            />
+            <span
+              className="diya-flame h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.7)]"
+              style={{ animationDelay: "1.7s" }}
+            />
+          </div>
           <p className="mt-4 max-w-xl text-base leading-7 text-brand-100">
             Telescopic and A-type ladders, platform trolleys and more —
             with transparent pricing, GST invoicing and delivery verified
@@ -67,11 +90,19 @@ export function Hero() {
               Talk to sales
             </Link>
           </div>
-          <p className="mt-4 inline-flex w-fit items-center gap-2 rounded-md border border-amber-300/25 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200">
-            Festive pricing live — apply{" "}
-            <b className="font-bold text-amber-300">DUSSHERA450</b> or{" "}
-            <b className="font-bold text-amber-300">EARLYDIWALI400</b> at checkout
-          </p>
+          {shown.length > 0 ? (
+            <p className="mt-4 inline-flex w-fit flex-wrap items-center gap-2 rounded-md border border-amber-300/25 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200">
+              <DiyaIcon size={12} className="text-amber-300" />
+              {festive ? "Festive pricing live" : "Active offers"} — apply{" "}
+              {shown.map((offer, i) => (
+                <Fragment key={offer.code}>
+                  {i > 0 ? <span className="text-amber-300/70">or</span> : null}
+                  <b className="font-bold text-amber-300">{offer.code}</b>
+                </Fragment>
+              ))}{" "}
+              at checkout
+            </p>
+          ) : null}
         </div>
         <aside
           aria-label="How ordering works"

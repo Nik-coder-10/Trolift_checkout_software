@@ -181,6 +181,10 @@ export function Navbar() {
           </button>
         </div>
       </div>
+      <div
+        aria-hidden
+        className="pointer-events-none h-px bg-gradient-to-r from-transparent via-amber-400/35 to-transparent"
+      />
       {open ? (
         <nav id="mobile-nav" aria-label="Mobile" className="border-t border-white/10 bg-brand-950/90 px-4 pt-2 pb-4 backdrop-blur-xl md:hidden">
           <div className="py-2">

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { DiyaIcon } from "@/components/ui/DiyaIcon";
 import { siteConfig } from "@/config/site";
 import { slugifyCategory } from "@/lib/catalog/products";
 
@@ -91,10 +92,12 @@ export function Footer() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-amber-400/15 bg-amber-400/[0.06]">
-        <p className="mx-auto w-full max-w-6xl px-4 py-2 text-center text-xs font-semibold text-amber-200 sm:px-6">
+      <div className="border-t border-amber-400/20 bg-gradient-to-b from-amber-400/[0.09] to-amber-400/[0.04]">
+        <p className="mx-auto flex w-full max-w-6xl items-center justify-center gap-2 px-4 py-2 text-center text-xs font-semibold text-amber-200 sm:px-6">
+          <DiyaIcon size={13} className="text-amber-300" />
           Celebrate Dussehra &amp; Early Diwali with transparent pricing &amp; GST
           invoices
+          <DiyaIcon size={13} className="text-amber-300" />
         </p>
       </div>
       <div className="border-t border-brand-800">

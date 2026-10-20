@@ -41,6 +41,30 @@ body {
   border-radius: 4px;
 }
 
+/* Festive diya flame / string-light glow flicker. */
+@keyframes diya-flicker {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(0.92);
+  }
+}
+
+.diya-flame {
+  transform-origin: center bottom;
+  animation: diya-flicker 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diya-flame {
+    animation: none;
+  }
+}
+
 /* Skip link for keyboard / screen-reader users. */
 .skip-link {
   position: absolute;
