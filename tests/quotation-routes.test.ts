@@ -251,10 +251,13 @@ describe("customer quotation route (token-gated, fail closed)", () => {
         grandTotalPaise?: number;
       };
     } | null;
-    // Pre-discount 552000 + 33710 = 585710; net of ₹400 redeem.
+    // ODA-style charge: the ₹470 delivery is GST-inclusive, so the
+    // cartage splits into freight ₹398.31 + tax ₹71.69 (freight+tax
+    // = the charge). Pre-discount 5050.00 + 470.00 + 252.50 goods tax
+    // = 5772.50; net of ₹400 redeem.
     expect(frozen?.totals.discountPaise).toBe(40000);
     expect(frozen?.totals.couponCode).toBe("NAVRATRI400");
-    expect(frozen?.totals.grandTotalPaise).toBe(545710);
+    expect(frozen?.totals.grandTotalPaise).toBe(537250);
   });
 
   it("serves quotations for payment_submitted orders too", async () => {

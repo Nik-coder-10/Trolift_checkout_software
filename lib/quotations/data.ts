@@ -288,7 +288,13 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
     };
   });
 
-  // Cartage (delivery) line: quoted freight with its own GST.
+  // Cartage (delivery) line: quoted freight with its own GST. Two
+  // accepted shapes, both fully determined by the snapshotted rate
+  // (same rule as item lines): a legacy add-on charge whose tax is
+  // round(charge × r/100), or the reverse-inclusive ODA charge, where
+  // the stored charge is the GST-exclusive freight extracted from the
+  // flat inclusive fee (freight = round(total × 100/(100 + r))). The
+  // all-inclusive (zero-charge) row carries neither.
   const c = input.cartage;
   if (c.name.trim() === "") fail("the cartage line needs a name.");
   assertPaise(c.chargePaise, "cartage charge");
@@ -296,10 +302,12 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
   if (c.sac !== null && !/^[0-9]{6}$/.test(c.sac)) {
     fail("cartage SAC has an unexpected shape.");
   }
-  const expectedCartageTax = Math.round(
-    (c.chargePaise * parseGstRate(c.gstRate)) / 100,
+  const cartageRateNum = parseGstRate(c.gstRate);
+  const addOnCartageTax = Math.round((c.chargePaise * cartageRateNum) / 100);
+  const inclusiveFreight = Math.round(
+    ((c.chargePaise + c.taxPaise) * 100) / (100 + cartageRateNum),
   );
-  if (c.taxPaise !== expectedCartageTax) {
+  if (c.taxPaise !== addOnCartageTax && c.chargePaise !== inclusiveFreight) {
     fail("cartage tax does not match its snapshotted rate.");
   }
 

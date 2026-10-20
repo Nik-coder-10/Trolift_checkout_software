@@ -54,6 +54,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     items: parsed.items,
     pincode: parsed.pincode,
     billing: parsed.billing,
+    odaDoorDelivery: parsed.odaDoorDelivery,
   });
   // One offer at a time, re-resolved here against THIS order's phone
   // and total — the checkout preview is advisory, money is this side.
@@ -128,6 +129,7 @@ export const POST = withErrorHandling(async (req: Request) => {
         taxPaise: summary.cgstPaise + summary.sgstPaise + summary.igstPaise,
         taxType: summary.igstPaise > 0 ? "igst" : "cgst_sgst",
         deliveryPartnerName: quote.deliveryPartnerName,
+        deliveryChargePaise: quote.deliveryChargePaise,
         etaDays: quote.etaDays,
         totalPaise: summary.totalPaise,
         discountPaise: summary.discountPaise,

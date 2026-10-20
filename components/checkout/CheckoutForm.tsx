@@ -26,7 +26,9 @@ import type { ApiResponse } from "@/types/api";
 
 /**
  * Response of POST /api/delivery/check — all-inclusive pricing: a
- * serviceable verdict plus partner/ETA, never a charge.
+ * serviceable verdict plus partner/ETA, never a charge — except on a
+ * listed ODA pincode, where odaChargePaise carries the flat door-
+ * delivery charge so the checkout can offer the two ODA options.
  */
 interface DeliveryCheckResult {
   serviceable: boolean;
@@ -35,6 +37,7 @@ interface DeliveryCheckResult {
   message: string;
   partner: { name: string } | null;
   etaDays: { min: number; max: number } | null;
+  odaChargePaise: number | null;
 }
 
 type DeliveryState =
@@ -103,6 +106,10 @@ export function CheckoutForm() {
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
   const [couponInput, setCouponInput] = useState("");
   const [coupon, setCoupon] = useState<CouponState>({ status: "idle" });
+  // ODA door-delivery opt-in: set when the customer picks the flat-
+  // charge option on an out-of-area pincode; reset whenever the
+  // pincode changes or a fresh check comes back.
+  const [odaDoorDelivery, setOdaDoorDelivery] = useState(false);
   // One key per checkout attempt: retries and double-clicks replay to
   // the same server order instead of duplicating it.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
@@ -113,7 +120,11 @@ export function CheckoutForm() {
   ) => {
     setForm((f) => ({ ...f, [field]: value }));
     setReviewed(false);
-    if (field === "pincode") setDelivery({ status: "idle" });
+    if (field === "pincode") {
+      setDelivery({ status: "idle" });
+      // A new pincode invalidates any earlier ODA opt-in.
+      setOdaDoorDelivery(false);
+    }
     // The phone decides who counts as a first-time buyer, so an applied
     // code must be re-checked whenever the number changes.
     if (field === "phone") {
@@ -197,6 +208,9 @@ export function CheckoutForm() {
         }
         return;
       }
+      // Every fresh verdict starts from "no ODA opt-in" — the customer
+      // picks door delivery (if offered) after seeing the result.
+      setOdaDoorDelivery(false);
       setDelivery(
         json.data.serviceable
           ? { status: "ok", result: json.data }
@@ -267,7 +281,13 @@ export function CheckoutForm() {
       focusFirstError(result.errors);
       return;
     }
-    if (delivery.status !== "ok") {
+    // Placeable when the pincode checks out serviceable, or when it's
+    // an ODA pincode and the customer picked door delivery there.
+    const odaChosen =
+      delivery.status === "unavailable" &&
+      delivery.result.odaChargePaise !== null &&
+      odaDoorDelivery;
+    if (delivery.status !== "ok" && !odaChosen) {
       setPlaceError(
         "Check delivery availability for your pincode before placing the order.",
       );
@@ -302,6 +322,7 @@ export function CheckoutForm() {
               : null,
           pincode: form.pincode,
           shippingAddress: form.shippingAddress,
+          odaDoorDelivery: odaChosen,
           couponCode: appliedCoupon?.code ?? null,
           idempotencyKey,
         }),
@@ -416,9 +437,22 @@ export function CheckoutForm() {
 
   // All-inclusive pricing: the summary total is the item sum — prices
   // already contain GST and delivery. Serviceability is the only thing
-  // the pincode check adds.
-  const totalPaise = subtotalPaise;
-  const deliverySummary = <span className="text-zinc-700">Included</span>;
+  // the pincode check adds — except an opted-in ODA door delivery,
+  // whose flat GST-inclusive charge sits on top.
+  const odaChargePaise =
+    delivery.status === "unavailable" && delivery.result.odaChargePaise !== null
+      ? delivery.result.odaChargePaise
+      : null;
+  const odaApplied = odaChargePaise !== null && odaDoorDelivery;
+  const totalPaise = subtotalPaise + (odaApplied ? odaChargePaise : 0);
+  const deliverySummary = odaApplied ? (
+    <span className="text-zinc-700">
+      Included · ODA{" "}
+      {formatMoney({ amountPaise: odaChargePaise, currency: "INR" })}
+    </span>
+  ) : (
+    <span className="text-zinc-700">Included</span>
+  );
 
   const appliedCoupon = coupon.status === "applied" ? coupon.coupon : null;
   // The server refuses a code that meets or exceeds the order total
@@ -635,9 +669,68 @@ export function CheckoutForm() {
                 </Alert>
               ) : null}
               {delivery.status === "unavailable" ? (
-                <Alert tone="warning" title="Delivery unavailable for this pincode.">
-                  {delivery.result.message}
-                </Alert>
+                delivery.result.odaChargePaise !== null ? (
+                  <Alert
+                    tone="warning"
+                    title="This pincode is in our ODA (out-of-delivery) area."
+                  >
+                    <p>
+                      We cannot include delivery to this pincode in the product
+                      price. Choose how you would like to receive this order:
+                    </p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOdaDoorDelivery(false);
+                          document.getElementById("pincode")?.focus();
+                        }}
+                        aria-pressed={!odaDoorDelivery}
+                        className={
+                          !odaDoorDelivery
+                            ? "rounded-md border border-brand-700 bg-brand-50 px-3 py-2 text-left text-sm font-semibold text-brand-900"
+                            : "rounded-md border border-zinc-300 bg-white px-3 py-2 text-left text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+                        }
+                      >
+                        1. Use a nearby serviceable pincode
+                        <span className="mt-0.5 block text-xs font-normal text-zinc-600">
+                          We deliver there at no extra charge — you collect
+                          from that location.
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOdaDoorDelivery(true)}
+                        aria-pressed={odaDoorDelivery}
+                        className={
+                          odaDoorDelivery
+                            ? "rounded-md border border-brand-700 bg-brand-50 px-3 py-2 text-left text-sm font-semibold text-brand-900"
+                            : "rounded-md border border-zinc-300 bg-white px-3 py-2 text-left text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+                        }
+                      >
+                        2. Door delivery here —{" "}
+                        {formatMoney({
+                          amountPaise: delivery.result.odaChargePaise,
+                          currency: "INR",
+                        })}{" "}
+                        ODA charge
+                        <span className="mt-0.5 block text-xs font-normal text-zinc-600">
+                          Flat charge, added to your order total (GST
+                          included).
+                        </span>
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-zinc-600">
+                      {odaDoorDelivery
+                        ? "ODA door delivery selected — the charge above is added to your total."
+                        : "Pick door delivery above to continue with this pincode, or check a nearby serviceable one."}
+                    </p>
+                  </Alert>
+                ) : (
+                  <Alert tone="warning" title="Delivery unavailable for this pincode.">
+                    {delivery.result.message}
+                  </Alert>
+                )
               ) : null}
               {delivery.status === "error" ? (
                 <Alert tone="error" title="Delivery check failed">
@@ -679,7 +772,7 @@ export function CheckoutForm() {
                 name="couponCode"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="e.g. FIRST300"
+                placeholder="e.g. FIRST250"
                 value={couponInput}
                 onChange={(e) => {
                   setCouponInput(e.target.value);
@@ -773,7 +866,10 @@ export function CheckoutForm() {
         ) : null}
         <p className="mt-2 text-xs leading-5 text-zinc-500">
           All prices include GST and delivery — this total is what you pay.
-          Delivery availability is confirmed by the pincode check.
+          {odaApplied
+            ? " Includes the flat ODA door-delivery charge."
+            : ""}
+          {" "}Delivery availability is confirmed by the pincode check.
         </p>
         {form.gstin.trim() !== "" ? (
           <p className="mt-1 text-xs leading-5 text-zinc-500">

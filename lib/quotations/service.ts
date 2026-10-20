@@ -1,13 +1,13 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AppError } from "@/lib/api/errors";
-import { getBusinessStateCode, parseGstRate } from "@/lib/tax/india";
+import { getBusinessStateCode } from "@/lib/tax/india";
+import { getOdaLineCopy, splitOdaCharge } from "@/lib/delivery/oda";
 import { getBusinessDetails } from "@/lib/invoices/business";
 import { logOrderEvent } from "@/lib/admin/orders";
 import {
   getBankDetails,
   getDeliveryGstRate,
-  getDeliveryLineCopy,
   getDeliverySac,
   getQuotationAbout,
   getQuotationTerms,
@@ -276,21 +276,23 @@ export async function getQuotationData(orderId: string): Promise<QuotationData> 
 
   // Cartage: quoted freight carries its own GST while the order is a
   // GST quotation; non-GST quotations carry none (same trigger rule as
-  // the order engine — GSTIN presence).
+  // the order engine — GSTIN presence). A zero charge (all-inclusive
+  // order) renders the "included" row; a positive charge is the flat
+  // ODA door-delivery fee, whose GST is EXTRACTED from within it (the
+  // customer pays exactly the charge, so freight + tax = the charge).
   const treatment = o.tax_treatment === "gst" ? "gst" : "non_gst";
-const cartageRate = treatment === "gst" ? getDeliveryGstRate() : null;
-const cartageChargePaise = toPaise(o.delivery_charge);
-const cartageTaxPaise =
-  cartageRate === null
-    ? 0
-    : Math.round((cartageChargePaise * parseGstRate(cartageRate)) / 100);
-// All-inclusive orders carry delivery_charge 0 — the cartage row then
-// states that freight sits inside the item prices instead of quoting
-// a zero rupee "charge".
-const cartageCopy =
-  cartageChargePaise === 0
-    ? { name: "Delivery", description: "Included in the quoted item prices" }
-    : getDeliveryLineCopy();
+  const cartageRate = treatment === "gst" ? getDeliveryGstRate() : null;
+  const odaChargePaise = toPaise(o.delivery_charge);
+  const split =
+    odaChargePaise > 0
+      ? splitOdaCharge({ chargePaise: odaChargePaise, gstRate: cartageRate })
+      : { freightPaise: 0, taxPaise: 0 };
+  const cartageChargePaise = split.freightPaise;
+  const cartageTaxPaise = split.taxPaise;
+  const cartageCopy =
+    odaChargePaise === 0
+      ? { name: "Delivery", description: "Included in the quoted item prices" }
+      : getOdaLineCopy();
 
   const built = buildQuotationData({
     quotationNumber: claim.quotation_number,

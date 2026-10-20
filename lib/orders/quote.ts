@@ -5,6 +5,7 @@ import {
   quoteDelivery,
   NOT_SERVICEABLE_MESSAGE,
 } from "@/lib/delivery/engine";
+import { getOdaChargePaise } from "@/lib/delivery/oda";
 import {
   computeOrderTax,
   getBusinessStateCode,
@@ -32,7 +33,10 @@ import { fetchAvailability } from "@/lib/inventory/availability";
  *   subtotal          = Σ line taxable values   (invoice identity)
  *   delivery          = 0 on every serviceable pincode
  *                       (the engine still decides partner/ETA/state)
- *   total             = subtotal + extracted GST = Σ inclusive lines
+ *                       or the flat ODA charge when the customer opts
+ *                       into door delivery on an out-of-area pincode
+ *   total             = subtotal + extracted GST (+ ODA charge)
+ *                       = Σ inclusive lines
  */
 
 export interface OrderLineInput {
@@ -79,7 +83,7 @@ export interface OrderQuote {
   /** Null for a covered pincode with no configured rate row. */
   deliveryPartnerId: string | null;
   deliveryPartnerName: string;
-  /** Always 0 — delivery is included in the catalogue price. */
+  /** 0 on all-inclusive orders; the flat ODA charge when opted in. */
   deliveryChargePaise: number;
   /** Shipment weight in kg (3dp) when all line weights are known. */
   deliveryWeightKg: number | null;
@@ -183,6 +187,13 @@ export async function quoteOrder(input: {
   items: OrderLineInput[];
   pincode: string;
   billing?: BillingInput | null;
+  /**
+   * Customer opted into door delivery on an ODA pincode. Only honoured
+   * when the pincode is listed with oda=true on the Delhivery list —
+   * the server re-verifies, so a forged flag on a serviceable or
+   * unlisted pincode is a 422, never a discount or a way in.
+   */
+  odaDoorDelivery?: boolean;
 }): Promise<OrderQuote> {
   const supabase = await createClient();
   const ids = [...new Set(input.items.map((i) => i.productId))];
@@ -234,7 +245,15 @@ export async function quoteOrder(input: {
   // The engine decides coverage, partner, ETA and state only; its
   // charge is ignored — delivery is included in the catalogue price.
   const delivery = await quoteDelivery(input.pincode, orderValuePaise, input.items);
-  if (!delivery.serviceable || !delivery.selected) {
+  // ODA door delivery: a listed pincode flagged out-of-area may still
+  // be served at a flat GST-inclusive charge when the customer opts
+  // in. The server re-verifies the ODA verdict — the flag alone never
+  // qualifies a pincode.
+  const odaEligible =
+    input.odaDoorDelivery === true &&
+    delivery.coverage.listed &&
+    delivery.coverage.oda === true;
+  if ((!delivery.serviceable || !delivery.selected) && !odaEligible) {
     throw new AppError("VALIDATION_ERROR", NOT_SERVICEABLE_MESSAGE, 422);
   }
 
@@ -252,17 +271,37 @@ export async function quoteOrder(input: {
     businessStateCode: getBusinessStateCode(),
   });
 
+  // ODA door delivery: no engine partner serves the pincode, so the
+  // order carries a fixed descriptive partner and the flat charge.
+  if (odaEligible) {
+    const odaChargePaise = getOdaChargePaise();
+    return {
+      lines,
+      subtotalPaise,
+      tax,
+      billing,
+      deliveryPartnerId: null,
+      deliveryPartnerName: "ODA Door Delivery",
+      deliveryChargePaise: odaChargePaise,
+      deliveryWeightKg: delivery.totalWeightKg,
+      deliveryRuleSummary: "ODA door delivery charge (GST included)",
+      etaDays: null,
+      totalPaise: subtotalPaise + tax.totalGstPaise + odaChargePaise,
+      pincode: delivery.pincode,
+    };
+  }
+
   return {
     lines,
     subtotalPaise,
     tax,
     billing,
-    deliveryPartnerId: delivery.selected.partner.id,
-    deliveryPartnerName: delivery.selected.partner.name,
+    deliveryPartnerId: delivery.selected?.partner.id ?? null,
+    deliveryPartnerName: delivery.selected?.partner.name ?? "Our delivery team",
     deliveryChargePaise: 0,
     deliveryWeightKg: delivery.totalWeightKg,
     deliveryRuleSummary: "Delivery included in product price",
-    etaDays: delivery.selected.etaDays ?? null,
+    etaDays: delivery.selected?.etaDays ?? null,
     totalPaise: subtotalPaise + tax.totalGstPaise,
     pincode: delivery.pincode,
   };

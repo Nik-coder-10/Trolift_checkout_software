@@ -14,8 +14,8 @@ import { ORDER_MAX_QTY } from "@/lib/orders/quote";
  * Order request parsing + validation (pure, unit-tested).
  *
  * Accepts ONLY: item IDs + quantities, customer details (incl. the
- * shipping address and optional billing profile), pincode and an
- * idempotency key. There is
+ * shipping address and optional billing profile), pincode, the ODA
+ * door-delivery opt-in and an idempotency key. There is
  * deliberately no field for prices, rates, charges, totals, partner,
  * payment status or order status — the server derives all of those,
  * so a hostile client cannot even submit fakes.
@@ -49,6 +49,12 @@ export interface ParsedOrderRequest {
   pincode: string;
   /** Delivery address as typed at checkout — required for every order. */
   shippingAddress: string;
+  /**
+   * Customer opted into door delivery on an ODA pincode (flat GST-
+   * inclusive charge). Shape-only boolean — the server re-verifies the
+   * pincode's ODA verdict before honouring it.
+   */
+  odaDoorDelivery: boolean;
   /** Redeem code applied at checkout ("" when no offer was used). */
   couponCode: string;
   idempotencyKey: string;
@@ -184,12 +190,21 @@ export function parseOrderRequestBody(body: unknown): ParsedOrderRequest {
     fail("Enter a valid redeem code.", 422);
   }
 
+  // ODA opt-in: strict boolean. Whether the pincode actually qualifies
+  // is decided inside quoteOrder against the Delhivery list.
+  const rawOda = record["odaDoorDelivery"];
+  if (rawOda !== undefined && rawOda !== null && typeof rawOda !== "boolean") {
+    fail("The ODA delivery option is invalid.");
+  }
+  const odaDoorDelivery = rawOda === true;
+
   return {
     items,
     customer,
     billing,
     pincode: customer.pincode,
     shippingAddress: customer.shippingAddress,
+    odaDoorDelivery,
     couponCode,
     idempotencyKey,
   };

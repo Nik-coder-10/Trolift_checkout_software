@@ -136,6 +136,7 @@ describe("parseOrderRequestBody (server gate)", () => {
         "customer",
         "idempotencyKey",
         "items",
+        "odaDoorDelivery",
         "pincode",
         "shippingAddress",
       ].sort(),

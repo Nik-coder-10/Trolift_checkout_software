@@ -11,6 +11,7 @@
  */
 
 import { lookupDelhiveryPincode } from "@/lib/delivery/delhivery-pincodes";
+import { isOdaOrder } from "@/lib/delivery/oda";
 import { DELIVERY_TIMEFRAME } from "@/lib/delivery/timeframe";
 
 export interface NotificationLine {
@@ -35,6 +36,8 @@ export interface OrderMessageInput {
   /** Which GST split the order carries — names the component in the copy. */
   taxType: "igst" | "cgst_sgst";
   deliveryPartnerName: string | null;
+  /** Flat ODA door-delivery charge in paise (0 on all-inclusive orders). */
+  deliveryChargePaise: number;
   etaDays: { min: number; max: number } | null;
   totalPaise: number;
   /** Rupees knocked off by the redeem code (0 when no offer applied). */
@@ -65,11 +68,22 @@ export function rupees(paise: number): string {
  * Delivery status for the order's pincode: the Delhivery list verdict
  * plus the frozen partner the order was placed with. Delivery is
  * included in every catalogue price, so the line reports the partner
- * and ETA when known — never a charge.
+ * and ETA when known — never a charge, except an opted-in ODA door
+ * delivery, whose flat fee is named so the customer recognises it on
+ * the invoice.
  */
 export function deliveryStatusLine(input: OrderMessageInput): string {
   const coverage = lookupDelhiveryPincode(input.pincode);
   const where = coverage.state ? ` (${coverage.state})` : "";
+  // An ODA order carries a positive charge and the fixed partner name;
+  // the list still calls the pincode undeliverable, so report the
+  // arrangement instead of contradicting the order.
+  if (isOdaOrder(input.deliveryChargePaise)) {
+    return (
+      `Pincode ${input.pincode}${where}: ODA door delivery arranged — ` +
+      `₹${rupees(input.deliveryChargePaise)} charge included in the order total.`
+    );
+  }
   if (!coverage.deliverable) {
     return `Pincode ${input.pincode}${where}: not deliverable — ${coverage.reason ?? "outside our delivery area."}`;
   }
@@ -90,7 +104,11 @@ function summaryLines(input: OrderMessageInput): string[] {
     const component = input.taxType === "cgst_sgst" ? "CGST + SGST" : "IGST";
     lines.push(`GST included: ₹${rupees(input.taxPaise)} (${component})`);
   }
-  lines.push("Delivery: Included");
+  if (isOdaOrder(input.deliveryChargePaise)) {
+    lines.push(`ODA delivery charge: ₹${rupees(input.deliveryChargePaise)}`);
+  } else {
+    lines.push("Delivery: Included");
+  }
   if (input.discountPaise > 0) {
     lines.push(
       `Discount${input.couponCode ? ` (${input.couponCode})` : ""}: -₹${rupees(input.discountPaise)}`,

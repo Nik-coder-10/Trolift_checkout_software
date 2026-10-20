@@ -34,7 +34,7 @@ export function OrderActions({ order }: { order: PayableOrder }) {
         : []),
       `Delivery: ${
         order.deliveryChargePaise > 0
-          ? `${(order.deliveryChargePaise / 100).toFixed(2)} INR`
+          ? `${(order.deliveryChargePaise / 100).toFixed(2)} INR (ODA)`
           : "Included"
       }`,
       `Total: ${(order.totalPaise / 100).toFixed(2)} INR`,
