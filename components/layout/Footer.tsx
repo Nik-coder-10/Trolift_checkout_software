@@ -77,7 +77,11 @@ export function Footer() {
               </Link>
             </li>
             <li>GST invoice on every order</li>
-            <li>Volume pricing on request</li>
+            <li>
+              <Link href="/resellers" className="font-semibold text-amber-400 hover:text-amber-300 hover:underline">
+                Reseller? Volume pricing on request →
+              </Link>
+            </li>
             <li>Delivery across India by pincode</li>
             <li>
               <Link href="/contact" className="font-semibold text-amber-400 hover:text-amber-300 hover:underline">

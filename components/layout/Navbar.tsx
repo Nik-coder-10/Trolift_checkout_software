@@ -34,14 +34,14 @@ function BrandMark() {
   );
 }
 
-/** Quote CTA: routes to the contact section for a sales quote. */
-function QuoteCta({ mobile = false }: { mobile?: boolean }) {
+/** Reseller CTA: trade rates are quoted on request, never published. */
+function ResellerCta({ mobile = false }: { mobile?: boolean }) {
   const cls = mobile
     ? "flex h-11 items-center justify-center rounded-md px-4 text-sm font-bold"
     : "inline-flex h-10 items-center rounded-md px-4 text-sm font-bold";
   return (
-    <Link href="/contact" className={`${cls} bg-amber-400 text-brand-950 hover:bg-amber-300`}>
-      Get a Quote
+    <Link href="/resellers" className={`${cls} bg-amber-400 text-brand-950 hover:bg-amber-300`}>
+      Resellers
     </Link>
   );
 }
@@ -159,7 +159,7 @@ export function Navbar() {
         </nav>
         <div className="ml-auto hidden items-center gap-1 md:flex">
           <CartButton />
-          <QuoteCta />
+          <ResellerCta />
         </div>
         <div className="ml-auto flex items-center gap-1 md:hidden">
           <CartButton />
@@ -199,7 +199,7 @@ export function Navbar() {
               </li>
             ))}
             <li className="pt-2" onClick={() => setOpen(false)}>
-              <QuoteCta mobile />
+              <ResellerCta mobile />
             </li>
           </ul>
         </nav>

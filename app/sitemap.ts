@@ -5,12 +5,12 @@ import { getCategories, getProductSlugs } from "@/lib/catalog/queries";
 /**
  * sitemap.xml (generated from the live catalogue).
  *
- * Contains only public, indexable pages: home, the catalogue, one
- * entry per category and one per active product. Cart, checkout,
- * order tracking and admin are deliberately absent (they are noindex
- * and capability-based). `getProductSlugs()` returns active products
- * only and degrades to an empty list without a backend, so the
- * sitemap never fails the build.
+ * Contains only public, indexable pages: home, the catalogue, contact,
+ * the reseller page, one entry per category and one per active
+ * product. Cart, checkout, order tracking and admin are deliberately
+ * absent (they are noindex and capability-based). `getProductSlugs()`
+ * returns active products only and degrades to an empty list without a
+ * backend, so the sitemap never fails the build.
  *
  * Revalidated hourly: the build-time snapshot would otherwise go
  * stale as soon as new products are published.
@@ -41,6 +41,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${base}/contact`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.6,
+    },
+    {
+      url: `${base}/resellers`,
       lastModified: now,
       changeFrequency: "monthly",
       priority: 0.6,
