@@ -137,8 +137,11 @@ export default async function OrderPayPage({
               <ol className="mt-4 flex list-decimal flex-col gap-1.5 pl-5 text-sm text-zinc-700">
                 <li>Open any UPI app (GPay, PhonePe, Paytm, BHIM…).</li>
                 <li>Scan the QR and verify the exact amount above.</li>
-                <li>Complete the payment and note the 12-digit UTR.</li>
-                <li>Submit the UTR and the payment screenshot below — we verify every payment manually.</li>
+                <li>Complete the payment.</li>
+                <li>
+                  Submit the payment screenshot below — we verify every
+                  payment manually. Add the UTR too if you have it to hand.
+                </li>
               </ol>
             </>
           )}

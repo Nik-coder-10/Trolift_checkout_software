@@ -94,7 +94,7 @@ export function PaymentActions({ orderId }: { orderId: string }) {
       >
         <p>
           {mode === "approve"
-            ? "Confirm the UTR against the bank/UPI statement first. This marks the payment PAID and confirms the order."
+            ? "Check the attached screenshot against the bank/UPI statement first (and the UTR, when one was submitted). This marks the payment PAID and confirms the order."
             : "The customer will need to pay again. The order returns to payment-pending."}
         </p>
         <label htmlFor="admin-action-note" className="mt-3 block text-sm font-semibold text-zinc-800">

@@ -47,6 +47,16 @@ describe("buildPaymentClaimMessage", () => {
     expect(body).toContain("could not be attached");
     expect(body).toContain("payments.proof_path");
   });
+
+  it("renders a screenshot-only claim when no UTR was submitted", () => {
+    const body = buildPaymentClaimMessage({ ...INPUT, reference: null });
+    expect(body).toContain("Payment submitted — TS-261016-0042");
+    expect(body).toContain("Not provided");
+    expect(body).toContain("verify from the screenshot");
+    expect(body).toContain("The payment screenshot submitted by the client is attached.");
+    // The UTR line never invents a value when the customer omitted it.
+    expect(body).not.toContain("UTR123456789012");
+  });
 });
 
 describe("notifyPaymentClaimSubmitted", () => {
@@ -134,6 +144,32 @@ describe("notifyPaymentClaimSubmitted", () => {
     expect(sent[0]!.attachments).toBeUndefined();
     expect(sent[0]!.text).toContain("could not be attached");
     expect(sent[0]!.text).toContain("Anita Sharma");
+  });
+
+  it("drops the UTR from the subject when the claim had no reference", async () => {
+    vi.mocked(downloadPaymentProof).mockResolvedValueOnce({
+      bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      contentType: "image/png",
+    });
+    const result = await notifyPaymentClaimSubmitted(
+      {
+        orderNumber: INPUT.orderNumber,
+        customer: {
+          name: INPUT.customerName,
+          phone: INPUT.customerPhone,
+          email: INPUT.customerEmail,
+        },
+        reference: null,
+        totalPaise: INPUT.totalPaise,
+        proofPath: "order-1/proof.png",
+      },
+      { sendMail },
+    );
+    expect(result).toEqual({ sent: 1, failed: 0, skipped: 0 });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.subject).toBe("Payment submitted — TS-261016-0042");
+    expect(sent[0]!.text).toContain("Not provided");
+    expect(sent[0]!.text).toContain("The payment screenshot submitted by the client is attached.");
   });
 
   it("skips silently when no recipient is configured", async () => {

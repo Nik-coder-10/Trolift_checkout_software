@@ -28,13 +28,15 @@ export function assertClaimAllowed(
  * Payment-claim persistence (server-only).
  *
  * Flow: load order + latest payment via service role → enforce
- * transition rules → store the UTR (UNIQUE-guarded) → flip payment to
- * SUBMITTED and order to PAYMENT_SUBMITTED atomically-ish in order
+ * transition rules → store the reference when one was given
+ * (UNIQUE-guarded; empty stays NULL and never collides) → flip payment
+ * to SUBMITTED and order to PAYMENT_SUBMITTED atomically-ish in order
  * (payment first would orphan on crash; order first is also imperfect —
  * a small reconciliation window the admin dashboard resolves by
  * matching on transaction_reference).
  *
- * Amounts are never accepted: the claim carries only the reference.
+ * Amounts are never accepted: the claim carries the screenshot
+ * (mandatory) and an optional UPI reference.
  */
 
 export interface ClaimResult {
@@ -50,6 +52,7 @@ export interface ClaimResult {
 
 export async function submitPaymentClaim(input: {
   orderId: string;
+  /** Optional UPI reference — empty string means "not provided". */
   reference: string;
   /** Customer's mobile — must match the order's customer (IDOR guard). */
   phone: string;
@@ -57,7 +60,9 @@ export async function submitPaymentClaim(input: {
   proofPath: string;
 }): Promise<ClaimResult> {
   const reference = normalizePaymentReference(input.reference);
-  if (!isValidPaymentReference(input.reference)) {
+  // The screenshot is the mandatory evidence; the UTR is optional
+  // help. When one IS given it must still be a well-formed reference.
+  if (reference !== "" && !isValidPaymentReference(reference)) {
     throw new AppError(
       "VALIDATION_ERROR",
       "Enter the 6–30 character payment reference from your UPI app.",
@@ -136,10 +141,15 @@ export async function submitPaymentClaim(input: {
 
   const { error: refError } = await admin
     .from("payments")
-    .update({ transaction_reference: reference, proof_path: input.proofPath })
+    .update({
+      // Empty reference stays NULL — the partial unique index only
+      // guards non-null values, so screenshot-only claims never collide.
+      transaction_reference: reference === "" ? null : reference,
+      proof_path: input.proofPath,
+    })
     .eq("id", paymentRow.id);
   if (refError) {
-    // Duplicate UTR (partial unique index) lands here too.
+    // Duplicate reference (partial unique index) lands here too.
     throw new AppError(
       "BAD_REQUEST",
       "This payment reference was already used. Check the UTR and try again.",

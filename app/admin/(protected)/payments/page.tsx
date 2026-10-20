@@ -100,7 +100,9 @@ export default async function AdminPaymentsPage({
                       </span>
                     </div>
                     <p className="mt-1 font-mono text-sm font-semibold text-zinc-900">
-                      UTR: {c.reference ?? "—"}
+                      {c.reference !== null
+                        ? `UTR: ${c.reference}`
+                        : "No UTR — screenshot only"}
                     </p>
                     <p className="mt-1 text-xs text-zinc-500">
                       Submitted {new Date(c.createdAt).toLocaleString("en-IN", {

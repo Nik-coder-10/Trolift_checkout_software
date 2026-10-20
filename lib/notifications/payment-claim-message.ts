@@ -1,10 +1,11 @@
 /**
  * "Payment submitted" owner email (pure builder, unit-tested).
  *
- * Sent the moment a customer clicks "I Have Paid" with a UTR and a
- * payment screenshot. Carries the client's details, the payment
- * reference and the order total; the screenshot rides along as an
- * attachment (wired by the notification sender, not this builder).
+ * Sent the moment a customer clicks "I Have Paid" with a payment
+ * screenshot (and a UPI reference when they had one). Carries the
+ * client's details, the payment reference (or "not provided") and the
+ * order total; the screenshot rides along as an attachment (wired by
+ * the notification sender, not this builder).
  */
 
 export interface PaymentClaimMessageInput {
@@ -12,8 +13,8 @@ export interface PaymentClaimMessageInput {
   customerName: string;
   customerPhone: string;
   customerEmail: string | null;
-  /** UPI UTR / bank reference as submitted by the customer. */
-  reference: string;
+  /** UPI UTR / bank reference as submitted — null when omitted. */
+  reference: string | null;
   /** Order total in paise — the amount the customer claims to have paid. */
   totalPaise: number;
   hasScreenshot: boolean;
@@ -29,9 +30,10 @@ export function buildPaymentClaimMessage(input: PaymentClaimMessageInput): strin
   const lines: string[] = [];
   lines.push(`Payment submitted — ${input.orderNumber}`);
   lines.push("");
-  lines.push("A customer claims to have paid. Verify the UTR against your");
-  lines.push("bank/UPI history and the attached screenshot, then mark the");
-  lines.push("payment as received (or reject the claim) in the admin panel.");
+  lines.push("A customer claims to have paid. Check the attached screenshot");
+  lines.push("against your bank/UPI history — and the reference below, when");
+  lines.push("one was given — then mark the payment as received (or reject");
+  lines.push("the claim) in the admin panel.");
   lines.push("");
   lines.push("Client");
   lines.push(`  Name:  ${input.customerName}`);
@@ -41,7 +43,9 @@ export function buildPaymentClaimMessage(input: PaymentClaimMessageInput): strin
   }
   lines.push("");
   lines.push("Payment");
-  lines.push(`  UPI reference (UTR): ${input.reference}`);
+  lines.push(
+    `  UPI reference (UTR): ${input.reference ?? "Not provided — verify from the screenshot."}`,
+  );
   lines.push(`  Amount claimed paid: ${formatRupees(input.totalPaise)}`);
   lines.push("");
   lines.push(

@@ -21,10 +21,11 @@ function proofTypeError(file: File): string | null {
 }
 
 /**
- * Payment-claim form: UTR + order mobile + the payment screenshot
- * (all mandatory). Submits ONE multipart request — no amount field
- * exists anywhere here; the server charges nothing from the browser.
- * Success means SUBMITTED (awaiting admin), never paid.
+ * Payment-claim form: order mobile + the payment screenshot (both
+ * mandatory) + an optional UPI reference. Submits ONE multipart
+ * request — no amount field exists anywhere here; the server charges
+ * nothing from the browser. Success means SUBMITTED (awaiting admin),
+ * never paid.
  */
 export function ClaimForm({ orderId }: { orderId: string }) {
   const [reference, setReference] = useState("");
@@ -54,8 +55,10 @@ export function ClaimForm({ orderId }: { orderId: string }) {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!isValidPaymentReference(reference)) {
-      setError("Enter the 6–30 character reference from your UPI app (usually the 12-digit UTR).");
+    // The screenshot is the mandatory evidence; the reference is
+    // optional help — but when given, it must be well-formed.
+    if (reference.trim() !== "" && !isValidPaymentReference(reference)) {
+      setError("The reference must be 6–30 letters or digits — or leave it blank.");
       return;
     }
     if (phone.trim() === "") {
@@ -102,15 +105,15 @@ export function ClaimForm({ orderId }: { orderId: string }) {
   if (done) {
     return (
       <Alert tone="success" title="Payment submitted for verification">
-        Our team will verify your payment against the reference and the
-        screenshot and confirm your order. This usually happens within a
-        few business hours.
+        Our team will verify your payment against the screenshot and
+        confirm your order. This usually happens within a few business
+        hours.
       </Alert>
     );
   }
 
   return (
-    <form noValidate onSubmit={submit} aria-label="Submit payment reference">
+    <form noValidate onSubmit={submit} aria-label="Submit payment proof">
       <Input
         label="Order mobile number"
         name="claim-phone"
@@ -122,13 +125,13 @@ export function ClaimForm({ orderId }: { orderId: string }) {
       />
       <div className="mt-3">
         <Input
-          label="UPI transaction / UTR number"
+          label="UPI transaction / UTR number (optional)"
           name="payment-reference"
           autoComplete="off"
-          placeholder="12-digit UTR from your UPI app"
+          placeholder="From your UPI app, if available"
           value={reference}
           onChange={(e) => setReference(e.target.value)}
-          hint="Find it in your UPI app's payment history after paying."
+          hint="Optional — the screenshot alone is enough for us to verify."
         />
       </div>
       <div className="mt-3 flex flex-col gap-1.5">
@@ -136,7 +139,7 @@ export function ClaimForm({ orderId }: { orderId: string }) {
           htmlFor="payment-proof"
           className="text-sm font-semibold text-zinc-800"
         >
-          Payment screenshot
+          Payment screenshot <span className="font-normal text-zinc-500">(required)</span>
         </label>
         <input
           ref={fileRef}
@@ -159,7 +162,7 @@ export function ClaimForm({ orderId }: { orderId: string }) {
       ) : null}
       <div className="mt-3">
         <Button type="submit" loading={submitting} className="w-full sm:w-auto">
-          I Have Paid — Submit Reference
+          I Have Paid
         </Button>
       </div>
       <p className="mt-2 text-xs leading-5 text-zinc-500">

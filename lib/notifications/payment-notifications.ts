@@ -24,7 +24,8 @@ import {
 export interface PaymentClaimNotificationInput {
   orderNumber: string;
   customer: { name: string; phone: string; email: string | null };
-  reference: string;
+  /** UPI reference as submitted — null when the customer omitted it. */
+  reference: string | null;
   totalPaise: number;
   proofPath: string;
 }
@@ -113,7 +114,10 @@ export async function notifyPaymentClaimSubmitted(
     [
       {
         to: recipient,
-        subject: `Payment submitted — ${input.orderNumber} (UTR ${input.reference})`,
+        subject:
+          input.reference === null
+            ? `Payment submitted — ${input.orderNumber}`
+            : `Payment submitted — ${input.orderNumber} (UTR ${input.reference})`,
         body,
         ...(attachment ? { attachments: [attachment] } : {}),
       },

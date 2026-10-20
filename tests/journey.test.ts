@@ -576,7 +576,7 @@ const post = (fn: (req: Request, ctx?: never) => Promise<Response>, body: unknow
     }),
   );
 
-/** Multipart claim: UTR + phone + the mandatory payment screenshot. */
+/** Multipart claim: phone + the mandatory payment screenshot (+ optional UTR). */
 const postClaim = (fields: Record<string, string>) =>
   claimPost(claimMultipartRequest(fields));
 
@@ -942,7 +942,7 @@ describe("failure flows fail safe with the item named", () => {
     expect(db.orders.size).toBe(1);
   });
 
-  it("rejects duplicate UTRs and malformed references", async () => {
+  it("rejects duplicate UTRs and malformed references; accepts screenshot-only claims", async () => {
     const first = await placeOrder("50");
     const { json } = await placeOrder("51");
     const otherId = json.data["id"] as string;
@@ -983,6 +983,23 @@ describe("failure flows fail safe with the item named", () => {
         })
       ).status,
     ).toBe(422);
+    // No UTR at all → claim still succeeds; the row stores NULL so the
+    // partial unique index never collides across screenshot-only claims.
+    const third = await placeOrder("52");
+    const thirdId = third.json.data["id"] as string;
+    const thirdToken = third.json.data["guestToken"] as string;
+    expect(
+      (
+        await postClaim({
+          orderId: thirdId,
+          reference: "",
+          phone: PHONE,
+          accessToken: thirdToken,
+        })
+      ).status,
+    ).toBe(200);
+    const thirdRow = (db.payments.get(thirdId) ?? [])[0];
+    expect(thirdRow?.["transaction_reference"]).toBeNull();
   });
 
   it("fails closed on unknown orders and backend failures", async () => {

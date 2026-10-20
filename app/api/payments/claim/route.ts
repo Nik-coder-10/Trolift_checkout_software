@@ -16,7 +16,7 @@ const UUID_RE =
 
 /**
  * POST /api/payments/claim — multipart/form-data with a payment
- * screenshot: { orderId, reference, phone, screenshot } → SUBMITTED.
+ * screenshot: { orderId, reference?, phone, screenshot } → SUBMITTED.
  *
  * Dual authorization (both required, neither weakened):
  *  1. The HttpOnly guest token for THIS order (cookie or `accessToken`
@@ -25,15 +25,17 @@ const UUID_RE =
  * Accepts NO amount — the authoritative total stays server-side.
  * The screenshot (PNG/JPEG/WebP ≤ 5 MB, sniffed by magic bytes) is
  * mandatory and lands in the private payment-proofs bucket; its path
- * is stored on the payment row for verification. Never marks anything
- * paid; only pending/failed payments in payable order states may
- * transition. Failures are generic (404) so arbitrary order UUIDs are
- * not confirmed to exist.
+ * is stored on the payment row for verification. The UPI reference is
+ * optional — when given it must be well-formed; when omitted the
+ * screenshot alone carries the claim. Never marks anything paid; only
+ * pending/failed payments in payable order states may transition.
+ * Failures are generic (404) so arbitrary order UUIDs are not
+ * confirmed to exist.
  *
  * After the response is on the wire, `after()` emails the owner the
- * client details, payment reference and the screenshot attachment.
- * An email or storage outage is logged and never fails a committed
- * claim.
+ * client details, payment reference (if any) and the screenshot
+ * attachment. An email or storage outage is logged and never fails a
+ * committed claim.
  */
 export const POST = withErrorHandling(async (req: Request) => {
   const denied = await denyIfLimited("claim", await checkRateLimit(req, "claim"));
@@ -59,9 +61,6 @@ export const POST = withErrorHandling(async (req: Request) => {
   if (!UUID_RE.test(orderId)) {
     return badRequest("A valid order is required.");
   }
-  if (reference.trim() === "") {
-    return badRequest("Payment reference is required.");
-  }
   if (phone.trim() === "") {
     return badRequest("The mobile number from the order is required.");
   }
@@ -83,14 +82,14 @@ export const POST = withErrorHandling(async (req: Request) => {
     phone,
     proofPath: proof.path,
   });
-  // Owner verification alert (client details + UTR + screenshot),
-  // after the response is on the wire — same after() pattern as the
-  // order-placed notifications.
+  // Owner verification alert (client details + reference when given +
+  // screenshot), after the response is on the wire — same after()
+  // pattern as the order-placed notifications.
   const notify = () =>
     notifyPaymentClaimSubmitted({
       orderNumber: result.orderNumber,
       customer: result.customer,
-      reference: reference.trim().toUpperCase(),
+      reference: reference.trim() === "" ? null : reference.trim().toUpperCase(),
       totalPaise: result.totalPaise,
       proofPath: proof.path,
     });

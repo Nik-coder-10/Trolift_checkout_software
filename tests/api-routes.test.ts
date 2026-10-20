@@ -310,7 +310,7 @@ const callClaim = (
   opts: { withProof?: boolean } = {},
 ) => claimPost(claimMultipartRequest(fields, opts));
 
-describe("POST /api/payments/claim (multipart: UTR + screenshot)", () => {
+describe("POST /api/payments/claim (multipart: screenshot + optional UTR)", () => {
   it("submits a valid claim with phone match + guest token + screenshot", async () => {
     wireClaim();
     const res = await callClaim(claimBody());
@@ -345,6 +345,24 @@ describe("POST /api/payments/claim (multipart: UTR + screenshot)", () => {
       totalPaise: 2087000,
       proofPath: `${OID}/proof.png`,
     });
+  });
+
+  it("accepts a screenshot-only claim with no UTR and notifies with reference null", async () => {
+    wireClaim();
+    const res = await callClaim(claimBody({ reference: "" }));
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: Record<string, unknown>;
+    };
+    expect(json.ok).toBe(true);
+    expect(json.data).toMatchObject({
+      orderId: OID,
+      paymentStatus: "submitted",
+      orderStatus: "payment_submitted",
+    });
+    expect(notifyPaymentClaimSubmitted).toHaveBeenCalledWith(
+      expect.objectContaining({ reference: null }),
+    );
   });
 
   it("rejects JSON bodies — the screenshot is mandatory", async () => {
@@ -434,7 +452,7 @@ describe("POST /api/payments/claim (multipart: UTR + screenshot)", () => {
   it("rejects malformed fields", async () => {
     for (const body of [
       { orderId: "nope", reference: "123456789012", phone: "+919876543210", accessToken: CLAIM_TOKEN },
-      { orderId: OID, reference: "", phone: "+919876543210", accessToken: CLAIM_TOKEN },
+      // Blank phone is still invalid — only the reference is optional.
       { orderId: OID, reference: "123456789012", phone: "", accessToken: CLAIM_TOKEN },
     ]) {
       const res = await callClaim(body);
