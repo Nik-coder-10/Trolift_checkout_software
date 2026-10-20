@@ -18,9 +18,6 @@ const STAGES = [
   { key: "placed", label: "Order Placed" },
   { key: "payment", label: "Payment" },
   { key: "confirmed", label: "Confirmed" },
-  { key: "processing", label: "Processing" },
-  { key: "packed", label: "Packed" },
-  { key: "ready_for_dispatch", label: "Ready for dispatch" },
   { key: "dispatched", label: "Dispatched" },
   { key: "delivered", label: "Delivered" },
 ] as const;
@@ -32,20 +29,21 @@ function currentStageIndex(status: OrderStatus): number {
     case "pending_payment":
     case "payment_submitted":
       return 1;
+    // Warehouse-internal statuses (processing/packed/ready_for_dispatch)
+    // are not shown to customers — the order stays at Confirmed until
+    // it is actually dispatched.
     case "paid":
     case "confirmed":
-      return 2;
     case "processing":
-      return 3;
     case "packed":
-      return 4;
     case "ready_for_dispatch":
-      return 5;
+      return 2;
     case "shipped":
     case "dispatched":
-      return 6;
+      return 3;
     case "delivered":
-      return 8;
+      // Past the last stage: every visible step is done.
+      return STAGES.length;
     case "cancelled":
       return -1;
   }

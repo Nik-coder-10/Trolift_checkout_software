@@ -154,40 +154,27 @@ describe("Fulfillment workflow - timeline display", () => {
     expect(stages[2]?.state).toBe("current");
     expect(stages[3]?.state).toBe("todo");
     expect(stages[4]?.state).toBe("todo");
-    expect(stages[5]?.state).toBe("todo");
-    expect(stages[6]?.state).toBe("todo");
-    expect(stages[7]?.state).toBe("todo");
   });
 
-  it("shows correct timeline for processing order", () => {
-    const { stages } = buildTimeline("processing");
-    expect(stages[2]?.state).toBe("done");
-    expect(stages[3]?.state).toBe("current");
-    expect(stages[4]?.state).toBe("todo");
-  });
-
-  it("shows correct timeline for packed order", () => {
-    const { stages } = buildTimeline("packed");
-    expect(stages[2]?.state).toBe("done");
-    expect(stages[3]?.state).toBe("done");
-    expect(stages[4]?.state).toBe("current");
-    expect(stages[5]?.state).toBe("todo");
-  });
-
-  it("shows correct timeline for ready_for_dispatch order", () => {
-    const { stages } = buildTimeline("ready_for_dispatch");
-    expect(stages[2]?.state).toBe("done");
-    expect(stages[3]?.state).toBe("done");
-    expect(stages[4]?.state).toBe("done");
-    expect(stages[5]?.state).toBe("current");
-    expect(stages[6]?.state).toBe("todo");
+  it("collapses processing/packed/ready into confirmed (customer view)", () => {
+    for (const status of ["processing", "packed", "ready_for_dispatch"] as const) {
+      const { stages, cancelled } = buildTimeline(status);
+      expect(cancelled).toBe(false);
+      expect(stages[0]?.state).toBe("done");
+      expect(stages[1]?.state).toBe("done");
+      expect(stages[2]?.state).toBe("current");
+      expect(stages[3]?.state).toBe("todo");
+      expect(stages[4]?.state).toBe("todo");
+    }
   });
 
   it("shows correct timeline for dispatched order", () => {
     const { stages } = buildTimeline("dispatched");
-    expect(stages[5]?.state).toBe("done");
-    expect(stages[6]?.state).toBe("current");
-    expect(stages[7]?.state).toBe("todo");
+    expect(stages[0]?.state).toBe("done");
+    expect(stages[1]?.state).toBe("done");
+    expect(stages[2]?.state).toBe("done");
+    expect(stages[3]?.state).toBe("current");
+    expect(stages[4]?.state).toBe("todo");
   });
 
   it("shows correct timeline for delivered order", () => {

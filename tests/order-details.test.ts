@@ -26,13 +26,15 @@ describe("buildTimeline (mirrors DB order_status)", () => {
   it("advances one stage at a time without skipping", () => {
     const at = (s: Parameters<typeof buildTimeline>[0]) =>
       buildTimeline(s).stages.map((x) => x.state);
-    expect(at("confirmed")).toEqual(["done", "done", "current", "todo", "todo", "todo", "todo", "todo"]);
-    expect(at("processing")).toEqual(["done", "done", "done", "current", "todo", "todo", "todo", "todo"]);
-    expect(at("packed")).toEqual(["done", "done", "done", "done", "current", "todo", "todo", "todo"]);
-    expect(at("ready_for_dispatch")).toEqual(["done", "done", "done", "done", "done", "current", "todo", "todo"]);
-    expect(at("shipped")).toEqual(["done", "done", "done", "done", "done", "done", "current", "todo"]);
-    expect(at("dispatched")).toEqual(["done", "done", "done", "done", "done", "done", "current", "todo"]);
-    expect(at("delivered")).toEqual(["done", "done", "done", "done", "done", "done", "done", "done"]);
+    expect(at("confirmed")).toEqual(["done", "done", "current", "todo", "todo"]);
+    // Warehouse-internal statuses are not customer-visible stages: the
+    // timeline stays at Confirmed until Dispatched.
+    expect(at("processing")).toEqual(["done", "done", "current", "todo", "todo"]);
+    expect(at("packed")).toEqual(["done", "done", "current", "todo", "todo"]);
+    expect(at("ready_for_dispatch")).toEqual(["done", "done", "current", "todo", "todo"]);
+    expect(at("shipped")).toEqual(["done", "done", "done", "current", "todo"]);
+    expect(at("dispatched")).toEqual(["done", "done", "done", "current", "todo"]);
+    expect(at("delivered")).toEqual(["done", "done", "done", "done", "done"]);
   });
 
   it("marks cancelled orders without completing the future", () => {

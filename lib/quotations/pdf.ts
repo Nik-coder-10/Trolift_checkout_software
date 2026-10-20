@@ -333,9 +333,14 @@ function itemsTable(ctx: Ctx, quote: QuotationData): void {
     tax: string;
     amount: string;
   }) => {
+    // Measure the name in the same bold face it is drawn in, or the
+    // row height under-allocates when a bold name wraps to more lines
+    // than its regular-font measurement.
+    doc.font("Helvetica-Bold").fontSize(8.5);
     const nameHeight = doc.heightOfString(cells.name, {
       width: (COLUMNS[1]?.width ?? 168) - 6,
     });
+    doc.font("Helvetica").fontSize(8.5);
     const descHeight =
       cells.description === ""
         ? 0
@@ -366,7 +371,14 @@ function itemsTable(ctx: Ctx, quote: QuotationData): void {
         }
       } else {
         doc.fillColor(INK).font("Helvetica");
-        doc.text(text, x + 3, y + 4, {
+        // Vertically center single-line cells against the row height, so
+        // qty/rate/tax/amount sit mid-row when the item name wraps to
+        // two lines instead of clinging to the top edge.
+        const cellHeight = doc.heightOfString(text, {
+          width: col.width - 6,
+        });
+        const ty = y + Math.max(0, (height - cellHeight) / 2);
+        doc.text(text, x + 3, ty, {
           width: col.width - 6,
           align: aligns[ci],
         });
