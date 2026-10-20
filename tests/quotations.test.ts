@@ -115,6 +115,7 @@ function refInput(over: Partial<BuildQuotationInput> = {}): BuildQuotationInput 
       cgstPaise: 0,
       sgstPaise: 0,
       igstPaise: 33710,
+      discountPaise: 0,
       grandTotalPaise: 585710,
     },
     ...over,
@@ -281,6 +282,7 @@ describe("quotation builder (reference vectors)", () => {
           cgstPaise: 0,
           sgstPaise: 0,
           igstPaise: 33650,
+          discountPaise: 0,
           grandTotalPaise: 563650,
         },
       }),
@@ -323,6 +325,7 @@ describe("quotation builder (reference vectors)", () => {
           cgstPaise: 117432,
           sgstPaise: 117432,
           igstPaise: 0,
+          discountPaise: 0,
           grandTotalPaise: 1539664,
         },
       }),
@@ -352,7 +355,8 @@ describe("quotation builder (reference vectors)", () => {
         totals: {
           treatment: "non_gst", subtotalPaise: 15000, deliveryPaise: 5000,
           deliveryTaxPaise: 0, taxablePaise: 10000,
-          cgstPaise: 0, sgstPaise: 0, igstPaise: 0, grandTotalPaise: 15000,
+          cgstPaise: 0, sgstPaise: 0, igstPaise: 0, discountPaise: 0,
+          grandTotalPaise: 15000,
         },
       }),
     );
@@ -371,6 +375,31 @@ describe("quotation builder (reference vectors)", () => {
     expect(q.treatment).toBe("gst");
     expect(q.customer.gstin).toBeNull();
     expect(q.totals.igstPaise).toBe(33710);
+  });
+
+  it("nets a redeem-code discount into the payable total", () => {
+    // ₹400 redeem code on the reference quotation: the printed total
+    // must equal subtotal + tax − discount (orders_total_check), so the
+    // document agrees with the amount on the pay page.
+    const q = buildQuotationData(
+      refInput({
+        totals: {
+          ...refInput().totals,
+          discountPaise: 40000,
+          couponCode: "NAVRATRI400",
+          grandTotalPaise: 585710 - 40000,
+        },
+      }),
+    );
+    expect(q.totals.discountPaise).toBe(40000);
+    expect(q.totals.couponCode).toBe("NAVRATRI400");
+    expect(q.totals.grandTotalPaise).toBe(545710);
+    // A discount that does not land in the grand total is refused.
+    expect(() =>
+      buildQuotationData(
+        refInput({ totals: { ...refInput().totals, discountPaise: 40000 } }),
+      ),
+    ).toThrow(/grand total/);
   });
 
   it("refuses corrupt snapshots instead of rendering wrong totals", () => {

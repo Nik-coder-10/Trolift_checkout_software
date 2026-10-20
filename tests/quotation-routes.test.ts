@@ -72,6 +72,8 @@ const ORDER_ROW = {
   customer_name_snapshot: "Acme Pvt Ltd",
   customer_phone_snapshot: "+919810001111",
   customer_email_snapshot: null,
+  coupon_code: "",
+  discount_amount: "0.00",
 };
 
 const ITEM_ROWS = [
@@ -115,6 +117,8 @@ beforeEach(() => {
   issued.length = 0;
   ORDER_ROW.payment_status = "pending";
   ORDER_ROW.order_status = "pending_payment";
+  ORDER_ROW.discount_amount = "0.00";
+  ORDER_ROW.coupon_code = "";
   authUser = { id: "admin-1" };
   adminFlag = true;
   process.env.TROLIFT_BUSINESS_NAME = "Trolift Solutions";
@@ -231,6 +235,26 @@ describe("customer quotation route (token-gated, fail closed)", () => {
     expect(
       res.headers.get("Content-Disposition") ?? "",
     ).toMatch(/^attachment; filename="QTN-TS0000121264\.pdf"$/);
+  });
+
+  it("nets a redeem discount read from the order into the frozen totals", async () => {
+    ORDER_ROW.discount_amount = "400.00";
+    ORDER_ROW.coupon_code = "NAVRATRI400";
+    const res = await customerGet(customerReq(ORDER_ID), ctxFor(ORDER_ID));
+    expect(res.status).toBe(200);
+    const frozen = quotations.get(ORDER_ID)?.data as {
+      totals: {
+        subtotalPaise?: number;
+        igstPaise?: number;
+        discountPaise?: number;
+        couponCode?: string;
+        grandTotalPaise?: number;
+      };
+    } | null;
+    // Pre-discount 552000 + 33710 = 585710; net of ₹400 redeem.
+    expect(frozen?.totals.discountPaise).toBe(40000);
+    expect(frozen?.totals.couponCode).toBe("NAVRATRI400");
+    expect(frozen?.totals.grandTotalPaise).toBe(545710);
   });
 
   it("serves quotations for payment_submitted orders too", async () => {

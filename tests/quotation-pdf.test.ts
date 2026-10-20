@@ -89,6 +89,7 @@ function base(over: Partial<BuildQuotationInput> = {}): BuildQuotationInput {
       cgstPaise: 0,
       sgstPaise: 0,
       igstPaise: 33710,
+      discountPaise: 0,
       grandTotalPaise: 585710,
     },
     ...over,
@@ -131,6 +132,31 @@ describe("quotation PDF (reference layout)", () => {
     }
     expect(text).not.toContain("TAX INVOICE");
     expect(text).not.toContain("INV/");
+  });
+
+  it("prints the redeem discount and the net payable total", async () => {
+    const discounted = base({
+      totals: {
+        ...base().totals,
+        discountPaise: 40000,
+        couponCode: "NAVRATRI400",
+        grandTotalPaise: 585710 - 40000,
+      },
+    });
+    const text = (
+      await pdfParse(await renderQuotationPdf(buildQuotationData(discounted)))
+    ).text;
+    expect(text).toContain("Discount (NAVRATRI400)");
+    expect(text).toContain("Rs. -400.00");
+    expect(text).toContain("Rs. 5,457.10");
+    // Words match the net payable amount, never the pre-discount one
+    // (the words box wraps lines — compare on flattened whitespace).
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "Five Thousand Four Hundred Fifty Seven and Paise Ten Only",
+    );
+    // Without a discount the row must not appear at all.
+    const plain = (await pdfParse(await renderQuotationPdf(buildQuotationData(base())))).text;
+    expect(plain).not.toContain("Discount");
   });
 
   it("shows billing only when the customer provided a GSTIN", async () => {
@@ -177,6 +203,7 @@ describe("quotation PDF (reference layout)", () => {
         cgstPaise: 0,
         sgstPaise: 0,
         igstPaise: 0,
+        discountPaise: 0,
         grandTotalPaise: 552000,
       },
     });

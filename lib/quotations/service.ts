@@ -72,6 +72,10 @@ interface OrderSnapshot {
   customer_name_snapshot: string;
   customer_phone_snapshot: string;
   customer_email_snapshot: string | null;
+  /** Redeem code snapshot ("" when the order used no offer). */
+  coupon_code: string | null;
+  /** Rupees knocked off by the redeem code (0 when none). */
+  discount_amount: string | number;
 }
 
 interface ItemSnapshot {
@@ -191,7 +195,7 @@ export async function getQuotationData(orderId: string): Promise<QuotationData> 
         "tax_treatment,taxable_amount,cgst_amount,sgst_amount,igst_amount," +
         "billing_name,billing_address_line,billing_city,billing_state," +
         "billing_state_code,billing_pincode,shipping_address,customer_name_snapshot," +
-        "customer_phone_snapshot,customer_email_snapshot",
+        "customer_phone_snapshot,customer_email_snapshot,coupon_code,discount_amount",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -350,6 +354,11 @@ const cartageCopy =
       deliveryPaise: cartageChargePaise,
       deliveryTaxPaise: cartageTaxPaise,
       taxablePaise: toPaise(o.taxable_amount),
+      // Redeem discount netted exactly like the orders_total_check
+      // constraint (total = subtotal + delivery + tax − discount), so
+      // the quoted total matches the amount the customer pays.
+      discountPaise: toPaise(o.discount_amount ?? 0),
+      couponCode: o.coupon_code ?? null,
       // Cartage GST joins the order's own split (same rule as the order
       // engine: same-state → CGST+SGST halves, else IGST) so the frozen
       // document never mixes intra- and inter-state tax.
@@ -366,7 +375,8 @@ const cartageCopy =
       grandTotalPaise:
         toPaise(o.subtotal) + cartageChargePaise +
         toPaise(o.cgst_amount) + toPaise(o.sgst_amount) +
-        toPaise(o.igst_amount) + cartageTaxPaise,
+        toPaise(o.igst_amount) + cartageTaxPaise -
+        toPaise(o.discount_amount ?? 0),
     },
   });
 

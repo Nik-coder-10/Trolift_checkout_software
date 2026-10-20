@@ -126,6 +126,10 @@ export interface BuildQuotationInput {
     cgstPaise: number;
     sgstPaise: number;
     igstPaise: number;
+    /** Rupees knocked off by a redeem code (0 when the order used none). */
+    discountPaise: number;
+    /** Redeem code the discount came from (label for the printed line). */
+    couponCode?: string | null;
     grandTotalPaise: number;
   };
 }
@@ -190,6 +194,9 @@ export interface QuotationData {
     sgstPaise: number;
     igstPaise: number;
     totalTaxPaise: number;
+    /** Absent on documents frozen before the redeem-code feature. */
+    discountPaise?: number;
+    couponCode?: string | null;
     grandTotalPaise: number;
   };
 }
@@ -305,6 +312,7 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
     cgst: t.cgstPaise,
     sgst: t.sgstPaise,
     igst: t.igstPaise,
+    discount: t.discountPaise,
     grandTotal: t.grandTotalPaise,
   })) {
     assertPaise(value, `totals.${label}`);
@@ -344,8 +352,14 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
   }
   // Quoted freight lives INSIDE the subtotal (provisional delivered
   // price), unlike tax invoices where delivery is a separate add-on.
-  if (t.grandTotalPaise !== t.subtotalPaise + t.cgstPaise + t.sgstPaise + t.igstPaise) {
-    fail("grand total does not equal subtotal + tax.");
+  // The redeem discount is netted exactly like the orders_total_check
+  // constraint: the customer pays subtotal + tax − discount, so the
+  // quotation total must agree with the amount on the pay page.
+  if (
+    t.grandTotalPaise !==
+    t.subtotalPaise + t.cgstPaise + t.sgstPaise + t.igstPaise - t.discountPaise
+  ) {
+    fail("grand total does not equal subtotal + tax - discount.");
   }
 
   if (input.customer.name.trim() === "" || input.customer.phone.trim() === "") {
@@ -392,6 +406,8 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
       sgstPaise: t.sgstPaise,
       igstPaise: t.igstPaise,
       totalTaxPaise,
+      discountPaise: t.discountPaise,
+      couponCode: t.couponCode ?? null,
       grandTotalPaise: t.grandTotalPaise,
     },
   };

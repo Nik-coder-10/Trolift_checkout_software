@@ -422,6 +422,16 @@ function totalsAndTerms(ctx: Ctx, quote: QuotationData): void {
       rows.push(["IGST", t.igstPaise, false]);
     }
   }
+  // Redeem code netted into the payable total (same row shape as the
+  // tax invoice); absent on documents frozen before the feature.
+  const discount = t.discountPaise ?? 0;
+  if (discount > 0) {
+    rows.push([
+      `Discount${t.couponCode ? ` (${t.couponCode})` : ""}`,
+      -discount,
+      false,
+    ]);
+  }
   rows.push(["Total", t.grandTotalPaise, true]);
 
   const boxW = 250;
