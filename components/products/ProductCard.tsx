@@ -43,7 +43,7 @@ export function ProductCard({
     />
   );
   return (
-    <article className="relative flex flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white">
+    <article className="relative flex flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white transition-colors hover:border-amber-400/70">
       {outOfStock ? (
         <span
           aria-hidden

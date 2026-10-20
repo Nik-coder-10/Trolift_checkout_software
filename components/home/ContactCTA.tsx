@@ -28,7 +28,7 @@ export function ContactCTA() {
       <div className="relative grid gap-6 p-7 sm:p-9 lg:grid-cols-[1.4fr_1fr] lg:items-center">
         <div>
           <p className="text-xs font-bold tracking-[0.14em] text-amber-400 uppercase">Contact sales</p>
-          <h2 id="contact-heading" className="mt-1 text-2xl font-extrabold tracking-tight">
+          <h2 id="contact-heading" className="mt-1 text-2xl font-extrabold tracking-tight text-cream">
             Get a quote for your site
           </h2>
           <p className="mt-2 max-w-xl text-sm leading-6 text-brand-100">
@@ -58,7 +58,7 @@ export function ContactCTA() {
           </Link>
           <Link
             href="#featured"
-            className="inline-flex h-12 cursor-pointer items-center justify-center rounded-md border border-white/25 bg-white/10 px-6 text-base font-bold text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+            className="inline-flex h-12 cursor-pointer items-center justify-center rounded-md border border-white/25 bg-white/10 px-6 text-base font-bold text-cream backdrop-blur-sm transition-colors hover:border-amber-300/50 hover:bg-amber-400/10"
           >
             Review featured products
           </Link>

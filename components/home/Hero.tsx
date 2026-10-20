@@ -40,10 +40,14 @@ export function Hero() {
           </p>
           <h1
             id="hero-heading"
-            className="mt-4 text-3xl font-extrabold tracking-tight text-white drop-shadow-sm sm:text-4xl lg:text-[2.75rem] lg:leading-[1.1]"
+            className="mt-4 text-3xl font-extrabold tracking-tight text-cream drop-shadow-sm sm:text-4xl lg:text-[2.75rem] lg:leading-[1.1]"
           >
             Material-handling equipment your shop floor can rely on.
           </h1>
+          <div
+            aria-hidden
+            className="mt-3 h-0.5 w-28 rounded-full bg-gradient-to-r from-amber-300 via-amber-400 to-amber-400/40 shadow-[0_0_10px_rgba(251,191,36,0.45)]"
+          />
           <p className="mt-4 max-w-xl text-base leading-7 text-brand-100">
             Telescopic and A-type ladders, platform trolleys and more —
             with transparent pricing, GST invoicing and delivery verified
@@ -52,17 +56,22 @@ export function Hero() {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/products"
-              className="inline-flex h-12 cursor-pointer items-center justify-center rounded-md bg-amber-400 px-6 text-base font-bold text-brand-950 shadow-lg shadow-amber-400/20 transition-colors hover:bg-amber-300"
+              className="inline-flex h-12 cursor-pointer items-center justify-center rounded-md border border-amber-500/0 bg-amber-400 px-6 text-base font-bold text-brand-950 shadow-lg shadow-amber-400/20 transition-colors hover:border-amber-500/70 hover:bg-amber-300"
             >
               Browse products
             </Link>
             <Link
               href="#contact"
-              className="inline-flex h-12 cursor-pointer items-center justify-center rounded-md border border-white/25 bg-white/10 px-6 text-base font-bold text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+              className="inline-flex h-12 cursor-pointer items-center justify-center rounded-md border border-white/25 bg-white/10 px-6 text-base font-bold text-cream backdrop-blur-sm transition-colors hover:border-amber-300/50 hover:bg-amber-400/10"
             >
               Talk to sales
             </Link>
           </div>
+          <p className="mt-4 inline-flex w-fit items-center gap-2 rounded-md border border-amber-300/25 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-200">
+            Festive pricing live — apply{" "}
+            <b className="font-bold text-amber-300">DUSSHERA450</b> or{" "}
+            <b className="font-bold text-amber-300">EARLYDIWALI400</b> at checkout
+          </p>
         </div>
         <aside
           aria-label="How ordering works"
@@ -76,12 +85,12 @@ export function Hero() {
               <li key={title} className="flex gap-3">
                 <span
                   aria-hidden
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-brand-950"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-brand-950 shadow-[0_0_10px_rgba(251,191,36,0.55)]"
                 >
                   {i + 1}
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-white">{title}</p>
+                  <p className="text-sm font-bold text-cream">{title}</p>
                   <p className="mt-0.5 text-xs leading-5 text-brand-100">{desc}</p>
                 </div>
               </li>

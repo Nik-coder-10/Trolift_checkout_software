@@ -9,7 +9,7 @@ const variants: Record<Variant, string> = {
   accent:
     "bg-amber-400 text-brand-950 hover:bg-amber-300 active:bg-amber-500 disabled:bg-zinc-200 disabled:text-zinc-500",
   secondary:
-    "border border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:text-zinc-400",
+    "border border-zinc-300 bg-white text-zinc-900 hover:border-amber-400/70 hover:bg-amber-50 disabled:text-zinc-400",
   ghost: "text-brand-800 hover:bg-brand-50 disabled:text-zinc-400",
   danger: "bg-red-700 text-white hover:bg-red-600 disabled:bg-red-300",
 };

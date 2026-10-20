@@ -76,7 +76,7 @@ function CartButton({ onNavigate }: { onNavigate?: () => void }) {
       onClick={onNavigate}
       aria-label={shown === 0 ? "Shopping cart, empty" : `Shopping cart, ${shown} items`}
       aria-hidden
-      className="relative rounded p-2 text-white hover:bg-white/10"
+      className="relative rounded p-2 text-cream hover:bg-white/10"
     >
       <CartIcon />
       {shown > 0 ? (
@@ -115,7 +115,7 @@ function HeaderSearch({ onNavigate }: { onNavigate?: () => void }) {
         placeholder="Search ladders, trolleys…"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="h-10 w-full rounded-md border border-white/15 bg-white/10 px-3 text-sm text-white outline-none placeholder:text-brand-200 focus:border-amber-400"
+        className="h-10 w-full rounded-md border border-white/15 bg-white/10 px-3 text-sm text-cream outline-none placeholder:text-brand-200 focus:border-amber-400"
       />
     </form>
   );
@@ -151,7 +151,7 @@ export function Navbar() {
             <Link
               key={l.label}
               href={l.href}
-              className="rounded px-3 py-2 text-sm font-semibold text-brand-100 hover:bg-white/10 hover:text-white"
+              className="rounded px-3 py-2 text-sm font-semibold text-brand-100 hover:bg-white/10 hover:text-cream"
             >
               {l.label}
             </Link>
@@ -192,7 +192,7 @@ export function Navbar() {
                 <Link
                   href={l.href}
                   onClick={() => setOpen(false)}
-                  className="block rounded px-2 py-2.5 text-sm font-semibold text-brand-100 hover:bg-white/10 hover:text-white"
+                  className="block rounded px-2 py-2.5 text-sm font-semibold text-brand-100 hover:bg-white/10 hover:text-cream"
                 >
                   {l.label}
                 </Link>

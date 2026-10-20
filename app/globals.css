@@ -22,6 +22,9 @@
 
   --color-paper: #f6f6f4;
   --color-ink: #1a1d21;
+
+  /* Very slight warm off-white for accent text on dark sections. */
+  --color-cream: #f7f4ee;
 }
 
 body {

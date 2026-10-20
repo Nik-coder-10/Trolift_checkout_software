@@ -3,6 +3,7 @@ import { CartProvider } from "@/components/cart/CartProvider";
 import { ToastProvider } from "@/components/ui/Toast";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { FestiveBanner } from "@/components/layout/FestiveBanner";
 
 /** Public layout shell: providers, skip link, navbar, main, footer. */
 export function SiteShell({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       </a>
       <CartProvider>
         <ToastProvider>
+          <FestiveBanner />
           <Navbar />
           <main id="main-content" className="flex flex-1 flex-col">
             {children}
