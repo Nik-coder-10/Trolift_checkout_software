@@ -8,7 +8,7 @@ payments, coupons, customers, invoices, quotations, shipments and site
 settings.
 
 > **Status: live in production** — deployed on Vercel
-> (https://automation-nine-gray.vercel.app) with auto-deploy from `main`,
+> (https://troliftsolutions.vercel.app/) with auto-deploy from `main`,
 > backed by the production Supabase project. 927 unit tests across 52 files
 > pass; lint/typecheck/build are clean on every push.
 
