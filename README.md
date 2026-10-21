@@ -261,7 +261,7 @@ summary and the recent-orders table with inline delete. Dedicated pages manage:
 - **Database:** Supabase (Sydney region) — migrations in `supabase/migrations`
   applied with `supabase db push`; secrets live in Vercel environment
   variables only.
-- **Live URL:** https://automation-nine-gray.vercel.app
+- **Live URL:** https://troliftsolutions.vercel.app/
 
 ## Roadmap
 
