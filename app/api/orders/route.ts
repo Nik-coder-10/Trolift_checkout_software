@@ -130,6 +130,7 @@ export const POST = withErrorHandling(async (req: Request) => {
         taxType: summary.igstPaise > 0 ? "igst" : "cgst_sgst",
         deliveryPartnerName: quote.deliveryPartnerName,
         deliveryChargePaise: quote.deliveryChargePaise,
+        deliveryTaxPaise: quote.deliveryTaxPaise,
         etaDays: quote.etaDays,
         totalPaise: summary.totalPaise,
         discountPaise: summary.discountPaise,

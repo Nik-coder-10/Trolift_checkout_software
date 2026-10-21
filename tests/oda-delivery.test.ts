@@ -91,7 +91,11 @@ function wireServerForQuote() {
 function wireDbForOrder(charge: string) {
   wireServerForQuote();
   const subtotal = (6299.0 * 2).toFixed(2);
-  const total = (Number(subtotal) + Number(charge)).toFixed(2);
+  const chargeNum = Number(charge);
+  // Store model: 18% GST on the base charge rides in the order's tax
+  // split (here cgst), and the total carries it on top of the base.
+  const deliveryTax = (Math.round(chargeNum * 18) / 100).toFixed(2);
+  const total = (Number(subtotal) + chargeNum + Number(deliveryTax)).toFixed(2);
   adminHandler = (op) => {
     if (op.rpc === "create_order") {
       return { rows: CREATED_ORDER_ID as unknown as unknown[], error: null };
@@ -113,6 +117,9 @@ function wireDbForOrder(charge: string) {
             order_number: "TS-261021-0001",
             subtotal,
             delivery_charge: charge,
+            cgst_amount: deliveryTax,
+            sgst_amount: "0.00",
+            igst_amount: "0.00",
             total_amount: total,
             payment_status: "pending",
             order_status: "pending_payment",
@@ -161,11 +168,11 @@ describe("ODA charge config", () => {
     }
   });
 
-  it("extracts GST-inclusive freight so freight + tax = the flat charge", () => {
+  it("adds 18% GST on top of the base charge (base + tax = what is payable)", () => {
     const split = splitOdaCharge({ chargePaise: 80000, gstRate: "18.00" });
-    expect(split.freightPaise + split.taxPaise).toBe(80000);
-    expect(split.freightPaise).toBe(67797);
-    expect(split.taxPaise).toBe(12203);
+    expect(split.freightPaise).toBe(80000);
+    expect(split.taxPaise).toBe(14400);
+    expect(split.freightPaise + split.taxPaise).toBe(94400);
   });
 
   it("passes the charge through untouched on non-GST quotes", () => {
@@ -239,11 +246,16 @@ describe("quoteOrder — ODA door delivery", () => {
       odaDoorDelivery: true,
     });
     expect(quote.deliveryChargePaise).toBe(80000);
+    expect(quote.deliveryTaxPaise).toBe(14400);
     expect(quote.deliveryPartnerId).toBeNull();
     expect(quote.deliveryPartnerName).toBe("ODA Door Delivery");
     expect(quote.etaDays).toBeNull();
     expect(quote.deliveryRuleSummary).toContain("ODA");
-    // total = subtotal(ex-GST) + goods GST + ODA charge
+    // The 18% on the base charge is folded into the order's tax split,
+    // so total = subtotal(ex-GST) + goods GST + ODA GST + ODA base.
+    expect(quote.tax.totalGstPaise).toBe(
+      quote.lines.reduce((n, l) => n + l.lineTaxPaise, 0) + 14400,
+    );
     expect(quote.totalPaise).toBe(
       quote.subtotalPaise + quote.tax.totalGstPaise + 80000,
     );
@@ -293,15 +305,20 @@ describe("POST /api/delivery/check — ODA charge in the verdict", () => {
     wireServerForQuote();
   });
 
-  it("returns odaChargePaise on a listed ODA pincode", async () => {
+  it("returns the base charge and its GST on a listed ODA pincode", async () => {
     const res = await check(ODA_PIN);
     const json = (await res.json()) as {
       ok: boolean;
-      data: { serviceable: boolean; odaChargePaise: number | null };
+      data: {
+        serviceable: boolean;
+        odaChargePaise: number | null;
+        odaChargeTaxPaise: number | null;
+      };
     };
     expect(json.ok).toBe(true);
     expect(json.data.serviceable).toBe(false);
     expect(json.data.odaChargePaise).toBe(80000);
+    expect(json.data.odaChargeTaxPaise).toBe(14400);
   });
 
   it("returns a null charge on a serviceable pincode", async () => {
@@ -335,8 +352,8 @@ describe("POST /api/orders — ODA order end to end", () => {
     };
     expect(json.ok).toBe(true);
     // 2 × 6299.00 inclusive → subtotal(ex-GST) 10675.42 + GST 1922.58
-    // + ODA 800.00 = 13398.00 inclusive total.
-    expect(json.data.totalPaise).toBe(1339800);
+    // + ODA base 800.00 + ODA GST 144.00 = 13542.00 total.
+    expect(json.data.totalPaise).toBe(1354200);
   });
 
   it("rejects an ODA pincode without the opt-in", async () => {
@@ -365,8 +382,9 @@ describe("customer message — ODA lines", () => {
     taxType: "cgst_sgst",
     deliveryPartnerName: "ODA Door Delivery",
     deliveryChargePaise: 80000,
+    deliveryTaxPaise: 14400,
     etaDays: null,
-    totalPaise: 709900,
+    totalPaise: 724300,
     discountPaise: 0,
     couponCode: null,
     pincode: ODA_PIN,
@@ -384,9 +402,9 @@ describe("customer message — ODA lines", () => {
     expect(line).not.toContain("not deliverable");
   });
 
-  it("names the ODA charge in the money summary", () => {
+  it("names the ODA charge and its GST in the money summary", () => {
     const text = buildCustomerOrderMessage(base);
-    expect(text).toContain("ODA delivery charge: ₹800.00");
+    expect(text).toContain("ODA delivery charge: ₹800.00 + ₹144.00 GST");
     expect(text).not.toContain("Delivery: Included");
   });
 
@@ -395,6 +413,7 @@ describe("customer message — ODA lines", () => {
       ...base,
       pincode: OK_PIN,
       deliveryChargePaise: 0,
+      deliveryTaxPaise: 0,
       deliveryPartnerName: "Delhivery",
     };
     expect(deliveryStatusLine(normal)).toContain("serviceable");

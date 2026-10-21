@@ -222,14 +222,23 @@ export function splitInclusiveLine(
  * (B2C, no billing profile) the caller should pass the delivery
  * pincode's state so intra-state orders still split correctly.
  * An unconfigured business state falls back to IGST (documented).
+ *
+ * deliveryGstPaise is GST on a separate delivery/freight charge (the
+ * ODA door-delivery fee): it is folded into the SAME split so the
+ * charge itself stays base-only in orders.delivery_charge and the DB
+ * identity (total = subtotal + delivery + tax − discount) holds. It is
+ * NOT part of taxablePaise — taxable always equals the goods subtotal.
  */
 export function computeOrderTax(input: {
   lines: TaxedLineInput[];
   customerStateCode: string | null;
   businessStateCode: string | null;
+  deliveryGstPaise?: number;
 }): OrderTax {
   const taxablePaise = input.lines.reduce((n, l) => n + l.taxablePaise, 0);
-  const totalGstPaise = input.lines.reduce((n, l) => n + l.gstPaise, 0);
+  const totalGstPaise =
+    input.lines.reduce((n, l) => n + l.gstPaise, 0) +
+    (input.deliveryGstPaise ?? 0);
 
   const sameState =
     input.customerStateCode !== null &&

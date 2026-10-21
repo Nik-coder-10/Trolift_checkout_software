@@ -36,8 +36,10 @@ export interface OrderMessageInput {
   /** Which GST split the order carries — names the component in the copy. */
   taxType: "igst" | "cgst_sgst";
   deliveryPartnerName: string | null;
-  /** Flat ODA door-delivery charge in paise (0 on all-inclusive orders). */
+  /** Flat ODA door-delivery BASE charge in paise (0 on all-inclusive orders). */
   deliveryChargePaise: number;
+  /** GST folded into the tax split on that charge (0 when none was broken out). */
+  deliveryTaxPaise: number;
   etaDays: { min: number; max: number } | null;
   totalPaise: number;
   /** Rupees knocked off by the redeem code (0 when no offer applied). */
@@ -79,9 +81,13 @@ export function deliveryStatusLine(input: OrderMessageInput): string {
   // the list still calls the pincode undeliverable, so report the
   // arrangement instead of contradicting the order.
   if (isOdaOrder(input.deliveryChargePaise)) {
+    const fee =
+      input.deliveryTaxPaise > 0
+        ? `₹${rupees(input.deliveryChargePaise)} base + ₹${rupees(input.deliveryTaxPaise)} GST`
+        : `₹${rupees(input.deliveryChargePaise)}`;
     return (
       `Pincode ${input.pincode}${where}: ODA door delivery arranged — ` +
-      `₹${rupees(input.deliveryChargePaise)} charge included in the order total.`
+      `${fee} charge included in the order total.`
     );
   }
   if (!coverage.deliverable) {
@@ -105,7 +111,11 @@ function summaryLines(input: OrderMessageInput): string[] {
     lines.push(`GST included: ₹${rupees(input.taxPaise)} (${component})`);
   }
   if (isOdaOrder(input.deliveryChargePaise)) {
-    lines.push(`ODA delivery charge: ₹${rupees(input.deliveryChargePaise)}`);
+    lines.push(
+      input.deliveryTaxPaise > 0
+        ? `ODA delivery charge: ₹${rupees(input.deliveryChargePaise)} + ₹${rupees(input.deliveryTaxPaise)} GST`
+        : `ODA delivery charge: ₹${rupees(input.deliveryChargePaise)}`,
+    );
   } else {
     lines.push("Delivery: Included");
   }

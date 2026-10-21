@@ -34,7 +34,9 @@ export function OrderActions({ order }: { order: PayableOrder }) {
         : []),
       `Delivery: ${
         order.deliveryChargePaise > 0
-          ? `${(order.deliveryChargePaise / 100).toFixed(2)} INR (ODA)`
+          ? order.deliveryTaxPaise > 0
+            ? `${(order.deliveryChargePaise / 100).toFixed(2)} INR base + ${(order.deliveryTaxPaise / 100).toFixed(2)} INR GST (ODA)`
+            : `${(order.deliveryChargePaise / 100).toFixed(2)} INR (ODA)`
           : "Included"
       }`,
       `Total: ${(order.totalPaise / 100).toFixed(2)} INR`,

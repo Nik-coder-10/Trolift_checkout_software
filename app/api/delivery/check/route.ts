@@ -3,7 +3,8 @@ import { AppError } from "@/lib/api/errors";
 import { withErrorHandling } from "@/lib/api/handler";
 import { checkRateLimit, denyIfLimited } from "@/lib/rate-limit/index";
 import { quoteDelivery, NOT_SERVICEABLE_MESSAGE } from "@/lib/delivery/engine";
-import { getOdaChargePaise } from "@/lib/delivery/oda";
+import { getOdaChargePaise, splitOdaCharge } from "@/lib/delivery/oda";
+import { getDeliveryGstRate } from "@/lib/quotations/config";
 import { normalizePincode } from "@/lib/validations/common";
 
 /**
@@ -14,9 +15,9 @@ import { normalizePincode } from "@/lib/validations/common";
  * Delivery charges are never quoted (they are already inside the
  * catalogue price), and an unserviceable pincode returns the
  * nearby-pincode message verbatim — except on a listed ODA pincode,
- * where the response also carries the flat door-delivery charge so the
- * checkout can offer the two ODA options (nearby pincode, or door
- * delivery at that charge). Server authority: validates the
+ * where the response also carries the flat door-delivery BASE charge
+ * and its 18% GST so the checkout can offer the two ODA options
+ * (nearby pincode, or door delivery at base + GST). Server authority: validates the
  * pincode, queries trusted rate rows and Delhivery coverage; items
  * carry IDs + quantities ONLY. Creates nothing.
  */
@@ -87,10 +88,15 @@ export const POST = withErrorHandling(async (req: Request) => {
   // one only ever means the pincode itself cannot be served.
   const serviceable = Boolean(quote.serviceable && quote.selected);
   if (!serviceable) {
-    // Listed + ODA: offer door delivery at the flat charge instead of
-    // the plain no. Unlisted/blank-flag pincodes stay a hard no — the
-    // list confirms nothing about them.
+    // Listed + ODA: offer door delivery at the base charge plus its
+    // 18% GST instead of the plain no. Unlisted/blank-flag pincodes
+    // stay a hard no — the list confirms nothing about them.
     const oda = quote.coverage.listed && quote.coverage.oda === true;
+    const odaChargePaise = getOdaChargePaise();
+    const odaChargeTaxPaise = splitOdaCharge({
+      chargePaise: odaChargePaise,
+      gstRate: getDeliveryGstRate(),
+    }).taxPaise;
     return ok({
       serviceable: false,
       pincode: quote.pincode,
@@ -98,7 +104,8 @@ export const POST = withErrorHandling(async (req: Request) => {
       message: NOT_SERVICEABLE_MESSAGE,
       partner: null,
       etaDays: null,
-      odaChargePaise: oda ? getOdaChargePaise() : null,
+      odaChargePaise: oda ? odaChargePaise : null,
+      odaChargeTaxPaise: oda ? odaChargeTaxPaise : null,
     });
   }
   return ok({
@@ -109,5 +116,6 @@ export const POST = withErrorHandling(async (req: Request) => {
     partner: quote.selected?.partner ?? null,
     etaDays: quote.selected?.etaDays ?? null,
     odaChargePaise: null,
+    odaChargeTaxPaise: null,
   });
 });

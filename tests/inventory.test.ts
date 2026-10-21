@@ -223,6 +223,7 @@ describe("atomic order path (race loser fails safe)", () => {
     deliveryPartnerId: "d1",
     deliveryPartnerName: "Delhivery",
     deliveryChargePaise: 45000,
+    deliveryTaxPaise: 0,
     deliveryWeightKg: null,
     deliveryRuleSummary: null,
     etaDays: null,

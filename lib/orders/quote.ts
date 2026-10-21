@@ -5,7 +5,8 @@ import {
   quoteDelivery,
   NOT_SERVICEABLE_MESSAGE,
 } from "@/lib/delivery/engine";
-import { getOdaChargePaise } from "@/lib/delivery/oda";
+import { getOdaChargePaise, splitOdaCharge } from "@/lib/delivery/oda";
+import { getDeliveryGstRate } from "@/lib/quotations/config";
 import {
   computeOrderTax,
   getBusinessStateCode,
@@ -33,10 +34,13 @@ import { fetchAvailability } from "@/lib/inventory/availability";
  *   subtotal          = Σ line taxable values   (invoice identity)
  *   delivery          = 0 on every serviceable pincode
  *                       (the engine still decides partner/ETA/state)
- *                       or the flat ODA charge when the customer opts
- *                       into door delivery on an out-of-area pincode
- *   total             = subtotal + extracted GST (+ ODA charge)
- *                       = Σ inclusive lines
+ *                       or the flat ODA base charge when the customer
+ *                       opts into door delivery on an out-of-area
+ *                       pincode
+ *   total             = subtotal + extracted GST (+ ODA base charge
+ *                       + its 18% GST, which is folded into the
+ *                       CGST/SGST or IGST split)
+ *                       = Σ inclusive lines (+ ODA base + ODA GST)
  */
 
 export interface OrderLineInput {
@@ -83,8 +87,14 @@ export interface OrderQuote {
   /** Null for a covered pincode with no configured rate row. */
   deliveryPartnerId: string | null;
   deliveryPartnerName: string;
-  /** 0 on all-inclusive orders; the flat ODA charge when opted in. */
+  /** 0 on all-inclusive orders; the flat ODA base charge when opted in. */
   deliveryChargePaise: number;
+  /**
+   * GST folded into `tax` on the delivery charge (0 when delivery is
+   * included or the charge carries no GST) — the 18% on top of the
+   * ODA base charge, so base + deliveryTax is what the customer pays.
+   */
+  deliveryTaxPaise: number;
   /** Shipment weight in kg (3dp) when all line weights are known. */
   deliveryWeightKg: number | null;
   /** Frozen human-readable delivery note (charges never apply). */
@@ -246,9 +256,9 @@ export async function quoteOrder(input: {
   // charge is ignored — delivery is included in the catalogue price.
   const delivery = await quoteDelivery(input.pincode, orderValuePaise, input.items);
   // ODA door delivery: a listed pincode flagged out-of-area may still
-  // be served at a flat GST-inclusive charge when the customer opts
-  // in. The server re-verifies the ODA verdict — the flag alone never
-  // qualifies a pincode.
+  // be served at a flat GST-exclusive base charge plus 18% GST when
+  // the customer opts in. The server re-verifies the ODA verdict —
+  // the flag alone never qualifies a pincode.
   const odaEligible =
     input.odaDoorDelivery === true &&
     delivery.coverage.listed &&
@@ -262,6 +272,16 @@ export async function quoteOrder(input: {
   const customerStateCode =
     billing.stateCode ?? stateCodeFromName(delivery.coverage.state);
 
+  // ODA base charge carries its own 18% GST (₹800 + ₹144), folded
+  // into the order's tax split so the charge stays base-only in
+  // delivery_charge and the DB total identity keeps holding.
+  const odaGstPaise = odaEligible
+    ? splitOdaCharge({
+        chargePaise: getOdaChargePaise(),
+        gstRate: getDeliveryGstRate(),
+      }).taxPaise
+    : 0;
+
   const tax = computeOrderTax({
     lines: lines.map((l) => ({
       taxablePaise: l.taxablePaise,
@@ -269,10 +289,12 @@ export async function quoteOrder(input: {
     })),
     customerStateCode,
     businessStateCode: getBusinessStateCode(),
+    deliveryGstPaise: odaGstPaise,
   });
 
   // ODA door delivery: no engine partner serves the pincode, so the
-  // order carries a fixed descriptive partner and the flat charge.
+  // order carries a fixed descriptive partner and the base charge
+  // (its 18% GST already lives in tax above).
   if (odaEligible) {
     const odaChargePaise = getOdaChargePaise();
     return {
@@ -283,8 +305,9 @@ export async function quoteOrder(input: {
       deliveryPartnerId: null,
       deliveryPartnerName: "ODA Door Delivery",
       deliveryChargePaise: odaChargePaise,
+      deliveryTaxPaise: odaGstPaise,
       deliveryWeightKg: delivery.totalWeightKg,
-      deliveryRuleSummary: "ODA door delivery charge (GST included)",
+      deliveryRuleSummary: "ODA door delivery charge (base plus 18% GST)",
       etaDays: null,
       totalPaise: subtotalPaise + tax.totalGstPaise + odaChargePaise,
       pincode: delivery.pincode,
@@ -299,6 +322,7 @@ export async function quoteOrder(input: {
     deliveryPartnerId: delivery.selected?.partner.id ?? null,
     deliveryPartnerName: delivery.selected?.partner.name ?? "Our delivery team",
     deliveryChargePaise: 0,
+    deliveryTaxPaise: 0,
     deliveryWeightKg: delivery.totalWeightKg,
     deliveryRuleSummary: "Delivery included in product price",
     etaDays: delivery.selected?.etaDays ?? null,

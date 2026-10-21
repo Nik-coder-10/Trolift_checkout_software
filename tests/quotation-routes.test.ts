@@ -54,7 +54,7 @@ const ORDER_ROW = {
   order_status: "pending_payment",
   subtotal: "5050.00",
   delivery_charge: "470.00",
-  total_amount: "5520.00",
+  total_amount: "5857.10",
   delivery_pincode: "110075",
   delivery_partner_name: "Partner A",
   gstin_snapshot: "07ABCDE1234F1Z2",
@@ -62,7 +62,7 @@ const ORDER_ROW = {
   taxable_amount: "5050.00",
   cgst_amount: "0.00",
   sgst_amount: "0.00",
-  igst_amount: "252.50",
+  igst_amount: "337.10",
   billing_name: "Acme Pvt Ltd",
   billing_address_line: "14 Industrial Estate",
   billing_city: "South West Delhi",
@@ -251,13 +251,13 @@ describe("customer quotation route (token-gated, fail closed)", () => {
         grandTotalPaise?: number;
       };
     } | null;
-    // ODA-style charge: the ₹470 delivery is GST-inclusive, so the
-    // cartage splits into freight ₹398.31 + tax ₹71.69 (freight+tax
-    // = the charge). Pre-discount 5050.00 + 470.00 + 252.50 goods tax
-    // = 5772.50; net of ₹400 redeem.
+    // Store model: the ₹470 delivery is a base charge with its 18%
+    // GST (₹84.60) folded into the order's igst, so the order igst is
+    // goods ₹252.50 + cartage ₹84.60 = ₹337.10. Pre-discount
+    // 5050.00 + 470.00 + 337.10 = 5857.10; net of ₹400 redeem.
     expect(frozen?.totals.discountPaise).toBe(40000);
     expect(frozen?.totals.couponCode).toBe("NAVRATRI400");
-    expect(frozen?.totals.grandTotalPaise).toBe(537250);
+    expect(frozen?.totals.grandTotalPaise).toBe(545710);
   });
 
   it("serves quotations for payment_submitted orders too", async () => {

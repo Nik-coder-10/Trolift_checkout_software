@@ -1,8 +1,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AppError } from "@/lib/api/errors";
-import { getBusinessStateCode } from "@/lib/tax/india";
 import { getOdaLineCopy, splitOdaCharge } from "@/lib/delivery/oda";
+import { lookupDelhiveryPincode } from "@/lib/delivery/delhivery-pincodes";
 import { getBusinessDetails } from "@/lib/invoices/business";
 import { logOrderEvent } from "@/lib/admin/orders";
 import {
@@ -140,33 +140,6 @@ function addDays(isoDate: string, days: number): string {
   return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
 }
 
-/**
- * Fold the cartage GST into the order's own tax split (same-state →
- * CGST+SGST halves with the engine's floor/ceil rule, else IGST), so
- * the frozen quotation never mixes intra- and inter-state tax.
- */
-function splitCartageTax(input: {
-  orderCgstPaise: number;
-  orderSgstPaise: number;
-  orderIgstPaise: number;
-  cartageTaxPaise: number;
-  sameState: boolean;
-}): { cgstPaise: number; sgstPaise: number; igstPaise: number } {
-  if (input.sameState) {
-    const cartCgst = Math.floor(input.cartageTaxPaise / 2);
-    return {
-      cgstPaise: input.orderCgstPaise + cartCgst,
-      sgstPaise: input.orderSgstPaise + (input.cartageTaxPaise - cartCgst),
-      igstPaise: input.orderIgstPaise,
-    };
-  }
-  return {
-    cgstPaise: input.orderCgstPaise,
-    sgstPaise: input.orderSgstPaise,
-    igstPaise: input.orderIgstPaise + input.cartageTaxPaise,
-  };
-}
-
 export async function getQuotationData(orderId: string): Promise<QuotationData> {
   if (!UUID_RE.test(orderId)) {
     // Fail closed: malformed ids look exactly like missing orders.
@@ -278,15 +251,16 @@ export async function getQuotationData(orderId: string): Promise<QuotationData> 
   // GST quotation; non-GST quotations carry none (same trigger rule as
   // the order engine — GSTIN presence). A zero charge (all-inclusive
   // order) renders the "included" row; a positive charge is the flat
-  // ODA door-delivery fee, whose GST is EXTRACTED from within it (the
-  // customer pays exactly the charge, so freight + tax = the charge).
+  // ODA door-delivery BASE fee (default ₹800), whose 18% GST is
+  // charged on top (base + tax = what the customer pays) and is
+  // ALREADY folded into the order's tax columns by the order engine.
   const treatment = o.tax_treatment === "gst" ? "gst" : "non_gst";
   const cartageRate = treatment === "gst" ? getDeliveryGstRate() : null;
   const odaChargePaise = toPaise(o.delivery_charge);
-  const split =
-    odaChargePaise > 0
-      ? splitOdaCharge({ chargePaise: odaChargePaise, gstRate: cartageRate })
-      : { freightPaise: 0, taxPaise: 0 };
+  const split = splitOdaCharge({
+    chargePaise: odaChargePaise,
+    gstRate: cartageRate,
+  });
   const cartageChargePaise = split.freightPaise;
   const cartageTaxPaise = split.taxPaise;
   const cartageCopy =
@@ -307,7 +281,11 @@ export async function getQuotationData(orderId: string): Promise<QuotationData> 
     signatory: getSignatory(),
     terms: getQuotationTerms(),
     about: getQuotationAbout(),
-    placeOfSupply: o.billing_state,
+    // Place of supply: B2B orders carry the billing state; B2C orders
+    // (null billing state) fall back to the delivery pincode's state so
+    // the field never renders "—".
+    placeOfSupply:
+      o.billing_state ?? lookupDelhiveryPincode(o.delivery_pincode).state,
     customer: {
       name: o.customer_name_snapshot,
       phone: o.customer_phone_snapshot,
@@ -361,23 +339,16 @@ export async function getQuotationData(orderId: string): Promise<QuotationData> 
       // the quoted total matches the amount the customer pays.
       discountPaise: toPaise(o.discount_amount ?? 0),
       couponCode: o.coupon_code ?? null,
-      // Cartage GST joins the order's own split (same rule as the order
-      // engine: same-state → CGST+SGST halves, else IGST) so the frozen
-      // document never mixes intra- and inter-state tax.
-      ...splitCartageTax({
-        orderCgstPaise: toPaise(o.cgst_amount),
-        orderSgstPaise: toPaise(o.sgst_amount),
-        orderIgstPaise: toPaise(o.igst_amount),
-        cartageTaxPaise,
-        sameState:
-          o.billing_state_code !== null &&
-          getBusinessStateCode() !== null &&
-          o.billing_state_code === getBusinessStateCode(),
-      }),
+      // The delivery GST is already folded into the order's own split
+      // by the order engine (base charge + 18% GST), so the CGST/SGST
+      // or IGST is read straight from the order — never re-added here.
+      cgstPaise: toPaise(o.cgst_amount),
+      sgstPaise: toPaise(o.sgst_amount),
+      igstPaise: toPaise(o.igst_amount),
       grandTotalPaise:
         toPaise(o.subtotal) + cartageChargePaise +
         toPaise(o.cgst_amount) + toPaise(o.sgst_amount) +
-        toPaise(o.igst_amount) + cartageTaxPaise -
+        toPaise(o.igst_amount) -
         toPaise(o.discount_amount ?? 0),
     },
   });

@@ -5,20 +5,24 @@ import { parseGstRate } from "@/lib/tax/india";
  *
  * A pincode flagged ODA on the Delhivery list is normally not
  * deliverable. The customer may instead opt into door delivery there
- * for a fixed charge — GST-inclusive, flat, the first real delivery
- * charge this all-inclusive store has ever quoted. The amount lives in
- * env (TROLIFT_ODA_CHARGE_PAISE, default ₹800) so the owner can adjust
- * it without a deploy; the label lives here so every surface (order
- * total, quotation cartage, invoice delivery row, customer message)
- * says the same words.
+ * for a fixed charge — a flat GST-EXCLUSIVE base fee (default ₹800)
+ * with 18% GST charged on top (base ₹800 + ₹144 GST = ₹944 payable).
+ * This matches the store's original delivery-billing model, where the
+ * base charge lives in orders.delivery_charge and its GST is folded
+ * into the order's CGST/SGST or IGST split. The amount lives in env
+ * (TROLIFT_ODA_CHARGE_PAISE) so the owner can adjust it without a
+ * deploy; the label lives here so every surface (order total,
+ * quotation cartage, invoice delivery row, customer message) says the
+ * same words.
  *
- * The charge flows through orders.delivery_charge untouched, so the
- * DB identity (total = subtotal + delivery + tax − discount) keeps
- * holding and every reader — quotation, invoice, admin, CSV — picks
- * it up from the one column.
+ * Storage: delivery_charge carries the BASE charge only. The DB
+ * identity (total = subtotal + delivery + tax − discount) keeps
+ * holding because the delivery GST is part of the tax columns, and
+ * every reader — quotation, invoice, admin, CSV — picks the charge up
+ * from the one column and derives its GST from the configured rate.
  */
 
-/** Flat ODA charge in paise (default ₹800). */
+/** Flat ODA base charge in paise (default ₹800, GST-exclusive). */
 export function getOdaChargePaise(): number {
   const raw = (process.env.TROLIFT_ODA_CHARGE_PAISE ?? "80000").trim();
   const n = Number.parseInt(raw, 10);
@@ -26,11 +30,12 @@ export function getOdaChargePaise(): number {
 }
 
 /**
- * GST-inclusive extraction from the flat charge: the customer always
- * pays exactly the charge, and the freight/tax split falls out of it.
- * Canonical reverse-GST (same shape as all-inclusive catalogue lines):
- * freight = round(charge × 100/(100+rate)), tax = charge − freight.
- * 18% of 800 inclusive → freight ≈ 677.97, tax ≈ 122.03.
+ * Add-on GST split of the flat charge: the base freight is the charge
+ * itself and 18% GST is charged on top of it — freight + tax is what
+ * the customer pays.
+ * 18% of 800 base → freight 800, tax 144 (customer pays 944).
+ *
+ * Returns { charge, 0 } for a null/zero rate (non-GST quotations).
  */
 export function splitOdaCharge(input: {
   chargePaise: number;
@@ -44,8 +49,10 @@ export function splitOdaCharge(input: {
   if (!(rate > 0)) {
     return { freightPaise: chargePaise, taxPaise: 0 };
   }
-  const freightPaise = Math.round((chargePaise * 100) / (100 + rate));
-  return { freightPaise, taxPaise: chargePaise - freightPaise };
+  return {
+    freightPaise: chargePaise,
+    taxPaise: Math.round((chargePaise * rate) / 100),
+  };
 }
 
 /** Line copy for the ODA charge on quotations and invoices. */
@@ -56,7 +63,7 @@ export function getOdaLineCopy(): { name: string; description: string } {
     name: name === "" ? "ODA Delivery Charge" : name,
     description:
       description === ""
-        ? "Door delivery to ODA pincode - GST included"
+        ? "Door delivery to ODA pincode - base charge plus 18% GST"
         : description,
   };
 }

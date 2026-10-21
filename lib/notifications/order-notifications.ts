@@ -44,8 +44,10 @@ export interface OrderNotificationInput {
   /** GST split carried by the order — names the component in the email. */
   taxType: "igst" | "cgst_sgst";
   deliveryPartnerName: string | null;
-  /** Flat ODA door-delivery charge in paise (0 on all-inclusive orders). */
+  /** Flat ODA door-delivery BASE charge in paise (0 on all-inclusive orders). */
   deliveryChargePaise: number;
+  /** GST folded into the tax split on that charge (0 when none was broken out). */
+  deliveryTaxPaise: number;
   etaDays: { min: number; max: number } | null;
   totalPaise: number;
   /** Rupees knocked off by the redeem code (0 when no offer applied). */
@@ -151,6 +153,7 @@ export async function notifyOrderPlaced(
     taxType: input.taxType,
     deliveryPartnerName: input.deliveryPartnerName,
     deliveryChargePaise: input.deliveryChargePaise,
+    deliveryTaxPaise: input.deliveryTaxPaise,
     etaDays: input.etaDays,
     totalPaise: input.totalPaise,
     discountPaise: input.discountPaise,

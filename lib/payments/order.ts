@@ -71,6 +71,14 @@ export interface PayableOrder {
   paymentStatus: PaymentStatus;
   subtotalPaise: number;
   deliveryChargePaise: number;
+  /**
+   * GST folded into the tax split on a charged delivery: the base
+   * charge lives in deliveryChargePaise and its GST rides in cgst/sgst/
+   * igst. Derived exactly (order tax − Σ line tax) — 0 when delivery is
+   * included, or when the charge was quoted GST-inclusive with no tax
+   * broken out.
+   */
+  deliveryTaxPaise: number;
   totalPaise: number;
   /** Rupees knocked off by a redeem code (0 when the order used none). */
   discountPaise: number;
@@ -217,6 +225,11 @@ export async function getPayableOrderForAdmin(
     },
     subtotalPaise: toPaise(o.subtotal),
     deliveryChargePaise: toPaise(o.delivery_charge),
+    deliveryTaxPaise: Math.max(
+      0,
+      toPaise(o.cgst_amount) + toPaise(o.sgst_amount) + toPaise(o.igst_amount) -
+        rows.reduce((n, r) => n + toPaise(r.line_tax_amount), 0),
+    ),
     totalPaise: toPaise(o.total_amount),
     // Optional-shaped so pre-discount readers/mocks still map cleanly;
     // live rows always carry the column (default 0).

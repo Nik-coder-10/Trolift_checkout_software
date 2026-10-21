@@ -290,11 +290,12 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
 
   // Cartage (delivery) line: quoted freight with its own GST. Two
   // accepted shapes, both fully determined by the snapshotted rate
-  // (same rule as item lines): a legacy add-on charge whose tax is
-  // round(charge × r/100), or the reverse-inclusive ODA charge, where
-  // the stored charge is the GST-exclusive freight extracted from the
-  // flat inclusive fee (freight = round(total × 100/(100 + r))). The
-  // all-inclusive (zero-charge) row carries neither.
+  // (same rule as item lines): an add-on charge whose tax is
+  // round(charge × r/100) — the store's model, where the base charge
+  // sits in delivery_charge and its GST rides in the order tax split —
+  // or a legacy reverse-inclusive charge (freight extracted from a
+  // flat inclusive fee). The all-inclusive (zero-charge) row carries
+  // neither.
   const c = input.cartage;
   if (c.name.trim() === "") fail("the cartage line needs a name.");
   assertPaise(c.chargePaise, "cartage charge");

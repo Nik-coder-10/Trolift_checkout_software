@@ -28,7 +28,8 @@ import type { ApiResponse } from "@/types/api";
  * Response of POST /api/delivery/check — all-inclusive pricing: a
  * serviceable verdict plus partner/ETA, never a charge — except on a
  * listed ODA pincode, where odaChargePaise carries the flat door-
- * delivery charge so the checkout can offer the two ODA options.
+ * delivery BASE charge and odaChargeTaxPaise its 18% GST, so the
+ * checkout can offer the two ODA options.
  */
 interface DeliveryCheckResult {
   serviceable: boolean;
@@ -38,6 +39,7 @@ interface DeliveryCheckResult {
   partner: { name: string } | null;
   etaDays: { min: number; max: number } | null;
   odaChargePaise: number | null;
+  odaChargeTaxPaise: number | null;
 }
 
 type DeliveryState =
@@ -438,17 +440,24 @@ export function CheckoutForm() {
   // All-inclusive pricing: the summary total is the item sum — prices
   // already contain GST and delivery. Serviceability is the only thing
   // the pincode check adds — except an opted-in ODA door delivery,
-  // whose flat GST-inclusive charge sits on top.
+  // whose flat GST-exclusive base charge plus its 18% GST sits on top.
   const odaChargePaise =
     delivery.status === "unavailable" && delivery.result.odaChargePaise !== null
       ? delivery.result.odaChargePaise
       : null;
+  const odaChargeTaxPaise =
+    delivery.status === "unavailable" &&
+    delivery.result.odaChargeTaxPaise !== null
+      ? delivery.result.odaChargeTaxPaise
+      : 0;
   const odaApplied = odaChargePaise !== null && odaDoorDelivery;
-  const totalPaise = subtotalPaise + (odaApplied ? odaChargePaise : 0);
+  const totalPaise =
+    subtotalPaise + (odaApplied ? odaChargePaise + odaChargeTaxPaise : 0);
   const deliverySummary = odaApplied ? (
     <span className="text-zinc-700">
       Included · ODA{" "}
-      {formatMoney({ amountPaise: odaChargePaise, currency: "INR" })}
+      {formatMoney({ amountPaise: odaChargePaise, currency: "INR" })} + GST{" "}
+      {formatMoney({ amountPaise: odaChargeTaxPaise, currency: "INR" })}
     </span>
   ) : (
     <span className="text-zinc-700">Included</span>
@@ -713,10 +722,15 @@ export function CheckoutForm() {
                           amountPaise: delivery.result.odaChargePaise,
                           currency: "INR",
                         })}{" "}
-                        ODA charge
+                        +{" "}
+                        {Math.round(
+                          ((delivery.result.odaChargeTaxPaise ?? 0) * 100) /
+                            delivery.result.odaChargePaise,
+                        )}
+                        % GST
                         <span className="mt-0.5 block text-xs font-normal text-zinc-600">
-                          Flat charge, added to your order total (GST
-                          included).
+                          Base charge plus its GST, added to your order
+                          total.
                         </span>
                       </button>
                     </div>
@@ -867,7 +881,7 @@ export function CheckoutForm() {
         <p className="mt-2 text-xs leading-5 text-zinc-500">
           All prices include GST and delivery — this total is what you pay.
           {odaApplied
-            ? " Includes the flat ODA door-delivery charge."
+            ? " Includes the flat ODA door-delivery base charge plus its GST."
             : ""}
           {" "}Delivery availability is confirmed by the pincode check.
         </p>

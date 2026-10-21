@@ -360,8 +360,14 @@ function itemsTable(ctx: Ctx, quote: QuotationData): void {
       const col = COLUMNS[ci];
       if (!col) return;
       if (ci === 1) {
+        // Centre the name + description block like every other cell, so
+        // a short single-line name sits mid-row (level with S.No)
+        // instead of clinging to the top edge when the row is taller.
+        const blockHeight =
+          nameHeight + (cells.description !== "" ? 1 + descHeight : 0);
+        const blockY = y + Math.max(0, (height - blockHeight) / 2);
         doc.fillColor(INK).font("Helvetica-Bold");
-        doc.text(cells.name, x + 3, y + 4, { width: col.width - 6 });
+        doc.text(cells.name, x + 3, blockY, { width: col.width - 6 });
         if (cells.description !== "") {
           doc.fillColor(MUTED).font("Helvetica").fontSize(8);
           doc.text(cells.description, x + 3, doc.y + 1, {

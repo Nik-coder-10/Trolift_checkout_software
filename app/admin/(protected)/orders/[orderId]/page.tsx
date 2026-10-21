@@ -263,7 +263,24 @@ export default async function AdminOrderPage({
                 </dt>
                 <dd className="font-semibold text-zinc-900">
                   {order.deliveryChargePaise > 0 ? (
-                    <PriceDisplay amountPaise={order.deliveryChargePaise} size="sm" />
+                    <>
+                      <PriceDisplay amountPaise={order.deliveryChargePaise} size="sm" />
+                      {order.deliveryTaxPaise > 0 ? (
+                        <span className="block text-xs font-normal text-zinc-500">
+                          +{" "}
+                          {Math.round(
+                            (order.deliveryTaxPaise * 100) /
+                              order.deliveryChargePaise,
+                          )}
+                          % GST ({" "}
+                          <PriceDisplay
+                            amountPaise={order.deliveryTaxPaise}
+                            size="sm"
+                          />{" "}
+                          )
+                        </span>
+                      ) : null}
+                    </>
                   ) : (
                     <span>Included</span>
                   )}

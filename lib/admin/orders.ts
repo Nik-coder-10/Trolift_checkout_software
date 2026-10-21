@@ -351,6 +351,13 @@ export interface AdminOrderDetail {
   /** Inventory position: none (pre-inventory) / reserved / consumed / restored. */
   stockState: string;
   deliveryChargePaise: number;
+  /**
+   * GST folded into the tax split on a charged delivery (the base
+   * charge sits in deliveryChargePaise). Derived exactly: order tax −
+   * Σ line tax — 0 when delivery is included or the charge carried no
+   * broken-out GST.
+   */
+  deliveryTaxPaise: number;
   totalPaise: number;
   /** Rupees knocked off by a redeem code (0 when the order used none). */
   discountPaise: number;
@@ -506,6 +513,11 @@ export async function getAdminOrderDetail(
     sgstPaise: toPaise(o.sgst_amount),
     igstPaise: toPaise(o.igst_amount),
     deliveryChargePaise: toPaise(o.delivery_charge),
+    deliveryTaxPaise: Math.max(
+      0,
+      toPaise(o.cgst_amount) + toPaise(o.sgst_amount) + toPaise(o.igst_amount) -
+        itemRows.reduce((n, r) => n + toPaise(r.line_tax_amount), 0),
+    ),
     totalPaise: toPaise(o.total_amount),
     discountPaise: toPaise(o.discount_amount ?? "0"),
     couponCode: o.coupon_code ?? null,

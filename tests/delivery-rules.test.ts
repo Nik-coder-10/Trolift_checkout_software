@@ -495,6 +495,7 @@ describe("snapshots + live configuration", () => {
         deliveryPartnerId: PARTNER_A,
         deliveryPartnerName: "Delhivery",
         deliveryChargePaise: 77000,
+        deliveryTaxPaise: 0,
         deliveryWeightKg: 64,
         deliveryRuleSummary: "Weight 25–50 kg + Remote-area surcharge",
         etaDays: null,
