@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AppError } from "@/lib/api/errors";
+import { logWarn } from "@/lib/observability/logger";
 import { getBusinessDetails } from "@/lib/invoices/business";
 import {
   getBankDetails,
@@ -18,6 +19,7 @@ import {
   parseManualQuotationInput,
   type ManualQuotationContext,
   type PartyType,
+  type QuotableProduct,
 } from "@/lib/quotations/manual";
 
 /**
@@ -78,6 +80,19 @@ export function addDays(isoDate: string, days: number): string {
 function toPaise(value: number | string): number {
   const n = typeof value === "number" ? value : Number(value);
   return Number.isSafeInteger(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * NUMERIC(12,2) rupees → exact integer paise. Catalogue prices arrive
+ * as decimal strings (or JSON numbers) of RUPEES, unlike total_paise
+ * columns — a plain Number() would read "24999.00" as 24,999 paise.
+ */
+function rupeesToPaise(value: number | string): number {
+  const text = typeof value === "number" ? value.toFixed(2) : value.trim();
+  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(text);
+  if (!m) return 0;
+  const paise = Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
+  return Number.isSafeInteger(paise) && paise >= 0 ? paise : 0;
 }
 
 function asFrozenQuotation(data: unknown): QuotationData | null {
@@ -215,6 +230,47 @@ export async function listManualQuotations(
     throw new AppError("INTERNAL_ERROR", "Could not load quotations.", 500);
   }
   return ((data ?? []) as unknown as ManualQuotationRow[]).map(toSummary);
+}
+
+/**
+ * Active catalogue items, for the maker's "pick a listed item" picker.
+ *
+ * Fails OPEN (empty list): the quotation maker still works with typed
+ * items when the catalogue read fails, so a storefront data problem
+ * never blocks a dealer quote.
+ */
+export async function listQuotableProducts(): Promise<QuotableProduct[]> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("products")
+      .select("id,name,description,hsn_code,gst_rate,price")
+      .eq("is_active", true)
+      .order("name", { ascending: true })
+      .limit(500);
+    if (error) throw error;
+    return ((data ?? []) as unknown as Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      hsn_code: string | null;
+      gst_rate: string | number | null;
+      price: string | number;
+    }>).map((row) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description ?? "",
+      hsn: row.hsn_code,
+      gstRate: row.gst_rate === null ? null : String(row.gst_rate),
+      pricePaise: rupeesToPaise(row.price),
+    }));
+  } catch {
+    logWarn("Could not load catalogue items for the quotation maker.", {
+      category: "quotations",
+      operation: "listQuotableProducts",
+    });
+    return [];
+  }
 }
 
 export interface LoadedManualQuotation {

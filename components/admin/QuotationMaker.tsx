@@ -10,10 +10,12 @@ import {
   emptyManualQuotationForm,
   emptyManualQuotationLine,
   isSameState,
+  manualLineFromProduct,
   parseRupeesToPaise,
   type ManualQuotationErrors,
   type ManualQuotationForm,
   type ManualQuotationItem,
+  type QuotableProduct,
 } from "@/lib/quotations/manual";
 import type { ApiResponse } from "@/types/api";
 
@@ -61,6 +63,7 @@ export function QuotationMaker({
   deliveryGstRate,
   businessStateCode,
   defaultValidityDays,
+  products,
 }: {
   stateNames: string[];
   /** Delivery GST rate ("18.00"); ignored for non-GST quotes. */
@@ -68,6 +71,8 @@ export function QuotationMaker({
   /** Seller's GST state code — drives CGST+SGST vs IGST. */
   businessStateCode: string | null;
   defaultValidityDays: number;
+  /** Active catalogue items offered in the per-line picker. */
+  products: QuotableProduct[];
 }) {
   const router = useRouter();
   const [form, setForm] = useState<ManualQuotationForm>(() => ({
@@ -82,6 +87,17 @@ export function QuotationMaker({
     field: K,
     value: ManualQuotationForm[K],
   ) => setForm((f) => ({ ...f, [field]: value }));
+
+  const useProduct = (index: number, productId: string) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    setForm((f) => ({
+      ...f,
+      items: f.items.map((row, i) =>
+        i === index ? manualLineFromProduct(product) : row,
+      ),
+    }));
+  };
 
   const setItem = <K extends keyof ManualQuotationForm["items"][number]>(
     index: number,
@@ -291,7 +307,8 @@ export function QuotationMaker({
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-base font-bold text-zinc-900">Items</h2>
           <p className="text-xs text-zinc-500">
-            Prices exclude GST — GST is added per line at the rate you enter.
+            Pick a listed item to fill a row, then edit its name, rate or
+            quantity. Prices exclude GST — GST is added per line.
           </p>
         </div>
         {errors.items ? (
@@ -305,6 +322,36 @@ export function QuotationMaker({
               key={index}
               className="rounded-md border border-zinc-200 bg-zinc-50/60 p-3"
             >
+              {products.length > 0 ? (
+                <div className="mb-3 flex flex-col gap-1.5">
+                  <label
+                    htmlFor={`item-${index}-pick`}
+                    className="text-sm font-semibold text-zinc-800"
+                  >
+                    Pick a listed item
+                    <span className="ml-2 text-xs font-normal text-zinc-500">
+                      or type your own in the fields below
+                    </span>
+                  </label>
+                  <select
+                    id={`item-${index}-pick`}
+                    value=""
+                    onChange={(e) => useProduct(index, e.target.value)}
+                    className="h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-brand-700"
+                  >
+                    <option value="">Choose from catalogue…</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — ₹
+                        {(p.pricePaise / 100).toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-12">
                 <div className="sm:col-span-6">
                   <Input
@@ -406,7 +453,7 @@ export function QuotationMaker({
             }
             disabled={form.items.length >= 25}
           >
-            + Add item
+            + Add blank item
           </Button>
         </div>
       </section>

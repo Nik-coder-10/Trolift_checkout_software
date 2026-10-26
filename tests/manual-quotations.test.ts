@@ -12,10 +12,18 @@ import { resetRateLimits } from "@/lib/rate-limit/index";
 
 const inserts: Array<Record<string, unknown>> = [];
 let failInsert = false;
+let catalogueRows: Array<Record<string, unknown>> = [];
+let catalogueError = false;
 
 const handler: MockResponder = (op: MockOp) => {
   if (op.rpc === "generate_quotation_number") {
     return { rows: ["QTN-TS0000123456"], error: null };
+  }
+  if (op.table === "products") {
+    return {
+      rows: catalogueError ? [] : catalogueRows,
+      error: catalogueError ? { message: "boom", code: "500" } : null,
+    };
   }
   if (op.table === "manual_quotations") {
     if (op.updateValues !== undefined && !op.isDelete) {
@@ -52,9 +60,11 @@ vi.mock("@/lib/supabase/server", () => ({
 import {
   buildManualQuotation,
   computeManualQuotationTotals,
+  manualLineFromProduct,
   parseManualQuotationInput,
   type ManualQuotationItem,
 } from "@/lib/quotations/manual";
+import { listQuotableProducts } from "@/lib/quotations/manual-service";
 import { POST } from "@/app/api/admin/quotations/route";
 
 const business = {
@@ -99,6 +109,17 @@ const originalEnv = { ...process.env };
 beforeEach(() => {
   inserts.length = 0;
   failInsert = false;
+  catalogueError = false;
+  catalogueRows = [
+    {
+      id: "prod-1",
+      name: "Hydraulic Hand Pallet Truck 2500 kg",
+      description: "Capacity 2500 kg",
+      hsn_code: "87168010",
+      gst_rate: "18.00",
+      price: "24999.00",
+    },
+  ];
   authUser = { id: "admin-1" };
   adminFlag = true;
   resetRateLimits();
@@ -175,6 +196,81 @@ describe("parseManualQuotationInput", () => {
     const parsed = parseManualQuotationInput(payload({ items: [] }));
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.errors.items).toBeTruthy();
+  });
+});
+
+describe("manualLineFromProduct", () => {
+  it("turns a GST-inclusive catalogue price into an ex-GST rate", () => {
+    const line = manualLineFromProduct({
+      name: "Hydraulic Hand Pallet Truck 2500 kg",
+      description: "Capacity 2500 kg",
+      hsn: "87168010",
+      gstRate: "18",
+      pricePaise: 2_499_900,
+    });
+    // 24,999.00 inclusive @18% → 21,185.59 ex-GST (tax adds back to 24,999.00).
+    expect(line.unitPrice).toBe("21185.59");
+    expect(line.gstRate).toBe("18");
+    expect(line.quantity).toBe("1");
+    expect(line.hsn).toBe("87168010");
+    expect(line.name).toBe("Hydraulic Hand Pallet Truck 2500 kg");
+    expect(line.description).toBe("Capacity 2500 kg");
+  });
+
+  it("leaves a zero-rated item's price untouched", () => {
+    const line = manualLineFromProduct({
+      name: "Service kit",
+      gstRate: null,
+      pricePaise: 500_000,
+    });
+    expect(line.unitPrice).toBe("5000.00");
+    expect(line.gstRate).toBe("0");
+    expect(line.hsn).toBe("");
+  });
+
+  it("round-trips: the prefilled line totals the catalogue price once tax is added", () => {
+    const line = manualLineFromProduct({
+      name: "Pallet truck",
+      gstRate: "18",
+      pricePaise: 2_499_900,
+    });
+    const parsed = parseManualQuotationInput(
+      payload({
+        items: [{ ...line, quantity: "1" }],
+        deliveryCharge: "0",
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const totals = computeManualQuotationTotals({
+      items: parsed.value.items,
+      deliveryChargePaise: 0,
+      deliveryGstRate: "18.00",
+      sameState: true,
+    });
+    // 21,185.59 + 18% (3,813.41) = 24,999.00 exactly.
+    expect(totals.grandTotalPaise).toBe(2_499_900);
+  });
+});
+
+describe("listQuotableProducts", () => {
+  it("maps active catalogue rows into picker entries in paise", async () => {
+    const products = await listQuotableProducts();
+    expect(products).toEqual([
+      {
+        id: "prod-1",
+        name: "Hydraulic Hand Pallet Truck 2500 kg",
+        description: "Capacity 2500 kg",
+        hsn: "87168010",
+        gstRate: "18.00",
+        pricePaise: 2_499_900,
+      },
+    ]);
+  });
+
+  it("fails open with an empty list when the catalogue read fails", async () => {
+    catalogueError = true;
+    await expect(listQuotableProducts()).resolves.toEqual([]);
   });
 });
 

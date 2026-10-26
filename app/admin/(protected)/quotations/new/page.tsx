@@ -7,6 +7,7 @@ import {
   getDeliveryGstRate,
   getQuotationValidityDays,
 } from "@/lib/quotations/config";
+import { listQuotableProducts } from "@/lib/quotations/manual-service";
 
 export const metadata: Metadata = {
   title: "Quotation maker",
@@ -20,7 +21,10 @@ export const metadata: Metadata = {
  */
 export default async function NewQuotationPage() {
   const stateNames = INDIAN_STATES.map((s) => s.name);
-  const validityDays = await getQuotationValidityDays();
+  const [validityDays, products] = await Promise.all([
+    getQuotationValidityDays(),
+    listQuotableProducts(),
+  ]);
 
   return (
     <AdminShell
@@ -41,6 +45,7 @@ export default async function NewQuotationPage() {
         deliveryGstRate={getDeliveryGstRate()}
         businessStateCode={getBusinessStateCode()}
         defaultValidityDays={validityDays}
+        products={products}
       />
     </AdminShell>
   );

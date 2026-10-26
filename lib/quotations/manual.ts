@@ -3,7 +3,11 @@ import {
   type BuildQuotationInput,
   type QuotationData,
 } from "@/lib/quotations/data";
-import { parseGstRate, stateCodeFromName } from "@/lib/tax/india";
+import {
+  inclusiveTaxablePaise,
+  parseGstRate,
+  stateCodeFromName,
+} from "@/lib/tax/india";
 import {
   isValidEmail,
   isValidGstinChecksum,
@@ -145,6 +149,60 @@ export function emptyManualQuotationForm(): ManualQuotationForm {
 /** Blank line with inherited GST rate (a new row starts like the last one). */
 export function emptyManualQuotationLine(gstRate = "18"): ManualQuotationLineForm {
   return { ...EMPTY_FORM, gstRate };
+}
+
+/** A catalogue item offered in the maker's picker (prices GST-inclusive). */
+export interface QuotableProduct {
+  id: string;
+  name: string;
+  description: string;
+  hsn: string | null;
+  /** Catalogue GST percent (decimal string); null = not configured. */
+  gstRate: string | null;
+  /** Storefront price, GST-INCLUSIVE, integer paise. */
+  pricePaise: number;
+}
+
+/** A catalogue row, as the maker needs it (prices are GST-inclusive). */
+export interface CatalogueProductLike {
+  name: string;
+  description?: string | null;
+  hsn?: string | null;
+  gstRate?: string | number | null;
+  /** Storefront price, GST-inclusive, integer paise. */
+  pricePaise: number;
+}
+
+/** Rupees text with exactly two decimals — what the rate input shows. */
+function rupeesText(paise: number): string {
+  const safe = Number.isSafeInteger(paise) && paise >= 0 ? paise : 0;
+  return (safe / 100).toFixed(2);
+}
+
+/**
+ * Prefill a maker line from a listed catalogue item.
+ *
+ * Catalogue prices are GST-INCLUSIVE (GST and delivery absorbed), while
+ * the maker quotes GST-exclusive rates — so the rate is reverse-computed
+ * from the item's own GST rate, keeping "catalogue price" and "quoted
+ * rate" the same money once tax is added back. Name, description, HSN
+ * and GST rate come along too; every field stays editable, because the
+ * whole point of the maker is quoting a dealer price that differs from
+ * the storefront.
+ */
+export function manualLineFromProduct(
+  product: CatalogueProductLike,
+): ManualQuotationLineForm {
+  const rate = parseGstRate(product.gstRate ?? null);
+  const taxablePaise = inclusiveTaxablePaise(product.pricePaise, rate);
+  return {
+    name: product.name.trim().slice(0, 200),
+    description: (product.description ?? "").trim().slice(0, 300),
+    hsn: (product.hsn ?? "").trim(),
+    quantity: "1",
+    unitPrice: rupeesText(taxablePaise),
+    gstRate: String(rate),
+  };
 }
 
 function str(value: unknown, max = 500): string {
