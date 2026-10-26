@@ -88,7 +88,7 @@ export function QuotationMaker({
     value: ManualQuotationForm[K],
   ) => setForm((f) => ({ ...f, [field]: value }));
 
-  const useProduct = (index: number, productId: string) => {
+  const fillFromProduct = (index: number, productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
     setForm((f) => ({
@@ -336,7 +336,7 @@ export function QuotationMaker({
                   <select
                     id={`item-${index}-pick`}
                     value=""
-                    onChange={(e) => useProduct(index, e.target.value)}
+                    onChange={(e) => fillFromProduct(index, e.target.value)}
                     className="h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-brand-700"
                   >
                     <option value="">Choose from catalogue…</option>
