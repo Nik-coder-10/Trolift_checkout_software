@@ -83,6 +83,7 @@ create trigger manual_quotations_freeze
 alter table public.manual_quotations enable row level security;
 
 grant all on public.manual_quotations to authenticated;
+grant all on public.manual_quotations to service_role;
 
 create policy manual_quotations_admin_all
   on public.manual_quotations for all

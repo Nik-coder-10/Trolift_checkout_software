@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AppError } from "@/lib/api/errors";
-import { logWarn } from "@/lib/observability/logger";
+import { logError, logWarn } from "@/lib/observability/logger";
 import { getBusinessDetails } from "@/lib/invoices/business";
 import {
   getBankDetails,
@@ -161,6 +161,10 @@ export async function createManualQuotation(
     "generate_quotation_number",
   );
   if (numberError || typeof numberData !== "string") {
+    logError("Could not number the quotation", {
+      error: numberError?.message,
+      code: numberError?.code,
+    });
     throw new AppError("INTERNAL_ERROR", "Could not number the quotation.", 500);
   }
   const quotationNumber = numberData;
@@ -199,6 +203,12 @@ export async function createManualQuotation(
     .single();
   const row = inserted as { id: string } | null;
   if (insertError || !row) {
+    logError("Could not save manual quotation", {
+      error: insertError?.message,
+      code: insertError?.code,
+      details: insertError?.details,
+      hint: insertError?.hint,
+    });
     throw new AppError(
       "INTERNAL_ERROR",
       "Could not save the quotation. Please try again.",
