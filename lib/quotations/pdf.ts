@@ -596,7 +596,9 @@ function footer(ctx: Ctx, quote: QuotationData): void {
       : quote.treatment === "gst"
         ? "No customer GSTIN — B2C sale, GST charged with no input credit."
         : "No customer GSTIN — no GST charged on this quotation.",
-    `Generated from frozen order ${quote.orderNumber} snapshots — catalogue or profile edits cannot alter this document.`,
+    quote.source === "manual"
+      ? "Prepared by Trolift Solutions for this offer — prices, taxes and delivery are frozen as quoted."
+      : `Generated from frozen order ${quote.orderNumber} snapshots — catalogue or profile edits cannot alter this document.`,
   ];
   doc.text(notes.join(" "), MARGIN, doc.y, { width: CONTENT_WIDTH });
   const pages = doc.bufferedPageRange();
@@ -636,7 +638,10 @@ export async function renderQuotationPdf(quote: QuotationData): Promise<Buffer> 
     bufferPages: true,
     info: {
       Title: `Quotation ${quote.quotationNumber}`,
-      Subject: `Trolift order ${quote.orderNumber}`,
+      Subject:
+        quote.source === "manual"
+          ? `Quotation ${quote.quotationNumber}`
+          : `Trolift order ${quote.orderNumber}`,
       Author: quote.business.name,
       // Fixed metadata: identical frozen input → identical bytes.
       CreationDate: new Date(`${quote.quotationDate}T12:00:00Z`),

@@ -115,6 +115,12 @@ export interface BuildQuotationInput {
   };
   /** "About Trolift Solutions" copy (frozen like terms; optional). */
   about?: string;
+  /**
+   * "manual" for staff-typed quotation-maker documents. Absent on every
+   * order quotation, including documents frozen before the maker existed
+   * — so legacy PDFs keep rendering byte-identically.
+   */
+  source?: "manual";
   items: QuotationItemSnapshot[];
   cartage: QuotationCartageSnapshot;
   totals: {
@@ -165,6 +171,8 @@ export interface QuotationData {
   terms: string[];
   /** "About Trolift Solutions" copy (undefined on legacy frozen docs). */
   about?: string;
+  /** "manual" on staff-typed documents made in the admin quotation maker. */
+  source?: "manual";
   placeOfSupply: string | null;
   customer: {
     name: string;
@@ -391,6 +399,7 @@ export function buildQuotationData(input: BuildQuotationInput): QuotationData {
     signatory: input.signatory,
     terms: [...input.terms],
     ...(input.about === undefined ? {} : { about: input.about }),
+    ...(input.source === "manual" ? { source: "manual" as const } : {}),
     placeOfSupply: input.placeOfSupply,
     customer: { ...input.customer },
     billing: { ...input.billing },
