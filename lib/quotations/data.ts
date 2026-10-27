@@ -112,6 +112,8 @@ export interface BuildQuotationInput {
      * documents frozen before it existed render without it.
      */
     addressLine?: string | null;
+    city?: string | null;
+    state?: string | null;
   };
   /** "About Trolift Solutions" copy (frozen like terms; optional). */
   about?: string;

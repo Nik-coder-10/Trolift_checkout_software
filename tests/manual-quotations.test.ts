@@ -197,6 +197,63 @@ describe("parseManualQuotationInput", () => {
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.errors.items).toBeTruthy();
   });
+
+  it("defaults shipping address to billing address when sameAsBilling is true", () => {
+    const parsed = parseManualQuotationInput(
+      payload({
+        sameAsBilling: true,
+        addressLine: "12 Transport Nagar",
+        city: "Jaipur",
+        state: "Rajasthan",
+        pincode: "302001",
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.sameAsBilling).toBe(true);
+    expect(parsed.value.shippingAddressLine).toBe("12 Transport Nagar");
+    expect(parsed.value.shippingCity).toBe("Jaipur");
+    expect(parsed.value.shippingState).toBe("Rajasthan");
+    expect(parsed.value.shippingPincode).toBe("302001");
+  });
+
+  it("supports distinct shipping address when sameAsBilling is false", () => {
+    const parsed = parseManualQuotationInput(
+      payload({
+        sameAsBilling: false,
+        addressLine: "12 Transport Nagar",
+        city: "Jaipur",
+        state: "Rajasthan",
+        pincode: "302001",
+        shippingAddressLine: "Plot 45, MIDC Industrial Area",
+        shippingCity: "Pune",
+        shippingState: "Maharashtra",
+        shippingPincode: "411018",
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.sameAsBilling).toBe(false);
+    expect(parsed.value.addressLine).toBe("12 Transport Nagar");
+    expect(parsed.value.shippingAddressLine).toBe("Plot 45, MIDC Industrial Area");
+    expect(parsed.value.shippingCity).toBe("Pune");
+    expect(parsed.value.shippingState).toBe("Maharashtra");
+    expect(parsed.value.shippingPincode).toBe("411018");
+  });
+
+  it("validates shipping pincode and state when sameAsBilling is false", () => {
+    const parsed = parseManualQuotationInput(
+      payload({
+        sameAsBilling: false,
+        shippingPincode: "012345",
+        shippingState: "InvalidStateName",
+      }),
+    );
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.errors.shippingPincode).toBeTruthy();
+    expect(parsed.errors.shippingState).toBeTruthy();
+  });
 });
 
 describe("manualLineFromProduct", () => {
@@ -385,6 +442,34 @@ describe("buildManualQuotation", () => {
     expect(doc.cartage.taxPaise).toBe(0);
     expect(doc.cartage.description).toBe("Included in the quoted item prices");
     expect(doc.totals.grandTotalPaise).toBe(5_899_764);
+  });
+
+  it("stores distinct billing and shipping addresses when sameAsBilling is false", () => {
+    const parsed = parseManualQuotationInput(
+      payload({
+        sameAsBilling: false,
+        addressLine: "12 Transport Nagar",
+        city: "Jaipur",
+        state: "Rajasthan",
+        pincode: "302001",
+        shippingAddressLine: "Warehouse 4B, Bhiwandi",
+        shippingCity: "Thane",
+        shippingState: "Maharashtra",
+        shippingPincode: "421302",
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const doc = buildManualQuotation(parsed.value, ctx);
+    expect(doc.billing.addressLine).toBe("12 Transport Nagar");
+    expect(doc.billing.city).toBe("Jaipur");
+    expect(doc.billing.state).toBe("Rajasthan");
+    expect(doc.billing.pincode).toBe("302001");
+
+    expect(doc.shipping.addressLine).toBe("Warehouse 4B, Bhiwandi");
+    expect(doc.shipping.city).toBe("Thane");
+    expect(doc.shipping.state).toBe("Maharashtra");
+    expect(doc.shipping.pincode).toBe("421302");
   });
 });
 

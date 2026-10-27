@@ -145,6 +145,10 @@ function shipToLines(quote: QuotationData): string[] {
   const address = (s.addressLine ?? "").trim();
   const lines = [s.name];
   if (address !== "") lines.push(address);
+  const location = [s.city, s.state].filter(Boolean).join(", ");
+  if (location !== "" && !address.includes(location)) {
+    lines.push(location);
+  }
   lines.push(`Phone: ${s.phone}`);
   if (s.pincode !== "" && !address.includes(s.pincode)) {
     lines.push(`Delivery pincode: ${s.pincode}`);
@@ -159,10 +163,14 @@ function parties(ctx: Ctx, quote: QuotationData): void {
   const { doc } = ctx;
   const colW = (CONTENT_WIDTH - 16) / 2;
   const startY = doc.y;
-  // Billing address is printed ONLY when the customer provided a
-  // GSTIN: the Bill To block exists for input credit, so a B2C supply
-  // (no GSTIN, GST still charged) carries the shipping address alone.
-  const showBilling = (quote.customer.gstin ?? "").trim() !== "";
+  // Billing address is printed when the customer provided a GSTIN
+  // or when a manual quotation has distinct billing and shipping addresses.
+  const hasDistinctAddresses =
+    quote.source === "manual" &&
+    Boolean((quote.billing.addressLine ?? "").trim()) &&
+    Boolean((quote.shipping.addressLine ?? "").trim()) &&
+    (quote.billing.addressLine ?? "").trim() !== (quote.shipping.addressLine ?? "").trim();
+  const showBilling = (quote.customer.gstin ?? "").trim() !== "" || hasDistinctAddresses;
 
   if (!showBilling) {
     doc.fillColor(INK).font("Helvetica-Bold").fontSize(10);
@@ -184,7 +192,7 @@ function parties(ctx: Ctx, quote: QuotationData): void {
     [quote.billing.city, quote.billing.state, quote.billing.pincode]
       .filter(Boolean)
       .join(", "),
-    `GSTIN: ${quote.customer.gstin}`,
+    quote.customer.gstin ? `GSTIN: ${quote.customer.gstin}` : null,
     `Phone: ${quote.customer.phone}`,
     quote.customer.email ? `Email: ${quote.customer.email}` : null,
   ];

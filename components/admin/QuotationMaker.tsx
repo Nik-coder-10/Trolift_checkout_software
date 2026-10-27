@@ -240,42 +240,143 @@ export function QuotationMaker({
             }
           />
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Textarea
-            label="Address"
-            name="addressLine"
-            rows={2}
-            value={form.addressLine}
-            onChange={(e) => set("addressLine", e.target.value)}
-            error={errors.addressLine}
-          />
+        {/* Billing Address */}
+        <div className="mt-5 rounded-md border border-zinc-200 bg-zinc-50/50 p-4">
+          <div className="mb-3">
+            <h3 className="text-sm font-bold text-zinc-900">Billing address</h3>
+            <p className="text-xs text-zinc-500">
+              The billing address printed on the quotation and used for tax credit.
+            </p>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label="City"
-              name="city"
-              value={form.city}
-              onChange={(e) => set("city", e.target.value)}
-              error={errors.city}
+            <Textarea
+              label="Billing address"
+              name="addressLine"
+              rows={2}
+              placeholder="Building, street, industrial area"
+              value={form.addressLine}
+              onChange={(e) => set("addressLine", e.target.value)}
+              error={errors.addressLine}
             />
-            <Input
-              label="Pincode"
-              name="pincode"
-              inputMode="numeric"
-              value={form.pincode}
-              onChange={(e) => set("pincode", e.target.value)}
-              error={errors.pincode}
-            />
-            <Select
-              label="State (place of supply)"
-              name="state"
-              value={form.state}
-              onChange={(e) => set("state", e.target.value)}
-              error={errors.state}
-              options={[
-                { value: "", label: "Select state…" },
-                ...stateNames.map((name) => ({ value: name, label: name })),
-              ]}
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="City"
+                name="city"
+                value={form.city}
+                onChange={(e) => set("city", e.target.value)}
+                error={errors.city}
+              />
+              <Input
+                label="Pincode"
+                name="pincode"
+                inputMode="numeric"
+                value={form.pincode}
+                onChange={(e) => set("pincode", e.target.value)}
+                error={errors.pincode}
+              />
+              <div className="sm:col-span-2">
+                <Select
+                  label="State (place of supply)"
+                  name="state"
+                  value={form.state}
+                  onChange={(e) => set("state", e.target.value)}
+                  error={errors.state}
+                  options={[
+                    { value: "", label: "Select state…" },
+                    ...stateNames.map((name) => ({ value: name, label: name })),
+                  ]}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Shipping Address */}
+        <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50/50 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-zinc-900">Shipping address</h3>
+              <p className="text-xs text-zinc-500">
+                Where the equipment should be delivered.
+              </p>
+            </div>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 shadow-xs hover:bg-zinc-50">
+              <input
+                type="checkbox"
+                checked={form.sameAsBilling}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setForm((f) => ({
+                    ...f,
+                    sameAsBilling: checked,
+                    ...(checked
+                      ? {
+                          shippingAddressLine: f.addressLine,
+                          shippingCity: f.city,
+                          shippingState: f.state,
+                          shippingPincode: f.pincode,
+                        }
+                      : {}),
+                  }));
+                }}
+                className="h-4 w-4 accent-brand-800"
+              />
+              <span>Shipping address same as billing</span>
+            </label>
+          </div>
+
+          {form.sameAsBilling ? (
+            <p className="py-1 text-xs italic text-zinc-500">
+              Delivery address will match the billing address specified above.
+            </p>
+          ) : (
+            <div className="grid gap-4 border-t border-zinc-200/60 pt-3 sm:grid-cols-2">
+              <Textarea
+                label="Shipping address"
+                name="shippingAddressLine"
+                rows={2}
+                placeholder="Warehouse, factory, or delivery site address"
+                value={form.shippingAddressLine}
+                onChange={(e) => set("shippingAddressLine", e.target.value)}
+                error={errors.shippingAddressLine}
+              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  label="City"
+                  name="shippingCity"
+                  value={form.shippingCity}
+                  onChange={(e) => set("shippingCity", e.target.value)}
+                  error={errors.shippingCity}
+                />
+                <Input
+                  label="Pincode"
+                  name="shippingPincode"
+                  inputMode="numeric"
+                  value={form.shippingPincode}
+                  onChange={(e) => set("shippingPincode", e.target.value)}
+                  error={errors.shippingPincode}
+                />
+                <div className="sm:col-span-2">
+                  <Select
+                    label="State"
+                    name="shippingState"
+                    value={form.shippingState}
+                    onChange={(e) => set("shippingState", e.target.value)}
+                    error={errors.shippingState}
+                    options={[
+                      { value: "", label: "Select state…" },
+                      ...stateNames.map((name) => ({ value: name, label: name })),
+                    ]}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quote settings */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-zinc-100 pt-3">
+          <div className="w-full sm:w-48">
             <Input
               label="Validity (days)"
               name="validityDays"
@@ -285,22 +386,21 @@ export function QuotationMaker({
               error={errors.validityDays}
             />
           </div>
-        </div>
-        <label className="mt-4 flex cursor-pointer items-start gap-2 text-sm font-semibold text-zinc-800">
-          <input
-            type="checkbox"
-            checked={form.withGst}
-            onChange={(e) => set("withGst", e.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-brand-800"
-          />
-          <span>
-            GST quotation
-            <span className="block text-xs font-normal text-zinc-500">
-              Untick for a document with no GST and no GSTIN (rate, split and
-              delivery tax disappear from the PDF).
+          <label className="flex cursor-pointer items-start gap-2 text-sm font-semibold text-zinc-800">
+            <input
+              type="checkbox"
+              checked={form.withGst}
+              onChange={(e) => set("withGst", e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-brand-800"
+            />
+            <span>
+              GST quotation
+              <span className="block text-xs font-normal text-zinc-500">
+                Untick for a document with no GST and no GSTIN.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        </div>
       </section>
 
       <section className="rounded-lg border border-zinc-200 bg-white p-4 sm:p-5">

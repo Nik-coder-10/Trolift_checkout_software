@@ -112,6 +112,30 @@ export default async function ManualQuotationPage({
               </p>
             </div>
           </div>
+          <div className="mt-4 grid gap-3 border-t border-zinc-100 pt-3 text-sm text-zinc-600 sm:grid-cols-2">
+            <div className="rounded-md border border-zinc-100 bg-zinc-50/70 p-3">
+              <p className="mb-1 text-xs font-bold tracking-wide text-zinc-500 uppercase">
+                Billing Address
+              </p>
+              <p className="text-zinc-800">{data.billing.addressLine ?? "—"}</p>
+              <p className="text-xs text-zinc-500">
+                {[data.billing.city, data.billing.state, data.billing.pincode]
+                  .filter(Boolean)
+                  .join(", ")}
+              </p>
+            </div>
+            <div className="rounded-md border border-zinc-100 bg-zinc-50/70 p-3">
+              <p className="mb-1 text-xs font-bold tracking-wide text-zinc-500 uppercase">
+                Shipping Address
+              </p>
+              <p className="text-zinc-800">{data.shipping.addressLine ?? "—"}</p>
+              <p className="text-xs text-zinc-500">
+                {[data.shipping.city, data.shipping.state, data.shipping.pincode]
+                  .filter(Boolean)
+                  .join(", ")}
+              </p>
+            </div>
+          </div>
         </section>
 
         <section className="rounded-lg border border-zinc-200 bg-white p-4 sm:p-5">

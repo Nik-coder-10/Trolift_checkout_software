@@ -72,10 +72,17 @@ export interface ManualQuotationForm {
   phone: string;
   email: string;
   gstin: string;
+  // Billing address
   addressLine: string;
   city: string;
   state: string;
   pincode: string;
+  // Shipping address
+  sameAsBilling: boolean;
+  shippingAddressLine: string;
+  shippingCity: string;
+  shippingState: string;
+  shippingPincode: string;
   items: ManualQuotationLineForm[];
   deliveryCharge: string;
   withGst: boolean;
@@ -100,11 +107,18 @@ export interface ManualQuotationInput {
   phone: string;
   email: string | null;
   gstin: string | null;
+  // Billing address
   addressLine: string | null;
   city: string | null;
   pincode: string | null;
   /** Place of supply (state name); null for non-GST quotes. */
   state: string | null;
+  // Shipping address
+  sameAsBilling: boolean;
+  shippingAddressLine: string | null;
+  shippingCity: string | null;
+  shippingState: string | null;
+  shippingPincode: string | null;
   withGst: boolean;
   validityDays: number;
   items: ManualQuotationItem[];
@@ -139,6 +153,11 @@ export function emptyManualQuotationForm(): ManualQuotationForm {
     city: "",
     state: "",
     pincode: "",
+    sameAsBilling: true,
+    shippingAddressLine: "",
+    shippingCity: "",
+    shippingState: "",
+    shippingPincode: "",
     items: [{ ...EMPTY_FORM }],
     deliveryCharge: "0",
     withGst: true,
@@ -303,6 +322,36 @@ export function parseManualQuotationInput(
     errors.state = "Place of supply decides the GST split — choose a state.";
   }
 
+  const sameAsBilling = raw.sameAsBilling !== false;
+  let shippingAddressLine: string | null = null;
+  let shippingCity: string | null = null;
+  let shippingState: string | null = null;
+  let shippingPincode: string | null = null;
+
+  if (sameAsBilling) {
+    shippingAddressLine = addressLine;
+    shippingCity = city;
+    shippingState = state;
+    shippingPincode = pincode !== "" ? pincode : null;
+  } else {
+    shippingAddressLine = str(raw.shippingAddressLine, 300) || null;
+    shippingCity = str(raw.shippingCity, 100) || null;
+    const shipPin = str(raw.shippingPincode, 6);
+    if (shipPin !== "" && !/^[1-9][0-9]{5}$/.test(shipPin)) {
+      errors.shippingPincode = "Enter a valid 6-digit pincode (or leave it blank).";
+    }
+    shippingPincode = shipPin !== "" ? shipPin : null;
+
+    const shipStateName = str(raw.shippingState, 100);
+    if (shipStateName !== "") {
+      if (stateCodeFromName(shipStateName) === null) {
+        errors.shippingState = "Choose a state from the list.";
+      } else {
+        shippingState = shipStateName;
+      }
+    }
+  }
+
   const bounds = opts?.validityDays ?? { min: 1, max: 365 };
   const validityDays = wholeNumber(str(raw.validityDays, 4) || "7", bounds.min, bounds.max);
   if (validityDays === null) {
@@ -379,6 +428,11 @@ export function parseManualQuotationInput(
       city,
       state,
       pincode: pincode === "" ? null : pincode,
+      sameAsBilling,
+      shippingAddressLine,
+      shippingCity,
+      shippingState,
+      shippingPincode,
       withGst,
       validityDays: validityDays ?? 7,
       items,
@@ -535,9 +589,13 @@ export function buildManualQuotation(
     shipping: {
       name: input.businessName ?? input.name,
       phone: input.phone,
-      pincode: input.pincode ?? "",
+      pincode: (input.sameAsBilling ? input.pincode : input.shippingPincode) ?? "",
       partnerName: "",
-      addressLine: input.addressLine,
+      addressLine: input.sameAsBilling
+        ? input.addressLine
+        : input.shippingAddressLine ?? input.addressLine,
+      city: input.sameAsBilling ? input.city : input.shippingCity ?? input.city,
+      state: input.sameAsBilling ? input.state : input.shippingState ?? input.state,
     },
     items: input.items.map((item, index) => ({
       name: item.name,
