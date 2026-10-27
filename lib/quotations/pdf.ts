@@ -3,7 +3,6 @@ import PDFDocument from "pdfkit";
 import { formatINR } from "@/lib/invoices/pdf";
 import { amountInWords } from "@/lib/quotations/words";
 import { loadQuotationLogo, loadQuotationSign } from "@/lib/quotations/assets";
-import { getQuotationAbout } from "@/lib/quotations/config";
 import type { QuotationData } from "@/lib/quotations/data";
 
 /**
@@ -17,10 +16,9 @@ import type { QuotationData } from "@/lib/quotations/data";
  * date) so the same frozen document always yields the same bytes.
  *
  * Layout follows the reference quotation: Trolift logo top-right with
- * the QUOTATION title beneath it; Bill To printed ONLY when the
- * customer provided a GSTIN (without one the shipping address alone
- * carries the document); an "About Trolift Solutions" band; the frozen
- * item table and totals; and the proprietor's signature image above
+ * the QUOTATION title beneath it; Bill To printed when the
+ * customer provided a GSTIN or when billing and shipping addresses differ;
+ * the frozen item table and totals; and the proprietor's signature image above
  * the signatory line.
  *
  * The document is visually and textually a QUOTATION, never a tax
@@ -236,43 +234,6 @@ function blockAnchor(ctx: Ctx, y: number, height: number): number {
     return doc.y;
   }
   return start;
-}
-
-/**
- * "About Trolift Solutions" band between the parties block and the
- * item table: frozen copy (falls back to the standard description for
- * documents frozen before the field existed).
- */
-function aboutSection(ctx: Ctx, quote: QuotationData): void {
-  const { doc } = ctx;
-  const text = ((quote.about ?? "").trim() || getQuotationAbout()).trim();
-  if (text === "") return;
-  const padX = 8;
-  const padTop = 6;
-  const headingH = 14;
-  const bodyW = CONTENT_WIDTH - padX * 2;
-  const bodyH = doc.heightOfString(text, { width: bodyW, lineGap: 1 });
-  const boxH = padTop + headingH + bodyH + padTop;
-  ensureSpace(ctx, boxH + 10);
-  const y = doc.y;
-  doc.save();
-  doc.fillColor("#f8fafc").rect(MARGIN, y, CONTENT_WIDTH, boxH).fill();
-  doc.restore();
-  doc
-    .strokeColor(LIGHT)
-    .lineWidth(0.5)
-    .rect(MARGIN, y, CONTENT_WIDTH, boxH)
-    .stroke();
-  doc.fillColor(INK).font("Helvetica-Bold").fontSize(9.5);
-  doc.text("About Trolift Solutions", MARGIN + padX, y + padTop, {
-    width: bodyW,
-  });
-  doc.fillColor(MUTED).font("Helvetica").fontSize(8.5);
-  doc.text(text, MARGIN + padX, y + padTop + headingH, {
-    width: bodyW,
-    lineGap: 1,
-  });
-  doc.y = y + boxH + 8;
 }
 
 interface Column {
@@ -660,7 +621,6 @@ export async function renderQuotationPdf(quote: QuotationData): Promise<Buffer> 
   header(ctx, quote);
   metaTable(ctx, quote);
   parties(ctx, quote);
-  aboutSection(ctx, quote);
   itemsTable(ctx, quote);
   totalsAndTerms(ctx, quote);
   footer(ctx, quote);

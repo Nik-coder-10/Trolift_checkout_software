@@ -116,8 +116,6 @@ describe("quotation PDF (reference layout)", () => {
       "Bill To",
       "Ship To",
       "Plot 22, MIDC Andheri East",
-      "About Trolift Solutions",
-      "Trolift Solutions is a Jaipur-based manufacturer",
       "Metal Trolley 600 Kg",
       "87168010",
       "Cartage - delivery charge",
@@ -132,6 +130,7 @@ describe("quotation PDF (reference layout)", () => {
     }
     expect(text).not.toContain("TAX INVOICE");
     expect(text).not.toContain("INV/");
+    expect(text).not.toContain("About Trolift Solutions");
   });
 
   it("prints the redeem discount and the net payable total", async () => {
@@ -213,7 +212,7 @@ describe("quotation PDF (reference layout)", () => {
     expect(text).toContain("Plot 22, MIDC Andheri East");
     expect(text).not.toContain("Bill To");
     expect(text).not.toContain("GSTIN: —");
-    expect(text).toContain("About Trolift Solutions");
+    expect(text).not.toContain("About Trolift Solutions");
   });
 
   it("renders a B2C GST quotation (no GSTIN) with shipping alone", async () => {
